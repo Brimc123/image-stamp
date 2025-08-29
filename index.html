@@ -1,197 +1,82 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Time & Date Stamp</title>
-<style>
-  :root{--bg:#0f172a;--card:#0b1224;--text:#e5e7eb;--muted:#94a3b8;--line:#334155;--accent:#2563eb;--ok:#16a34a}
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,Segoe UI,Roboto,Helvetica,Arial}
-  .wrap{max-width:980px;margin:48px auto;padding:0 18px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
-  h1{margin:0 0 12px;font-size:40px}
-  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  input[type=text],input[type=password],input[type=number]{background:#0d1424;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px 12px}
-  .btn{border:0;border-radius:10px;padding:10px 14px;font-weight:600;color:#fff;background:var(--accent);cursor:pointer}
-  .btn.gray{background:#475569}.btn.ok{background:var(--ok)}
-  .pill{border:1px solid var(--line);border-radius:999px;padding:8px 12px}
-  .dz{border:2px dashed var(--line);border-radius:12px;min-height:160px;display:grid;place-items:center;color:var(--muted);margin:14px 0;padding:16px;text-align:center}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  label{display:block;color:var(--muted);font-size:13px;margin:4px 0 6px}
-  .hint{font-size:13px;color:var(--muted)}
-  .right{margin-left:auto}
-  .hidden{display:none}
-</style>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Time & Date Stamp</title>
+  <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-<div class="wrap">
-  <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <h1>Time & Date Stamp</h1>
-      <div class="row">
-        <input id="email" type="text" placeholder="email" style="width:240px">
-        <input id="pass" type="password" placeholder="password" style="width:170px">
-        <button class="btn" id="login">Login</button>
-        <button class="btn ok" id="signup">Sign up</button>
-        <button class="btn gray" id="logout">Logout</button>
-        <div class="pill">Credits: <span id="credits">?</span></div>
-      </div>
+  <header class="topbar">
+    <div class="container row between center">
+      <div class="brand">Time & Date Stamp</div>
+      <nav class="row gap">
+        <input id="email" class="input sm" type="email" placeholder="email">
+        <input id="password" class="input sm" type="password" placeholder="password">
+        <button id="loginBtn" class="btn ghost">Login</button>
+        <button id="signupBtn" class="btn">Sign up</button>
+        <button id="logoutBtn" class="btn danger ghost">Logout</button>
+      </nav>
     </div>
+  </header>
 
-    <div id="dz" class="dz">
-      <div>
-        <div>Drag & drop JPG/PNG (or a single .zip), or click to choose</div>
-        <div class="hint">We crop from the <b>bottom</b> first to remove any old stamp, then add your new one.</div>
+  <main class="container">
+    <section class="card">
+      <div class="row between center">
+        <div class="h3">Stamp images</div>
+        <div class="credits">Credits: <span id="credits">?</span></div>
       </div>
-    </div>
-    <input id="fileInput" type="file" multiple accept=".jpg,.jpeg,.png,.zip" class="hidden">
-    <div id="picked" class="hint" style="text-align:center">No files selected</div>
 
-    <div class="grid" style="margin-top:12px">
-      <div>
-        <label>Date (dd/mm/yyyy)</label>
-        <input id="date" type="text" value="27/08/2025">
+      <div id="dropzone" class="dropzone">
+        <input id="fileInput" type="file" accept=".jpg,.jpeg,.png,.zip" multiple hidden>
+        <div class="dz-inner">
+          <div class="dz-icon">⬆</div>
+          <div class="dz-title">Drag & drop JPG/PNG (or a single .zip)</div>
+          <div class="dz-sub">…or <button id="chooseBtn" class="link" type="button">click to choose</button></div>
+          <div class="dz-note">We crop from the <strong>bottom</strong> first to remove any old stamp, then add your new one.</div>
+          <div id="fileList" class="dz-files"></div>
+        </div>
       </div>
-      <div>
-        <label>Crop height (px from bottom)</label>
-        <input id="crop" type="number" value="120" min="0">
+
+      <div class="grid two">
+        <label class="field">
+          <span>Date (dd/mm/yyyy)</span>
+          <input id="date" class="input" placeholder="dd/mm/yyyy">
+        </label>
+        <label class="field">
+          <span>Crop height (px from bottom)</span>
+          <input id="crop" class="input" type="number" min="0" step="1" value="120">
+        </label>
+
+        <label class="field">
+          <span>Start time</span>
+          <input id="start" class="input" placeholder="09:00:00">
+        </label>
+        <label class="field">
+          <span>End time</span>
+          <input id="end" class="input" placeholder="09:05:00">
+        </label>
       </div>
-      <div>
-        <label>Start time (HH:MM:SS)</label>
-        <input id="t1" type="text" value="09:00:00">
+
+      <div class="row gap">
+        <button id="stampBtn" class="btn primary" type="button">Stamp & Download</button>
+        <button id="topupBtn" class="btn ghost" type="button">Top up +5 (demo)</button>
       </div>
-      <div>
-        <label>End time (HH:MM:SS)</label>
-        <input id="t2" type="text" value="09:05:00">
+
+      <div id="notice" class="notice">
+        1 credit = £<span id="price">20</span>. You’ll be invoiced weekly. Non-payment may result in account lock.
       </div>
-    </div>
 
-    <div class="row" style="margin-top:12px">
-      <button id="stamp" class="btn">Stamp & Download</button>
-      <button id="topup" class="btn ok hidden">Top up +5 (demo)</button>
-      <div id="msg" class="pill hint right"></div>
-    </div>
-    <div id="err" class="hint" style="color:#fda4af;margin-top:10px"></div>
-  </div>
-  <div class="hint" style="margin-top:10px">1 credit = £20 (default). You’ll be invoiced weekly. Non-payment may result in account lock.</div>
-</div>
+      <div id="progress" class="progress hidden">
+        <div class="spinner"></div>
+        <div id="progressMsg">Processing…</div>
+      </div>
 
-<script>
-const q = s => document.querySelector(s);
-const picked = { files: [] };
+      <div id="toast" class="toast hidden"></div>
+    </section>
+  </main>
 
-// === Config (price etc.) ===
-let CREDIT_COST_GBP = 20;          // default; can be overridden by /auth/config
-const TOPUP_SIZE = 5;              // always 5 per request (demo + future real top-up)
-
-async function api(url, opts={}) {
-  const res = await fetch(url, Object.assign({credentials:'include'}, opts));
-  const ct = res.headers.get('content-type')||'';
-  const body = ct.includes('application/json') ? await res.json() : await res.text();
-  if (!res.ok) throw (typeof body==='object'?body:{detail:body||res.statusText});
-  return body;
-}
-
-async function refreshMe(){
-  try{
-    const me = await api('/auth/me');
-    q('#credits').textContent = me.credits;
-  }catch{
-    q('#credits').textContent = '0';
-  }
-}
-
-async function loadConfig(){
-  try{
-    const cfg = await api('/auth/config'); // expects { allow_demo_topup: bool, credit_cost_gbp?: number }
-    if (cfg.allow_demo_topup) q('#topup').classList.remove('hidden');
-    if (typeof cfg.credit_cost_gbp !== 'undefined') {
-      const n = Number(cfg.credit_cost_gbp);
-      if (!Number.isNaN(n) && n > 0) CREDIT_COST_GBP = n;
-    }
-  }catch{}
-}
-
-// --- Auth buttons ---
-q('#login').onclick = async ()=>{
-  q('#err').textContent='';
-  try{
-    const email = q('#email').value.trim(); const password = q('#pass').value;
-    await api('/auth/login',{method:'POST', body:new URLSearchParams({email,password})});
-    refreshMe();
-  }catch(e){ q('#err').textContent = e.detail || 'Login failed'; }
-};
-q('#signup').onclick = async ()=>{
-  q('#err').textContent='';
-  try{
-    const email = q('#email').value.trim(); const password = q('#pass').value;
-    await api('/auth/signup',{method:'POST', body:new URLSearchParams({email,password})});
-    refreshMe();
-  }catch(e){ q('#err').textContent = e.detail || 'Signup failed'; }
-};
-q('#logout').onclick = async ()=>{ await api('/auth/logout',{method:'POST'}); refreshMe(); };
-
-// --- Top up (with billing warning) ---
-q('#topup').onclick = async ()=>{
-  q('#err').textContent='';
-  const total = TOPUP_SIZE * CREDIT_COST_GBP;
-  const ok = confirm(`Top up ${TOPUP_SIZE} credits for £${total}? You will be invoiced weekly for usage.\n\nPress OK to proceed or Cancel to abort.`);
-  if (!ok) return;
-  try{
-    await api('/auth/topup_demo',{method:'POST', body:new URLSearchParams({amount:TOPUP_SIZE})});
-    await refreshMe();
-    q('#msg').textContent = `Added ${TOPUP_SIZE} credits (total billed: £${total}).`;
-  }catch(e){
-    q('#err').textContent = e.detail || 'Topup failed';
-  }
-};
-
-// --- Drag & drop / file chooser ---
-function showPicked(){ q('#picked').textContent = picked.files.length ? `${picked.files.length} file(s) selected` : 'No files selected'; }
-const dz = q('#dz'), fi = q('#fileInput');
-dz.addEventListener('click',()=>fi.click());
-dz.addEventListener('dragover',e=>{e.preventDefault(); dz.style.borderColor='#60a5fa';});
-dz.addEventListener('dragleave',()=>{dz.style.borderColor='var(--line)';});
-dz.addEventListener('drop',e=>{
-  e.preventDefault(); dz.style.borderColor='var(--line)';
-  picked.files = [...(e.dataTransfer?.files||[])];
-  showPicked();
-});
-fi.addEventListener('change', e=>{ picked.files = [...e.target.files]; showPicked(); fi.value=''; });
-
-// --- Stamp & Download (with billing warning) ---
-q('#stamp').onclick = async ()=>{
-  q('#err').textContent=''; q('#msg').textContent='';
-  if (!picked.files.length){ q('#err').textContent='Please choose images or a zip.'; return; }
-
-  const ok = confirm(`This action uses 1 credit (£${CREDIT_COST_GBP}) and will be invoiced weekly.\n\nPress OK to continue or Cancel to abort.`);
-  if (!ok) return;
-
-  const fd = new FormData();
-  picked.files.forEach(f=>fd.append('files',f,f.name));
-  fd.append('date_text', q('#date').value.trim());
-  fd.append('start_time', q('#t1').value.trim());
-  fd.append('end_time', q('#t2').value.trim());
-  fd.append('crop_bottom', String(Math.max(0, parseInt(q('#crop').value||'0',10))));
-
-  try{
-    const res = await fetch('/api/stamp',{method:'POST', body:fd, credentials:'include'});
-    if(!res.ok){
-      let detail = '';
-      try{ detail = (await res.json()).detail }catch{}
-      throw new Error(detail || res.statusText);
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url; a.download='stamped_images.zip';
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    q('#msg').textContent='Download started';
-    refreshMe();
-  }catch(e){ q('#err').textContent = e.message || 'Stamp failed'; }
-};
-
-refreshMe();
-loadConfig();
-</script>
+  <script src="/static/app.js"></script>
 </body>
 </html>
