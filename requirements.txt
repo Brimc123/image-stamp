@@ -3,3 +3,4 @@ uvicorn[standard]
 bcrypt
 pillow
 python-multipart
+email-validator
