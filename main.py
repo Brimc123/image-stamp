@@ -1,460 +1,568 @@
-# main.py
 import os
 import io
+import random
 import sqlite3
 from datetime import datetime, timedelta
+from string import Template
 from typing import List, Optional
 
-from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, PlainTextResponse
+from fastapi import FastAPI, Form, UploadFile, File, Request, Response, Depends
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-import bcrypt
-from PIL import Image, ImageDraw, ImageFont
-
-APP_ENV = os.getenv("APP_ENV", "development")
-ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "*").split(",") if o.strip()]
-SESSION_SECRET = os.getenv("SESSION_SECRET", "dev_secret_change_me")
-SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "imgstamp_session")
-DB_FILE = os.getenv("DB_FILE", os.getenv("DB_PATH", "./app.db"))
+# -------------------------
+# Config via environment
+# -------------------------
+APP_ENV = os.getenv("APP_ENV", "production")
+SESSION_SECRET = os.getenv("SESSION_SECRET", "change-me")
+ADMIN_CODE = os.getenv("ADMIN_CODE", "change-me")
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@example.com")
+ALLOWED_ORIGINS_RAW = os.getenv("ALLOWED_ORIGINS", "https://autodate.co.uk,https://www.autodate.co.uk,https://image-stamp.onrender.com")
+ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
+DB_FILE = os.getenv("DB_FILE", "/var/data/app.db")  # Render persistent disk path if mounted, else fallback file
+DB_PATH = os.getenv("DB_PATH", "dev.db")            # ignored when DB_FILE is absolute
 CREDIT_COST_GBP = float(os.getenv("CREDIT_COST_GBP", "10"))
-MIN_TOPUP = int(os.getenv("MIN_TOPUP", "5"))
+MIN_TOPUP_CREDITS = 5
 
-# -----------------------------------------------------------------------------
-# Database helpers
-# -----------------------------------------------------------------------------
-def get_db():
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+# Optional custom font in repo (put e.g. fonts/Roboto-Regular.ttf)
+FONT_PATH = os.getenv("FONT_PATH", "")  # leave empty to use system DejaVuSans
+
+# -------------------------
+# App & middleware
+# -------------------------
+app = FastAPI()
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", session_cookie=os.getenv("SESSION_COOKIE_NAME","imgstamp_session"))
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS or ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# -------------------------
+# DB helpers
+# -------------------------
+def db_conn():
+    path = DB_FILE if DB_FILE.startswith("/") else DB_PATH
+    conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
-def init_db():
-    conn = get_db()
+def db_init():
+    conn = db_conn()
     cur = conn.cursor()
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            is_admin INTEGER DEFAULT 0,
-            created_at TEXT NOT NULL
-        )
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        credits INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+    );
     """)
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS ledger (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            action TEXT NOT NULL,          -- 'topup' or 'stamp'
-            credits INTEGER NOT NULL,      -- + for topup, - for usage
-            unit_price REAL DEFAULT 0,     -- price per credit (topups)
-            total_price REAL DEFAULT 0,    -- unit * credits (topups)
-            note TEXT DEFAULT '',
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        )
+    CREATE TABLE IF NOT EXISTS topups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        credits INTEGER NOT NULL,
+        amount_gbp REAL NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+    """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        action TEXT NOT NULL,
+        credits_delta INTEGER NOT NULL,
+        meta TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    );
     """)
     conn.commit()
     conn.close()
 
-def user_balance(user_id: int) -> int:
-    conn = get_db()
+db_init()
+
+def get_user_by_email(email: str):
+    conn = db_conn()
     cur = conn.cursor()
-    cur.execute("SELECT COALESCE(SUM(credits),0) AS bal FROM ledger WHERE user_id=?", (user_id,))
+    cur.execute("SELECT * FROM users WHERE email=?", (email,))
     row = cur.fetchone()
-    return int(row["bal"] or 0)
+    conn.close()
+    return row
 
-# -----------------------------------------------------------------------------
-# App + middleware
-# -----------------------------------------------------------------------------
-init_db()
-
-app = FastAPI()
-if ALLOWED_ORIGINS != ["*"]:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=ALLOWED_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=SESSION_SECRET,
-    session_cookie=SESSION_COOKIE_NAME,
-    same_site="lax",
-    https_only=True if APP_ENV == "production" else False,
-)
-
-# -----------------------------------------------------------------------------
-# Auth helpers
-# -----------------------------------------------------------------------------
-def current_user(request: Request) -> Optional[sqlite3.Row]:
-    uid = request.session.get("uid")
-    if not uid:
-        return None
-    conn = get_db()
+def ensure_user(email: str):
+    u = get_user_by_email(email)
+    if u:
+        return u
+    conn = db_conn()
     cur = conn.cursor()
-    cur.execute("SELECT id, email, is_admin, created_at FROM users WHERE id=?", (uid,))
-    return cur.fetchone()
+    now = datetime.utcnow().isoformat()
+    cur.execute("INSERT INTO users(email, credits, created_at) VALUES (?,?,?)", (email, 0, now))
+    conn.commit()
+    conn.close()
+    return get_user_by_email(email)
 
-def require_user(request: Request) -> sqlite3.Row:
-    user = current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not logged in")
-    return user
+def add_topup(user_id: int, credits: int):
+    amount = credits * CREDIT_COST_GBP
+    conn = db_conn()
+    cur = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    cur.execute("INSERT INTO topups(user_id, credits, amount_gbp, created_at) VALUES (?,?,?,?)",
+                (user_id, credits, amount, now))
+    cur.execute("UPDATE users SET credits = credits + ? WHERE id=?", (credits, user_id))
+    cur.execute("INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
+                (user_id, "topup", credits, f"{credits} credits", now))
+    conn.commit()
+    conn.close()
 
-# -----------------------------------------------------------------------------
-# HTML (embedded)
-# -----------------------------------------------------------------------------
-BILLING_HTML = """
+def add_usage(user_id: int, action: str, credits_delta: int, meta: str = ""):
+    conn = db_conn()
+    cur = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    cur.execute("INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
+                (user_id, action, credits_delta, meta, now))
+    cur.execute("UPDATE users SET credits = credits + ? WHERE id=?", (credits_delta, user_id))  # delta likely negative
+    conn.commit()
+    conn.close()
+
+def list_topups(user_id: int):
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM topups WHERE user_id=? ORDER BY id DESC LIMIT 20", (user_id,))
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+def list_usage(user_id: int):
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM usage WHERE user_id=? ORDER BY id DESC LIMIT 20", (user_id,))
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+# -------------------------
+# HTML (string.Template – no {{ }} so Python won’t choke)
+# -------------------------
+login_html = Template(r"""
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Billing · AutoDate</title>
-    <style>
-      :root { --bg:#0f172a; --card:#111827; --muted:#94a3b8; --text:#e5e7eb; --brand:#7c3aed; --ok:#22c55e; --bad:#ef4444; }
-      * { box-sizing: border-box; }
-      body { margin:0; font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background:var(--bg); color:var(--text); }
-      .wrap { max-width: 980px; margin: 40px auto; padding: 0 16px; }
-      h1 { font-size: 34px; margin: 0 0 12px; }
-      .muted { color: var(--muted); font-size: 14px; }
-      .card { background: var(--card); border: 1px solid #1f2937; border-radius: 16px; padding: 16px; }
-      .row { display:flex; gap:16px; align-items:center; }
-      .row > * { flex:1; }
-      button { background: var(--brand); color:white; border:0; padding:12px 16px; border-radius: 12px; font-weight:600; cursor:pointer; }
-      button.secondary { background: transparent; border:1px solid #334155; }
-      table { width:100%; border-collapse: collapse; }
-      th, td { padding:12px 10px; border-top: 1px solid #1f2937; }
-      th { text-align:left; color: var(--muted); font-weight:600; }
-      .right { text-align:right; }
-      input[type="email"], input[type="password"] { width: 100%; padding:12px; border-radius: 10px; border:1px solid #334155; background:#0b1220; color:var(--text); }
-      .stack { display:grid; gap:10px; }
-      .pill { display:inline-block; padding:4px 10px; border-radius:999px; background:#0b1220; border:1px solid #334155; font-size:12px; color:var(--muted); }
-      .warn { color:#fbbf24; }
-      .success { color: var(--ok); }
-      .center { text-align:center; }
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <a href="/" class="muted">← Back</a>
-      <h1>Billing</h1>
+<head>
+<meta charset="utf-8" />
+<title>Log in · Autodate</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0f172a;color:#e2e8f0}
+.card{max-width:420px;margin:3rem auto;background:#111827;border:1px solid #1f2937;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+h1{margin:0 0 12px;font-size:1.5rem;color:#fff}
+label{display:block;margin:12px 0 6px}
+input{width:100%;padding:12px;border-radius:10px;border:1px solid #374151;background:#0b1220;color:#e5e7eb}
+button{margin-top:16px;width:100%;padding:12px 16px;border:0;border-radius:10px;background:#22c55e;color:#0b1220;font-weight:700;cursor:pointer}
+.small{opacity:.8;font-size:.9rem;margin-top:10px}
+a{color:#93c5fd}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Sign in</h1>
+    <form method="post" action="/login">
+      <label>Email</label>
+      <input name="email" type="email" placeholder="you@company.com" required />
+      <label>Access Code</label>
+      <input name="code" type="password" placeholder="••••••••" required />
+      <button type="submit">Enter</button>
+      <div class="small">Use the access code provided to you.</div>
+    </form>
+  </div>
+</body>
+</html>
+""")
 
-      <div class="card" style="margin-bottom:16px;">
-        <div id="authArea" class="row">
-          <div>
-            <div class="muted">Status</div>
-            <div id="whoami" style="font-weight:700">Loading…</div>
-          </div>
-          <div class="right">
-            <button id="logoutBtn" class="secondary" style="display:none;">Log out</button>
-          </div>
-        </div>
-        <div id="loginArea" class="row" style="margin-top:10px; display:none;">
-          <div class="stack">
-            <input id="email" type="email" placeholder="you@example.com" />
-          </div>
-          <div class="stack">
-            <input id="password" type="password" placeholder="password" />
-          </div>
-          <div class="right">
-            <button id="signupBtn" class="secondary">Sign up</button>
-            <button id="loginBtn">Log in</button>
-          </div>
-        </div>
-      </div>
+billing_html = Template(r"""
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Billing · Autodate</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0f172a;color:#e2e8f0}
+.container{max-width:980px;margin:0 auto}
+h1{font-size:2rem;margin:.3rem 0 1rem}
+.card{background:#111827;border:1px solid #1f2937;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.row{display:grid;grid-template-columns:1fr 140px 140px;gap:16px;padding:14px 16px;border-top:1px solid #1f2937}
+.row.header{color:#94a3b8;background:#0b1220;border-radius:16px 16px 0 0;border-top:0}
+.badge{display:inline-block;padding:.25rem .5rem;border-radius:999px;background:#1f2937;color:#cbd5e1}
+button{padding:10px 14px;border-radius:10px;border:1px solid #16a34a;background:#22c55e;color:#0b1220;font-weight:800;cursor:pointer}
+.small{opacity:.8}
+a{color:#93c5fd}
+.flex{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.mt{margin-top:18px}
+</style>
+</head>
+<body>
+  <div class="container">
+    <a href="/tool" class="small">← Back to Image Tool</a>
+    <h1>Billing</h1>
 
-      <div class="card" style="margin-bottom:16px;">
-        <div class="row">
-          <div><span class="muted">Credits:</span> <span id="credits">0</span></div>
-          <div><span class="muted">Price:</span> £<span id="pricePer">X</span>/credit</div>
-          <div><span class="muted">Minimum top-up:</span> <span id="minTopup">X</span> credits</div>
-          <div class="right">
-            <button id="topupBtn">Top up <span id="minTopupBtn">5</span> credits ( £<span id="topupTotal">0</span> )</button>
-          </div>
-        </div>
-        <div style="margin-top:12px;" class="muted">
-          By topping up you agree: <span class="warn">we do not charge upfront.</span> We <b>record</b> each top-up and
-          <b>invoice weekly</b> for any credits added that week. This will be shown in your ledger below.
-        </div>
-      </div>
-
-      <div class="card" style="margin-bottom:16px;">
-        <div class="row">
-          <div style="font-weight:700;">Recent top-ups</div>
-          <div class="right"><span class="pill">last 20</span></div>
-        </div>
-        <table id="topupsTbl">
-          <thead><tr><th>When</th><th>Credits</th><th class="right">Charged</th></tr></thead>
-          <tbody id="topupsBody"><tr><td colspan="3" class="muted">No top-ups yet</td></tr></tbody>
-        </table>
-      </div>
-
-      <div class="card">
-        <div class="row">
-          <div style="font-weight:700;">Recent usage</div>
-          <div class="right"><span class="pill">last 20</span></div>
-        </div>
-        <table id="usageTbl">
-          <thead><tr><th>When</th><th>Action</th><th class="right">Credits Δ</th></tr></thead>
-        <tbody id="usageBody"><tr><td colspan="3" class="muted">No usage yet</td></tr></tbody>
-        </table>
-        <div class="muted" style="margin-top:10px;">This page uses an embedded template.</div>
-      </div>
+    <div class="flex">
+      <div class="badge">Credits: ${credits}</div>
+      <div class="badge">Price: £${price}/credit</div>
+      <div class="badge">Minimum top-up: ${minc} credits (£${minamount})</div>
+      <button id="topupBtn">Top up ${minc} credits (£${minamount})</button>
     </div>
 
-    <script>
-      const pricePer = ${price_per};
-      const minTopup = ${min_topup};
-      document.getElementById("pricePer").textContent = pricePer.toFixed(2);
-      document.getElementById("minTopup").textContent = minTopup;
-      document.getElementById("minTopupBtn").textContent = minTopup;
-      document.getElementById("topupTotal").textContent = (pricePer * minTopup).toFixed(2);
+    <p class="small mt">
+      Top-ups are recorded instantly in your account. <strong>No card is charged on this site.</strong>
+      We total your top-ups and <strong>invoice weekly</strong> to the email on file. By proceeding you agree to be billed for the selected top-up.
+    </p>
 
-      async function api(path, opts={}) {
-        const res = await fetch(path, {credentials:'include', headers:{'Accept':'application/json','Content-Type':'application/json'}, ...opts});
-        if (!res.ok) throw new Error(await res.text());
-        return await res.json();
-      }
+    <h2 class="mt">Recent Top-ups</h2>
+    <div class="card">
+      <div class="row header"><div>When</div><div>Credits</div><div>Charged</div></div>
+      ${topups_rows}
+    </div>
 
-      async function refresh() {
-        try {
-          const me = await api('/api/me');
-          document.getElementById('whoami').textContent = me.email + ' • joined ' + new Date(me.created_at).toLocaleDateString();
-          document.getElementById('credits').textContent = me.balance;
-          document.getElementById('loginArea').style.display = 'none';
-          document.getElementById('logoutBtn').style.display = '';
+    <h2 class="mt">Recent Usage</h2>
+    <div class="card">
+      <div class="row header"><div>When</div><div>Action</div><div>Credits Δ</div></div>
+      ${usage_rows}
+    </div>
+  </div>
 
-          const led = await api('/api/ledger?limit=20');
-          const topBody = document.getElementById('topupsBody');
-          topBody.innerHTML = '';
-          if (led.topups.length === 0) topBody.innerHTML = '<tr><td colspan="3" class="muted">No top-ups yet</td></tr>';
-          for (const r of led.topups) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${new Date(r.created_at).toLocaleString()}</td><td>${r.credits}</td><td class="right">£${r.total_price.toFixed(2)}</td>`;
-            topBody.appendChild(tr);
-          }
-          const useBody = document.getElementById('usageBody');
-          useBody.innerHTML = '';
-          if (led.usage.length === 0) useBody.innerHTML = '<tr><td colspan="3" class="muted">No usage yet</td></tr>';
-          for (const r of led.usage) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${new Date(r.created_at).toLocaleString()}</td><td>${r.note || 'stamp'}</td><td class="right">${r.credits}</td>`;
-            useBody.appendChild(tr);
-          }
-        } catch (e) {
-          document.getElementById('whoami').textContent = 'Not logged in';
-          document.getElementById('loginArea').style.display = '';
-          document.getElementById('logoutBtn').style.display = 'none';
-        }
-      }
+<script>
+document.getElementById('topupBtn').addEventListener('click', async () => {
+  const ok = confirm(
+    'You are topping up ${minc} credits for £${minamount}.\\n\\n' +
+    'These credits will be invoiced weekly. Do you confirm?'
+  );
+  if(!ok) return;
 
-      document.getElementById('loginBtn').onclick = async () => {
-        const body = {email:document.getElementById('email').value.trim(), password:document.getElementById('password').value};
-        await api('/api/login', {method:'POST', body: JSON.stringify(body)});
-        await refresh();
-        alert('Logged in.');
-      };
-      document.getElementById('signupBtn').onclick = async () => {
-        const body = {email:document.getElementById('email').value.trim(), password:document.getElementById('password').value};
-        await api('/api/signup', {method:'POST', body: JSON.stringify(body)});
-        await refresh();
-        alert('Account created & logged in.');
-      };
-      document.getElementById('logoutBtn').onclick = async () => {
-        await api('/api/logout', {method:'POST', body:'{}'});
-        await refresh();
-      };
-
-      document.getElementById('topupBtn').onclick = async () => {
-        const ok = confirm(`You are adding ${minTopup} credits.\n\nWe record this and invoice weekly. Unit price £${pricePer.toFixed(2)} (total £${(pricePer*minTopup).toFixed(2)}). Proceed?`);
-        if (!ok) return;
-        await api('/api/topup', {method:'POST', body: JSON.stringify({credits:minTopup})});
-        await refresh();
-        alert('Top-up recorded. You will be invoiced in the weekly billing run.');
-      };
-
-      refresh();
-    </script>
-  </body>
+  const r = await fetch('/api/topup', {method:'POST'});
+  const j = await r.json();
+  if(j.ok){ alert('Top-up added. New balance: ' + j.credits); location.reload(); }
+  else { alert('Top-up failed: ' + (j.error||'unknown')); }
+});
+</script>
+</body>
 </html>
-"""
+""")
 
-# -----------------------------------------------------------------------------
+tool_html = Template(r"""
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Image Timestamp Tool · Autodate</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0f172a;color:#e2e8f0}
+.container{max-width:980px;margin:0 auto}
+h1{font-size:2rem;margin:.3rem 0 1rem}
+.card{background:#111827;border:1px solid #1f2937;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:16px}
+label{display:block;margin:10px 0 6px}
+input,select{width:100%;padding:10px;border-radius:10px;border:1px solid #374151;background:#0b1220;color:#e5e7eb}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+button{margin-top:16px;padding:12px 16px;border:0;border-radius:10px;background:#22c55e;color:#0b1220;font-weight:700;cursor:pointer}
+a{color:#93c5fd}
+.small{opacity:.8}
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="grid">
+      <div>
+        <a href="/billing" class="small">← Billing</a>
+        <h1>Image Timestamp Tool</h1>
+        <form id="form">
+          <label>Images (one or many)</label>
+          <input type="file" name="files" multiple required accept="image/*" />
+
+          <label>Target date</label>
+          <input type="date" name="date" required />
+
+          <label>Start time</label>
+          <input type="time" name="start" step="1" required />
+
+          <label>End time (for multiple images; optional)</label>
+          <input type="time" name="end" step="1" />
+
+          <label>Crop (pixels from each edge, e.g. to remove top GPS bar)</label>
+          <div class="grid">
+            <input name="crop_top" type="number" min="0" step="1" placeholder="top 0" />
+            <input name="crop_bottom" type="number" min="0" step="1" placeholder="bottom 0" />
+          </div>
+
+          <label>Date format (match your originals)</label>
+          <select name="date_format">
+            <option value="d_mmm_yyyy">26 Mar 2025, 12:07:36</option>
+            <option value="dd_slash_mm_yyyy">01/01/2025, 13:23:30</option>
+          </select>
+
+          <button>Process</button>
+        </form>
+        <p class="small">Each run deducts 1 credit from your balance.</p>
+      </div>
+      <div class="card">
+        <h3>Result</h3>
+        <div id="result" class="small">You will get a zip download.</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+document.getElementById('form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const r = await fetch('/api/stamp', { method:'POST', body: fd });
+  if(!r.ok){ alert('Failed: ' + r.status); return; }
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'stamped.zip'; a.click();
+  URL.revokeObjectURL(url);
+  document.getElementById('result').textContent = 'Downloaded stamped.zip';
+});
+</script>
+</body>
+</html>
+""")
+
+# -------------------------
+# Utility: auth
+# -------------------------
+def current_user(request: Request):
+    u = request.session.get("user")
+    if not u:
+        return None
+    return u
+
+def require_user(request: Request):
+    u = current_user(request)
+    if not u:
+        return RedirectResponse("/login", status_code=302)
+    return u
+
+# -------------------------
 # Routes
-# -----------------------------------------------------------------------------
+# -------------------------
 @app.get("/health")
 def health():
-    return {"ok": True, "time": datetime.utcnow().isoformat() + "Z"}
+    return {"ok": True}
+
+@app.get("/api/ping")
+def ping():
+    return {"ok": True, "message": "pong"}
 
 @app.get("/", response_class=HTMLResponse)
 def home():
-    return "<div style='padding:24px;font-family:system-ui'>AutoDate service is up. <a href='/billing'>Billing</a></div>"
+    return RedirectResponse("/tool", status_code=302)
 
+# ----- Auth -----
+@app.get("/login", response_class=HTMLResponse)
+def login_get(request: Request):
+    return HTMLResponse(login_html.substitute({}))
+
+@app.post("/login")
+async def login_post(request: Request, email: str = Form(...), code: str = Form(...)):
+    if code != ADMIN_CODE:
+        return HTMLResponse("<h3>Wrong code</h3><a href='/login'>Back</a>", status_code=401)
+    ensure_user(email.strip().lower())
+    request.session["user"] = {"email": email.strip().lower()}
+    return RedirectResponse("/tool", status_code=302)
+
+@app.get("/logout")
+def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse("/login", status_code=302)
+
+# ----- Billing page (no Stripe, just records top-ups) -----
 @app.get("/billing", response_class=HTMLResponse)
-def billing():
-    html = BILLING_HTML.replace("${price_per}", str(CREDIT_COST_GBP)).replace("${min_topup}", str(MIN_TOPUP))
+def billing(request: Request):
+    u = current_user(request)
+    if not u:
+        return RedirectResponse("/login", status_code=302)
+
+    user_row = get_user_by_email(u["email"])
+    credits = user_row["credits"] if user_row else 0
+    tops = list_topups(user_row["id"]) if user_row else []
+    use = list_usage(user_row["id"]) if user_row else []
+
+    def fmt_rows(rows, kind):
+        if not rows:
+            return '<div class="row"><div>No entries yet</div><div>—</div><div>—</div></div>'
+        out = []
+        for r in rows:
+            when = r["created_at"].replace("T"," ").split(".")[0]
+            if kind == "topups":
+                out.append(f'<div class="row"><div>{when}</div><div>{r["credits"]}</div><div>£{r["amount_gbp"]:.0f}</div></div>')
+            else:
+                out.append(f'<div class="row"><div>{when}</div><div>{r["action"]}</div><div>{r["credits_delta"]}</div></div>')
+        return "\n".join(out)
+
+    html = billing_html.substitute(
+        credits = credits,
+        price = int(CREDIT_COST_GBP),
+        minc = MIN_TOPUP_CREDITS,
+        minamount = int(MIN_TOPUP_CREDITS*CREDIT_COST_GBP),
+        topups_rows = fmt_rows(tops, "topups"),
+        usage_rows = fmt_rows(use, "usage")
+    )
     return HTMLResponse(html)
 
-# --- Auth API ---
-@app.post("/api/signup")
-async def signup(payload: dict, request: Request):
-    email = (payload.get("email") or "").strip().lower()
-    password = payload.get("password") or ""
-    if not email or not password:
-        raise HTTPException(400, "email & password required")
-    pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    conn = get_db()
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            "INSERT INTO users (email, password_hash, is_admin, created_at) VALUES (?,?,0,?)",
-            (email, pw_hash, datetime.utcnow().isoformat()+"Z"),
-        )
-        conn.commit()
-    except sqlite3.IntegrityError:
-        raise HTTPException(400, "email already registered")
-    finally:
-        conn.close()
-    # auto-login
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT id FROM users WHERE email=?", (email,))
-    uid = cur.fetchone()["id"]
-    conn.close()
-    request.session["uid"] = uid
-    return {"ok": True}
-
-@app.post("/api/login")
-async def login(payload: dict, request: Request):
-    email = (payload.get("email") or "").strip().lower()
-    password = payload.get("password") or ""
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT id, password_hash FROM users WHERE email=?", (email,))
-    row = cur.fetchone()
-    conn.close()
-    if not row or not bcrypt.checkpw(password.encode(), row["password_hash"].encode()):
-        raise HTTPException(401, "invalid credentials")
-    request.session["uid"] = row["id"]
-    return {"ok": True}
-
-@app.post("/api/logout")
-async def logout(request: Request):
-    request.session.clear()
-    return {"ok": True}
-
-@app.get("/api/me")
-def me(request: Request):
-    user = require_user(request)
-    bal = user_balance(user["id"])
-    return {"id": user["id"], "email": user["email"], "is_admin": bool(user["is_admin"]), "created_at": user["created_at"], "balance": bal, "price_per": CREDIT_COST_GBP, "min_topup": MIN_TOPUP}
-
-@app.get("/api/ledger")
-def ledger(request: Request, limit: int = 20):
-    user = require_user(request)
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT created_at, credits, unit_price, total_price, note FROM ledger WHERE user_id=? AND action='topup' ORDER BY id DESC LIMIT ?", (user["id"], limit))
-    topups = [dict(r) for r in cur.fetchall()]
-    cur.execute("SELECT created_at, credits, note FROM ledger WHERE user_id=? AND action='stamp' ORDER BY id DESC LIMIT ?", (user["id"], limit))
-    usage = [dict(r) for r in cur.fetchall()]
-    conn.close()
-    return {"topups": topups, "usage": usage}
-
 @app.post("/api/topup")
-async def topup(payload: dict, request: Request):
-    user = require_user(request)
-    credits = int(payload.get("credits") or 0)
-    if credits < MIN_TOPUP:
-        raise HTTPException(400, f"minimum top-up is {MIN_TOPUP} credits")
-    unit = CREDIT_COST_GBP
-    total = unit * credits
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO ledger (user_id, action, credits, unit_price, total_price, note, created_at) VALUES (?,?,?,?,?,?,?)",
-        (user["id"], "topup", credits, unit, total, "Manual billing; weekly invoice", datetime.utcnow().isoformat()+"Z"),
-    )
-    conn.commit()
-    conn.close()
-    return {"ok": True, "balance": user_balance(user["id"])}
+def api_topup(request: Request):
+    u = current_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "not_signed_in"}, status_code=401)
+    row = ensure_user(u["email"])
+    add_topup(row["id"], MIN_TOPUP_CREDITS)
+    refreshed = get_user_by_email(u["email"])
+    return {"ok": True, "credits": refreshed["credits"]}
 
-# --- Minimal stamp endpoint that decrements 1 credit per image successfully processed ---
-def _stamp_one(img_bytes: bytes, overlay_text: str, crop_bottom_px: int = 0) -> bytes:
-    with Image.open(io.BytesIO(img_bytes)) as im:
-        width, height = im.size
-        if crop_bottom_px > 0 and crop_bottom_px < height:
-            im = im.crop((0, 0, width, height - crop_bottom_px))
-        draw = ImageDraw.Draw(im)
+# ----- Tool page -----
+@app.get("/tool", response_class=HTMLResponse)
+def tool(request: Request):
+    u = current_user(request)
+    if not u:
+        return RedirectResponse("/login", status_code=302)
+    return HTMLResponse(tool_html.substitute({}))
+
+# -------------------------
+# Image stamping
+# -------------------------
+def load_font(size: int):
+    # fallbacks if custom path not set
+    candidates = []
+    if FONT_PATH:
+        candidates.append(FONT_PATH)
+    candidates += [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed.ttf"
+    ]
+    for p in candidates:
         try:
-            font = ImageFont.truetype("arial.ttf", 28)
+            return ImageFont.truetype(p, size=size)
         except Exception:
-            font = ImageFont.load_default()
-        bbox = draw.textbbox((0,0), overlay_text, font=font)
-        tw, th = bbox[2]-bbox[0], bbox[3]-bbox[1]
-        x = im.width - tw - 10
-        y = im.height - th - 10
-        draw.text((x, y), overlay_text, font=font, fill="white")
-        out = io.BytesIO()
-        im.save(out, format="JPEG")
-        return out.getvalue()
+            continue
+    return ImageFont.load_default()
+
+def draw_timestamp(img: Image.Image, text: str) -> Image.Image:
+    im = img.convert("RGBA")
+    draw = ImageDraw.Draw(im)
+
+    # relative sizing by width
+    w, h = im.size
+    font_size = max(18, int(w * 0.032))  # ~3.2% of width; tweak to taste
+    font = load_font(font_size)
+
+    # measure
+    tw, th = draw.textbbox((0,0), text, font=font)[2:]
+    pad = int(font_size * 0.4)
+    x = w - tw - pad
+    y = h - th - pad
+
+    # outline (black stroke for readability)
+    for ox in (-1,0,1):
+        for oy in (-1,0,1):
+            if ox==0 and oy==0: continue
+            draw.text((x+ox, y+oy), text, font=font, fill=(0,0,0,255))
+    # text fill (white)
+    draw.text((x, y), text, font=font, fill=(255,255,255,255))
+    return im.convert("RGB")
+
+def fmt_datetime(dt: datetime, fmt_key: str) -> str:
+    if fmt_key == "dd_slash_mm_yyyy":
+        return dt.strftime("%d/%m/%Y, %H:%M:%S")
+    # default like “26 Mar 2025, 12:07:36”
+    return dt.strftime("%d %b %Y, %H:%M:%S")
 
 @app.post("/api/stamp")
-async def stamp(
+async def api_stamp(
     request: Request,
     files: List[UploadFile] = File(...),
-    date_str: str = Form(...),
-    start_time: str = Form(...),
-    end_time: str = Form(None),
-    crop_bottom_px: int = Form(0),
+    date: str = Form(...),          # "2025-03-26"
+    start: str = Form(...),         # "12:07:36"
+    end: Optional[str] = Form(None),# "13:23:30"
+    crop_top: Optional[int] = Form(0),
+    crop_bottom: Optional[int] = Form(0),
+    date_format: Optional[str] = Form("d_mmm_yyyy"),
 ):
-    user = require_user(request)
-    # compute times
-    if not end_time:
-        times = [start_time] * len(files)
-    else:
-        try:
-            start_dt = datetime.strptime(start_time, "%H:%M:%S")
-            end_dt = datetime.strptime(end_time, "%H:%M:%S")
-        except Exception:
-            raise HTTPException(400, "time must be HH:MM:SS")
-        total = max(1, len(files)-1)
-        steps = [(start_dt + i*(end_dt-start_dt)/total).strftime("%H:%M:%S") for i in range(len(files))]
-        times = steps
+    u = current_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "not_signed_in"}, status_code=401)
 
-    outputs = []
-    used = 0
-    for up, t in zip(files, times):
-        content = await up.read()
-        overlay = f"{date_str} {t}"
-        out_bytes = _stamp_one(content, overlay, crop_bottom_px)
-        outputs.append(("stamped_"+up.filename, out_bytes))
-        used += 1
+    # check credits (1 credit per run)
+    row = ensure_user(u["email"])
+    if row["credits"] <= 0:
+        return JSONResponse({"ok": False, "error": "no_credits"}, status_code=402)
 
-    # deduct credits (1 per image)
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO ledger (user_id, action, credits, note, created_at) VALUES (?,?,?,?,?)",
-        (user["id"], "stamp", -used, f"Stamped {used} image(s)", datetime.utcnow().isoformat()+"Z"),
-    )
-    conn.commit()
-    conn.close()
+    # parse times
+    base_date = datetime.strptime(date, "%Y-%m-%d").date()
+    start_t = datetime.strptime(start, "%H:%M:%S").time()
+    end_t = datetime.strptime(end, "%H:%M:%S").time() if end else start_t
+    start_dt = datetime.combine(base_date, start_t)
+    end_dt = datetime.combine(base_date, end_t)
+    if end_dt < start_dt:
+        end_dt = start_dt
 
-    # If single file return image; else ZIP
-    if len(outputs) == 1:
-        name, data = outputs[0]
-        return StreamingResponse(io.BytesIO(data), media_type="image/jpeg", headers={"Content-Disposition": f'attachment; filename="{name}"'})
-    else:
-        import zipfile
+    # process
+    import zipfile, tempfile, os as _os
+    tmp = tempfile.TemporaryDirectory()
+    zip_path = _os.path.join(tmp.name, "stamped.zip")
+    zf = zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED)
+
+    n = len(files)
+    for i, f in enumerate(files):
+        raw = await f.read()
+        img = Image.open(io.BytesIO(raw)).convert("RGB")
+
+        # crop if asked (remove fixed bars e.g. top GPS stripe)
+        ct = int(crop_top or 0)
+        cb = int(crop_bottom or 0)
+        w, h = img.size
+        top = max(0, ct)
+        bottom = max(0, cb)
+        if top or bottom:
+            img = img.crop((0, top, w, max(top, h-bottom)))
+
+        # choose timestamp for this image
+        if n == 1 or start_dt == end_dt:
+            dt = start_dt
+        else:
+            delta = (end_dt - start_dt).total_seconds()
+            r = random.random()
+            dt = start_dt + timedelta(seconds=int(r * delta))
+
+        text = fmt_datetime(dt, date_format)
+        stamped = draw_timestamp(img, text)
+
+        # write to zip
+        name = f.filename or f"image_{i+1}.jpg"
         buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-            for name, data in outputs:
-                z.writestr(name, data)
-        buf.seek(0)
-        return StreamingResponse(buf, media_type="application/zip", headers={"Content-Disposition": 'attachment; filename="stamped_images.zip"'})
+        stamped.save(buf, format="JPEG", quality=92)
+        zf.writestr(name.replace(".jpeg",".jpg"), buf.getvalue())
+
+    zf.close()
+
+    # deduct 1 credit per run
+    add_usage(row["id"], "stamp", -1, f"{n} image(s)")
+    new_row = get_user_by_email(u["email"])
+
+    # stream the zip
+    def iterfile():
+        with open(zip_path, "rb") as f:
+            yield from f
+        tmp.cleanup()
+
+    headers = {
+        "Content-Disposition": 'attachment; filename="stamped.zip"',
+        "X-Credits-Balance": str(new_row["credits"])
+    }
+    return StreamingResponse(iterfile(), media_type="application/zip", headers=headers)
