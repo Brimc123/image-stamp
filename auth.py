@@ -1,292 +1,297 @@
-# auth.py
+# auth.py — drop-in (Step 1)
 from __future__ import annotations
+import os, sqlite3, secrets, hashlib, hmac, time, json
+from typing import Optional, Dict, Any
 
-import os
-import sqlite3
-from datetime import datetime, timezone
-from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel
 
-import bcrypt
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from pydantic import BaseModel, EmailStr
+# -----------------------------
+# Config (business rules)
+# -----------------------------
+DB_FILE = os.environ.get("DB_FILE", "/var/data/app.db")
+SESSION_COOKIE_NAME = os.environ.get("SESSION_COOKIE_NAME", "imgstamp_session")
+SESSION_TTL_SECONDS = 60 * 60 * 24 * 14  # 14 days
 
-# -----------------------------------------------------------------------------
-# Router (define before any @router.* decorators)
-# -----------------------------------------------------------------------------
-router = APIRouter(prefix="/auth", tags=["auth"])
+# Pricing / policy
+CREDIT_COST_GBP = 10          # £10 per credit
+MIN_TOPUP_CREDITS = 5         # min top-up size = 5 credits (£50)
 
-# -----------------------------------------------------------------------------
-# Environment & DB
-# -----------------------------------------------------------------------------
-ADMIN_SECRET = os.getenv("ADMIN_SECRET", "change_me")
-ALLOW_DEMO_TOPUP = os.getenv("ALLOW_DEMO_TOPUP", "0") == "1"
-DB_FILE = os.getenv("DB_FILE", "app.db")
-CREDIT_COST_GBP = int(os.getenv("CREDIT_COST_GBP", "20"))  # used on billing page
+# Admin bootstrap (optional)
+ADMIN_EMAIL = (os.environ.get("ADMIN_EMAIL") or "").strip().lower()
+ADMIN_SECRET = os.environ.get("ADMIN_SECRET")  # used by admin endpoints (next step)
 
+router = APIRouter()
+
+# -----------------------------
+# DB helpers
+# -----------------------------
 def _conn() -> sqlite3.Connection:
+    os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
     con = sqlite3.connect(DB_FILE, check_same_thread=False)
     con.row_factory = sqlite3.Row
     return con
 
 def _ensure_db() -> None:
     con = _conn()
-    try:
-        cur = con.cursor()
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                email TEXT PRIMARY KEY,
-                password_hash TEXT NOT NULL,
-                credits INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL
-            )
-            """
+    cur = con.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            credits INTEGER NOT NULL DEFAULT 0,
+            is_admin INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS usage_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT NOT NULL,
-                typ TEXT NOT NULL,
-                credits_used INTEGER NOT NULL,
-                ts TEXT NOT NULL
-            )
-            """
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            token TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         )
-        con.commit()
-    finally:
-        con.close()
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS usage_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            endpoint TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            meta TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    """)
+    con.commit()
+
+    # Bootstrap admin flag if ADMIN_EMAIL is provided
+    if ADMIN_EMAIL:
+        cur = con.execute("SELECT id FROM users WHERE email=?", (ADMIN_EMAIL,))
+        row = cur.fetchone()
+        if row:
+            con.execute("UPDATE users SET is_admin=1 WHERE id=?", (row["id"],))
+            con.commit()
+    con.close()
 
 _ensure_db()
 
-# -----------------------------------------------------------------------------
-# Utilities
-# -----------------------------------------------------------------------------
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+# -----------------------------
+# Password hashing (PBKDF2)
+# -----------------------------
+def _hash_password(password: str, *, rounds: int = 200_000) -> str:
+    salt = secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, rounds)
+    return f"pbkdf2${rounds}${salt.hex()}${dk.hex()}"
 
-def _hash_password(pw: str) -> str:
-    return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
-def _verify_password(pw: str, pw_hash: str) -> bool:
+def _verify_password(password: str, stored: str) -> bool:
     try:
-        return bcrypt.checkpw(pw.encode("utf-8"), pw_hash.encode("utf-8"))
+        scheme, rounds_s, salt_hex, hash_hex = stored.split("$", 3)
+        if scheme != "pbkdf2":
+            return False
+        rounds = int(rounds_s)
+        salt = bytes.fromhex(salt_hex)
+        want = bytes.fromhex(hash_hex)
+        got = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, rounds)
+        return hmac.compare_digest(got, want)
     except Exception:
         return False
 
-def db_get_user(email: str) -> Optional[sqlite3.Row]:
-    con = _conn()
-    try:
-        cur = con.cursor()
-        cur.execute("SELECT * FROM users WHERE email = ?", (email.lower(),))
-        return cur.fetchone()
-    finally:
-        con.close()
-
-def db_create_user(email: str, password: str) -> None:
-    if db_get_user(email):
-        raise HTTPException(status_code=400, detail="User already exists")
-    con = _conn()
-    try:
-        cur = con.cursor()
-        cur.execute(
-            "INSERT INTO users (email, password_hash, credits, created_at) VALUES (?,?,?,?)",
-            (email.lower(), _hash_password(password), 0, _now_iso()),
-        )
-        con.commit()
-    finally:
-        con.close()
-
-def db_add_credits(email: str, amount: int) -> int:
-    if amount <= 0:
-        raise HTTPException(status_code=400, detail="Amount must be positive")
-    con = _conn()
-    try:
-        cur = con.cursor()
-        cur.execute(
-            "UPDATE users SET credits = COALESCE(credits,0) + ? WHERE email = ?",
-            (amount, email.lower()),
-        )
-        if cur.rowcount == 0:
-            raise HTTPException(status_code=404, detail="User not found")
-        con.commit()
-        cur.execute("SELECT credits FROM users WHERE email = ?", (email.lower(),))
-        return int(cur.fetchone()["credits"])
-    finally:
-        con.close()
-
-def db_decrement_credit(email: str, amount: int = 1) -> int:
-    """Decrease credits for a user and return new balance. Raises if insufficient."""
-    if amount <= 0:
-        raise HTTPException(status_code=400, detail="Amount must be positive")
-    con = _conn()
-    try:
-        cur = con.cursor()
-        cur.execute("SELECT credits FROM users WHERE email = ?", (email.lower(),))
-        row = cur.fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="User not found")
-        balance = int(row["credits"])
-        if balance < amount:
-            raise HTTPException(status_code=402, detail="Not enough credits")
-        new_balance = balance - amount
-        cur.execute(
-            "UPDATE users SET credits = ? WHERE email = ?",
-            (new_balance, email.lower()),
-        )
-        con.commit()
-        return new_balance
-    finally:
-        con.close()
-
-def db_log_usage(email: str, typ: str, credits_used: int = 1) -> None:
-    con = _conn()
-    try:
-        cur = con.cursor()
-        cur.execute(
-            "INSERT INTO usage_log (email, typ, credits_used, ts) VALUES (?,?,?,?)",
-            (email.lower(), typ, int(credits_used), _now_iso()),
-        )
-        con.commit()
-    finally:
-        con.close()
-
-# -----------------------------------------------------------------------------
-# Session helper
-# -----------------------------------------------------------------------------
-def get_current_user(request: Request) -> sqlite3.Row:
-    email = (request.session or {}).get("email")
-    if not email:
-        raise HTTPException(status_code=401, detail="Not signed in")
-    user = db_get_user(email)
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    return user
-
-# -----------------------------------------------------------------------------
-# Pydantic models
-# -----------------------------------------------------------------------------
+# -----------------------------
+# Schemas
+# -----------------------------
 class SignupIn(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 class LoginIn(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
-class TopUpIn(BaseModel):
-    email: EmailStr
-    amount: int
+def _norm_email(s: str) -> str:
+    s = (s or "").strip().lower()
+    if "@" not in s or "." not in s.split("@")[-1]:
+        raise HTTPException(status_code=400, detail="Invalid email")
+    return s
 
-# -----------------------------------------------------------------------------
+# -----------------------------
+# Session/cookie helpers
+# -----------------------------
+def _set_cookie(resp: Response, token: str) -> None:
+    resp.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=True,      # keep True on https
+        samesite="lax",
+        max_age=SESSION_TTL_SECONDS,
+        path="/",
+    )
+
+def _clear_cookie(resp: Response) -> None:
+    resp.delete_cookie(SESSION_COOKIE_NAME, path="/")
+
+def _create_session(user_id: int) -> str:
+    token = secrets.token_urlsafe(32)
+    con = _conn()
+    con.execute(
+        "INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)",
+        (token, user_id, int(time.time())),
+    )
+    con.commit()
+    con.close()
+    return token
+
+def _get_session(token: str) -> Optional[sqlite3.Row]:
+    con = _conn()
+    cur = con.execute("SELECT * FROM sessions WHERE token=?", (token,))
+    row = cur.fetchone()
+    con.close()
+    if not row:
+        return None
+    if int(time.time()) - row["created_at"] > SESSION_TTL_SECONDS:
+        con = _conn()
+        con.execute("DELETE FROM sessions WHERE token=?", (token,))
+        con.commit()
+        con.close()
+        return None
+    return row
+
+def _get_user_by_email(email: str) -> Optional[sqlite3.Row]:
+    con = _conn()
+    cur = con.execute("SELECT * FROM users WHERE email=?", (email.lower(),))
+    row = cur.fetchone()
+    con.close()
+    return row
+
+def _get_user(user_id: int) -> Optional[sqlite3.Row]:
+    con = _conn()
+    cur = con.execute("SELECT * FROM users WHERE id=?", (user_id,))
+    row = cur.fetchone()
+    con.close()
+    return row
+
+# -----------------------------
+# Public dependency
+# -----------------------------
+def get_current_user(request: Request) -> Optional[Dict[str, Any]]:
+    token = request.cookies.get(SESSION_COOKIE_NAME)
+    if not token:
+        return None
+    sess = _get_session(token)
+    if not sess:
+        return None
+    user = _get_user(sess["user_id"])
+    if not user:
+        return None
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "credits": user["credits"],
+        "is_admin": bool(user["is_admin"]),
+    }
+
+# -----------------------------
+# Credit helpers (used by app)
+# -----------------------------
+def db_decrement_credit(user_id: int, *, amount: int = 1) -> None:
+    con = _conn()
+    cur = con.execute("SELECT credits FROM users WHERE id=?", (user_id,))
+    row = cur.fetchone()
+    if not row:
+        con.close()
+        raise HTTPException(status_code=404, detail="User not found")
+    if row["credits"] < amount:
+        con.close()
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+    con.execute("UPDATE users SET credits = credits - ? WHERE id=?", (amount, user_id))
+    con.commit()
+    con.close()
+
+def db_increment_credit(user_id: int, *, amount: int) -> None:
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Top-up amount must be positive")
+    con = _conn()
+    con.execute("UPDATE users SET credits = credits + ? WHERE id=?", (amount, user_id))
+    con.commit()
+    con.close()
+
+def db_log_usage(user_id: int, endpoint: str, meta: Dict[str, Any] | str = "") -> None:
+    if isinstance(meta, dict):
+        meta = json.dumps(meta)
+    con = _conn()
+    con.execute(
+        "INSERT INTO usage_log (user_id, endpoint, meta) VALUES (?, ?, ?)",
+        (user_id, endpoint, meta),
+    )
+    con.commit()
+    con.close()
+
+# -----------------------------
 # Routes
-# -----------------------------------------------------------------------------
-@router.post("/ensure_master")
-def ensure_master() -> dict:
-    """Simple check to ensure DB exists; used by older scripts."""
-    _ensure_db()
-    return {"ok": True}
+# -----------------------------
+@router.get("/config")
+def config():
+    return {
+        "credit_cost_gbp": CREDIT_COST_GBP,
+        "min_topup_credits": MIN_TOPUP_CREDITS,
+        "admin_enabled": bool(ADMIN_SECRET),
+    }
 
 @router.post("/signup")
-async def signup(
-    request: Request,
-    email: Optional[str] = Form(None),
-    password: Optional[str] = Form(None),
-    body: Optional[SignupIn] = None,
-):
-    # Support JSON or form
-    if body:
-        email, password = body.email, body.password
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="Email and password required")
-    db_create_user(email, password)
-    # Auto-login
-    request.session["email"] = email.lower()
-    user = db_get_user(email)
-    return {"ok": True, "email": user["email"], "credits": int(user["credits"])}
+def signup(payload: SignupIn):
+    email = _norm_email(payload.email)
+    if len(payload.password) < 6:
+        raise HTTPException(status_code=400, detail="Password too short")
+    existing = _get_user_by_email(email)
+    con = _conn()
+    if existing:
+        con.execute(
+            "UPDATE users SET password_hash=? WHERE email=?",
+            (_hash_password(payload.password), email),
+        )
+    else:
+        # New accounts start with 0 credits (top-up required)
+        con.execute(
+            "INSERT INTO users (email, password_hash, credits) VALUES (?, ?, ?)",
+            (email, _hash_password(payload.password), 0),
+        )
+        # auto-admin if matches ADMIN_EMAIL
+        if ADMIN_EMAIL and email == ADMIN_EMAIL:
+            con.execute("UPDATE users SET is_admin=1 WHERE email=?", (email,))
+    con.commit()
+    con.close()
+    return {"ok": True, "message": "Account ready"}
 
 @router.post("/login")
-async def login(
-    request: Request,
-    email: Optional[str] = Form(None),
-    password: Optional[str] = Form(None),
-    body: Optional[LoginIn] = None,
-):
-    if body:
-        email, password = body.email, body.password
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="Email and password required")
-    user = db_get_user(email)
-    if not user or not _verify_password(password, user["password_hash"]):
+def login(payload: LoginIn, response: Response):
+    email = _norm_email(payload.email)
+    row = _get_user_by_email(email)
+    if not row or not _verify_password(payload.password, row["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    request.session["email"] = user["email"]
-    return {"ok": True, "email": user["email"], "credits": int(user["credits"])}
+    token = _create_session(row["id"])
+    _set_cookie(response, token)
+    return {"ok": True, "email": row["email"], "credits": row["credits"], "is_admin": bool(row["is_admin"])}
 
 @router.post("/logout")
-def logout(request: Request) -> dict:
-    request.session.clear()
+def logout(response: Response, request: Request):
+    token = request.cookies.get(SESSION_COOKIE_NAME)
+    if token:
+        con = _conn()
+        con.execute("DELETE FROM sessions WHERE token=?", (token,))
+        con.commit()
+        con.close()
+    _clear_cookie(response)
     return {"ok": True}
 
 @router.get("/me")
-def me(user: sqlite3.Row = Depends(get_current_user)) -> dict:
-    return {"email": user["email"], "credits": int(user["credits"])}
-
-@router.get("/credits")
-def credits(user: sqlite3.Row = Depends(get_current_user)) -> dict:
-    return {"credits": int(user["credits"])}
-
-@router.post("/topup_demo")
-def topup_demo(request: Request, user: sqlite3.Row = Depends(get_current_user)) -> dict:
-    if not ALLOW_DEMO_TOPUP:
-        raise HTTPException(status_code=403, detail="Demo top-up disabled")
-    new_balance = db_add_credits(user["email"], 5)
-    db_log_usage(user["email"], "topup_demo", 0)
-    return {"ok": True, "credits": new_balance}
-
-@router.post("/topup_admin")
-def topup_admin(
-    request: Request,
-    email: Optional[str] = Form(None),
-    amount: Optional[int] = Form(None),
-    body: Optional[TopUpIn] = None,
-):
-    # Admin auth (header)
-    admin_hdr = request.headers.get("X-Admin-Secret", "")
-    if admin_hdr != ADMIN_SECRET:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    # Support JSON or form
-    if body:
-        email = str(body.email)
-        amount = int(body.amount)
-
-    if not email or amount is None:
-        raise HTTPException(status_code=400, detail="email and amount are required")
-
-    new_balance = db_add_credits(email, int(amount))
-    db_log_usage(email, "topup_admin", 0)
-    return {"ok": True, "email": email.lower(), "credits": new_balance}
-
-# -----------------------------------------------------------------------------
-# Billing helper (used by /billing page CSV)
-# -----------------------------------------------------------------------------
-@router.get("/report/weekly")
-def report_weekly(request: Request):
-    admin_hdr = request.headers.get("X-Admin-Secret", "")
-    if admin_hdr != ADMIN_SECRET:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    con = _conn()
-    try:
-        cur = con.cursor()
-        cur.execute(
-            """
-            SELECT email, typ, credits_used, ts
-            FROM usage_log
-            WHERE ts >= datetime('now', '-7 day')
-            ORDER BY ts DESC
-            """
-        )
-        rows = [dict(r) for r in cur.fetchall()]
-    finally:
-        con.close()
-    return {"ok": True, "credit_cost_gbp": CREDIT_COST_GBP, "rows": rows}
+def me(user = Depends(get_current_user)):
+    if not user:
+        raise HTTPException(status_code=401, detail="Not logged in")
+    return {
+        "email": user["email"],
+        "credits": user["credits"],
+        "is_admin": user["is_admin"],
+        "credit_cost_gbp": CREDIT_COST_GBP,
+        "min_topup_credits": MIN_TOPUP_CREDITS,
+    }
