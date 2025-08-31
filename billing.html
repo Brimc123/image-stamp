@@ -1,183 +1,86 @@
-<!doctype html>
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+
+app = FastAPI()
+
+# adjust these to your real values (or keep your existing constants)
+MIN_TOPUP_CREDITS = 100
+CREDIT_COST_GBP = 0.25
+
+BILLING_HTML_TMPL = """<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Billing — Time & Date Stamp</title>
-<style>
-  :root{--bg:#0f172a;--card:#0b1224;--text:#e5e7eb;--muted:#94a3b8;--line:#334155;--accent:#2563eb;--ok:#16a34a}
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,Segoe UI,Roboto,Helvetica,Arial}
-  .wrap{max-width:980px;margin:48px auto;padding:0 18px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
-  h1{margin:0 0 12px;font-size:34px}
-  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  input,button,select{background:#0d1424;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:9px 12px}
-  button{border:0;background:var(--accent);cursor:pointer}
-  button.ok{background:var(--ok)}
-  .pill{border:1px solid var(--line);border-radius:999px;padding:8px 12px}
-  table{width:100%;border-collapse:collapse;margin-top:14px}
-  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;font-size:14px}
-  th{background:#111a33}
-  .right{margin-left:auto}
-  .muted{color:var(--muted)}
-  @media print{
-    body{background:#fff;color:#000}
-    .card{box-shadow:none;border:0}
-    .noprint{display:none}
-    th,td{border:1px solid #000}
-  }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Billing</title>
+  <style>
+    :root {{ --brand: #4f46e5; --bg: #0b0b12; --card: #111827; --fg: #e5e7eb; }}
+    * {{ box-sizing: border-box; }}
+    body {{ margin: 0; padding: 24px; background: var(--bg); color: var(--fg);
+           font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu,
+                        Cantarell, 'Helvetica Neue', 'Noto Sans', Arial, sans-serif; }}
+    .card {{ max-width: 720px; margin: 0 auto; background: var(--card);
+            border-radius: 12px; padding: 24px; }}
+    h1 {{ margin: 0 0 12px; font-size: 1.5rem; }}
+    p  {{ margin: 0 0 16px; line-height: 1.5; }}
+    .actions {{ display: flex; gap: 8px; }}
+    button {{ background: var(--brand); color: #fff; border: 0; padding: 12px 16px;
+              border-radius: 8px; cursor: pointer; font-weight: 600; }}
+    input[type="number"] {{ width: 120px; padding: 10px; border-radius: 8px; border: 1px solid #374151;
+                           background: #0f172a; color: var(--fg); }}
+  </style>
 </head>
 <body>
-<div class="wrap">
   <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <h1>Billing</h1>
-      <div>
-        <div class="pill">Signed in: <span id="email">—</span></div>
-        <div class="pill" style="margin-top:6px">Credits: <span id="credits">0</span></div>
-      </div>
+    <h1>Top-up credits</h1>
+    <p>Minimum top-up: <strong>{MIN}</strong> credits @ £{GBP:.2f} each
+       (minimum total £{MIN_TOTAL:.2f}).</p>
+
+    <div class="actions">
+      <label for="qty" style="display:none">Credits</label>
+      <input id="qty" type="number" min="{MIN}" value="{MIN}" />
+      <button id="buy">Buy credits</button>
     </div>
 
-    <div class="row" style="margin-top:10px">
-      <label class="muted">Start</label><input id="start" type="date">
-      <label class="muted">End</label><input id="end" type="date">
-      <button id="load">Load</button>
-      <button id="last7" class="noprint">Last 7 days</button>
-      <button id="thisMonth" class="noprint">This month</button>
-      <a id="csvLink" class="pill noprint" href="#" target="_blank" style="text-decoration:none">Download CSV</a>
-      <div class="right pill">Rate: £<span id="rate">20</span> / credit</div>
-    </div>
-
-    <div id="summary" style="margin-top:10px" class="muted">—</div>
-
-    <table id="tbl">
-      <thead>
-        <tr><th>Date/Time (local)</th><th>Type</th><th style="text-align:right">Credits used</th><th style="text-align:right">Line amount (£)</th></tr>
-      </thead>
-      <tbody></tbody>
-      <tfoot>
-        <tr>
-          <th colspan="2" style="text-align:right">Total</th>
-          <th id="tCredits" style="text-align:right">0</th>
-          <th id="tAmount" style="text-align:right">£0</th>
-        </tr>
-      </tfoot>
-    </table>
-
-    <div class="noprint" style="margin-top:18px">
-      <h3 style="margin:0 0 8px">Admin summary (optional)</h3>
-      <div class="row">
-        <input id="admsec" type="password" placeholder="X-Admin-Secret">
-        <button id="loadOrg">Load organisation summary</button>
-        <a id="csvAdmin" class="pill" href="#" target="_blank" style="text-decoration:none">Download Org CSV</a>
-      </div>
-      <table id="org" style="margin-top:10px">
-        <thead><tr><th>Email</th><th style="text-align:right">Credits used</th><th style="text-align:right">Amount due (£)</th></tr></thead>
-        <tbody></tbody>
-        <tfoot><tr><th style="text-align:right">Grand total</th><th id="oCredits" style="text-align:right">0</th><th id="oAmount" style="text-align:right">£0</th></tr></tfoot>
-      </table>
-      <div class="muted" style="margin-top:8px">Tip: print this page (CTRL+P) to save a PDF invoice for the selected period.</div>
-    </div>
+    <p id="summary"></p>
   </div>
-</div>
 
-<script>
-const q = s => document.querySelector(s);
-let RATE = 20;
+  <script>
+    const GBP = {GBP};
+    const MIN = {MIN};
+    const summary = document.getElementById('summary');
+    const qty = document.getElementById('qty');
+    const buy = document.getElementById('buy');
 
-async function api(url, opts={}) {
-  const r = await fetch(url, Object.assign({credentials:'include'}, opts));
-  const ct = r.headers.get('content-type')||'';
-  const body = ct.includes('application/json') ? await r.json() : await r.text();
-  if(!r.ok) throw (typeof body==='object'?body:{detail:body||r.statusText});
-  return body;
-}
-function isoDate(d){ return d.toISOString().slice(0,10); }
-function addDays(d,n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
-function toLocal(dt){ const d=new Date(dt); return d.toLocaleString(); }
-function pounds(n){ return '£' + (Math.round(n*100)/100).toFixed(2); }
+    function fmt(n) {{ return new Intl.NumberFormat('en-GB', {{ minimumFractionDigits: 2 }}).format(n); }}
+    function update() {{
+      const q = Math.max(MIN, Number(qty.value) || 0);
+      const total = q * GBP;
+      summary.textContent = `You’re buying ${'{'}q{'}'} credits for £${'{'}fmt(total){'}'}.`;
+    }}
+    qty.addEventListener('input', update);
+    update();
 
-async function boot(){
-  try {
-    const me = await api('/auth/me');
-    q('#email').textContent = me.email;
-    q('#credits').textContent = me.credits;
-    RATE = me.credit_cost_gbp ?? 20;
-    q('#rate').textContent = RATE;
-  } catch(e) { /* not logged in */ }
-
-  try {
-    const cfg = await api('/auth/config');
-    if (typeof cfg.credit_cost_gbp === 'number') { RATE = cfg.credit_cost_gbp; q('#rate').textContent = RATE; }
-  } catch(e){}
-
-  const today = new Date();
-  q('#end').value = isoDate(today);
-  q('#start').value = isoDate(addDays(today,-7));
-  await loadData();
-}
-
-async function loadData(){
-  const start = q('#start').value, end = q('#end').value;
-  const data = await api(`/billing/data?start=${start}&end=${end}`);
-  const tb = q('#tbl tbody'); tb.innerHTML = '';
-  let used = 0, amount = 0;
-  for (const it of data.items){
-    const tr = document.createElement('tr');
-    const lineAmount = -it.credits_delta * data.rate_gbp;
-    tr.innerHTML = `<td>${toLocal(it.created_at)}</td>
-                    <td>${it.kind}</td>
-                    <td style="text-align:right">${-it.credits_delta}</td>
-                    <td style="text-align:right">${pounds(lineAmount)}</td>`;
-    tb.appendChild(tr);
-    used += -it.credits_delta; amount += lineAmount;
-  }
-  q('#tCredits').textContent = used;
-  q('#tAmount').textContent = pounds(amount);
-  q('#summary').textContent =
-    `Period ${data.start} to ${data.end} — ${used} credit(s) at £${data.rate_gbp} each = ${pounds(amount)}.`;
-  q('#csvLink').href = `/billing/csv?start=${start}&end=${end}`;
-}
-
-async function loadOrg(){
-  const start = q('#start').value, end = q('#end').value;
-  const sec = q('#admsec').value.trim();
-  const r = await fetch(`/billing/admin?start=${start}&end=${end}`, {
-    headers: {'X-Admin-Secret': sec}, credentials:'include'
-  });
-  if (!r.ok) { alert('Admin fetch failed'); return; }
-  const data = await r.json();
-  const tb = q('#org tbody'); tb.innerHTML = '';
-  let totC=0, totA=0;
-  for (const row of data.rows){
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${row.email}</td>
-                    <td style="text-align:right">${row.credits_used}</td>
-                    <td style="text-align:right">${pounds(row.amount_due_gbp)}</td>`;
-    tb.appendChild(tr);
-    totC += row.credits_used; totA += row.amount_due_gbp;
-  }
-  q('#oCredits').textContent = totC;
-  q('#oAmount').textContent = pounds(totA);
-  q('#csvAdmin').href = `/billing/admin_csv?start=${start}&end=${end}`;
-  q('#csvAdmin').onclick = e=>{
-    e.preventDefault();
-    fetch(q('#csvAdmin').href, {headers:{'X-Admin-Secret': sec}})
-      .then(r=>r.blob()).then(b=>{
-        const url=URL.createObjectURL(b); const a=document.createElement('a');
-        a.href=url; a.download=`org_billing_${start}_to_${end}.csv`; a.click();
-        URL.revokeObjectURL(url);
-      });
-  };
-}
-
-q('#load').onclick = loadData;
-q('#last7').onclick = ()=>{ const t=new Date(); q('#end').value=isoDate(t); q('#start').value=isoDate(addDays(t,-7)); loadData(); };
-q('#thisMonth').onclick = ()=>{ const t=new Date(); const first=new Date(t.getFullYear(), t.getMonth(), 1); q('#start').value=isoDate(first); q('#end').value=isoDate(t); loadData(); };
-q('#loadOrg').onclick = loadOrg;
-
-boot();
-</script>
+    buy.addEventListener('click', () => {{
+      const q = Math.max(MIN, Number(qty.value) || 0);
+      alert(`(demo) Charge £${'{'}fmt(q * GBP){'}'} for ${'{'}q{'}'} credits`);
+      // TODO: call your backend to create a payment intent/session
+    }});
+  </script>
 </body>
 </html>
+"""
+
+@app.get("/billing", response_class=HTMLResponse)
+def billing_page(request: Request):
+    html = BILLING_HTML_TMPL.format(
+        MIN=MIN_TOPUP_CREDITS,
+        GBP=CREDIT_COST_GBP,
+        MIN_TOTAL=MIN_TOPUP_CREDITS * CREDIT_COST_GBP,
+    )
+    return HTMLResponse(html)
+
+
+@app.get("/health")
+def health():
+    return {"ok": True}
