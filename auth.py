@@ -1,25 +1,21 @@
-# auth.py — drop-in (Step 1)
+# auth.py — cookie fix for custom domain + auto-migration
 from __future__ import annotations
 import os, sqlite3, secrets, hashlib, hmac, time, json
 from typing import Optional, Dict, Any
-
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
-# -----------------------------
-# Config (business rules)
-# -----------------------------
 DB_FILE = os.environ.get("DB_FILE", "/var/data/app.db")
 SESSION_COOKIE_NAME = os.environ.get("SESSION_COOKIE_NAME", "imgstamp_session")
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 14  # 14 days
 
-# Pricing / policy
-CREDIT_COST_GBP = 10          # £10 per credit
-MIN_TOPUP_CREDITS = 5         # min top-up size = 5 credits (£50)
+# Business rules
+CREDIT_COST_GBP = 10
+MIN_TOPUP_CREDITS = 5
 
-# Admin bootstrap (optional)
+# Admin bootstrap
 ADMIN_EMAIL = (os.environ.get("ADMIN_EMAIL") or "").strip().lower()
-ADMIN_SECRET = os.environ.get("ADMIN_SECRET")  # used by admin endpoints (next step)
+ADMIN_SECRET = os.environ.get("ADMIN_SECRET")
 
 router = APIRouter()
 
@@ -32,9 +28,17 @@ def _conn() -> sqlite3.Connection:
     con.row_factory = sqlite3.Row
     return con
 
+def _table_cols(con: sqlite3.Connection, name: str) -> set[str]:
+    try:
+        cur = con.execute(f"PRAGMA table_info({name})")
+        return {r["name"] for r in cur.fetchall()}
+    except Exception:
+        return set()
+
 def _ensure_db() -> None:
     con = _conn()
     cur = con.cursor()
+    # Create latest schema
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,13 +69,46 @@ def _ensure_db() -> None:
     """)
     con.commit()
 
-    # Bootstrap admin flag if ADMIN_EMAIL is provided
-    if ADMIN_EMAIL:
-        cur = con.execute("SELECT id FROM users WHERE email=?", (ADMIN_EMAIL,))
-        row = cur.fetchone()
-        if row:
-            con.execute("UPDATE users SET is_admin=1 WHERE id=?", (row["id"],))
+    # ---- MIGRATION: if old 'users' table existed without 'id'
+    try:
+        cols = _table_cols(con, "users")
+        if "id" not in cols:
+            cur.execute("ALTER TABLE users RENAME TO users_old")
             con.commit()
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    credits INTEGER NOT NULL DEFAULT 0,
+                    is_admin INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                )
+            """)
+            con.commit()
+            old_cols = _table_cols(con, "users_old")
+            pass_col = "password_hash" if "password_hash" in old_cols else ("password" if "password" in old_cols else None)
+            if pass_col:
+                credits_expr = "COALESCE(credits,0)" if "credits" in old_cols else "0"
+                admin_expr   = "COALESCE(is_admin,0)" if "is_admin" in old_cols else "0"
+                created_expr = "COALESCE(created_at, datetime('now'))" if "created_at" in old_cols else "datetime('now')"
+                cur.execute(f"""
+                    INSERT INTO users (email, password_hash, credits, is_admin, created_at)
+                    SELECT email, {pass_col}, {credits_expr}, {admin_expr}, {created_expr}
+                    FROM users_old
+                """)
+            cur.execute("DROP TABLE IF EXISTS users_old")
+            con.commit()
+    except Exception:
+        pass
+
+    # Bootstrap admin flag if ADMIN_EMAIL matches an existing user
+    if ADMIN_EMAIL:
+        cur = con.execute("SELECT rowid FROM users WHERE email=?", (ADMIN_EMAIL,))
+        if cur.fetchone():
+            con.execute("UPDATE users SET is_admin=1 WHERE email=?", (ADMIN_EMAIL,))
+            con.commit()
+
     con.close()
 
 _ensure_db()
@@ -115,64 +152,71 @@ def _norm_email(s: str) -> str:
     return s
 
 # -----------------------------
-# Session/cookie helpers
+# Cookie helpers (custom domain safe)
 # -----------------------------
-def _set_cookie(resp: Response, token: str) -> None:
+from typing import Optional
+def _cookie_domain(request: Request) -> Optional[str]:
+    host = (request.headers.get("host") or request.url.hostname or "").split(":")[0]
+    if not host:  # local dev etc.
+        return None
+    if host.endswith(".onrender.com") or host in ("localhost", "127.0.0.1"):
+        return None
+    return host  # e.g. autodate.co.uk
+
+def _set_cookie(request: Request, resp: Response, token: str) -> None:
+    domain = _cookie_domain(request)
+    secure = (request.url.scheme == "https")
     resp.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=token,
         httponly=True,
-        secure=True,      # keep True on https
+        secure=secure,
         samesite="lax",
         max_age=SESSION_TTL_SECONDS,
         path="/",
+        domain=domain,
     )
 
-def _clear_cookie(resp: Response) -> None:
-    resp.delete_cookie(SESSION_COOKIE_NAME, path="/")
+def _clear_cookie(request: Request, resp: Response) -> None:
+    domain = _cookie_domain(request)
+    resp.delete_cookie(SESSION_COOKIE_NAME, path="/", domain=domain)
 
-def _create_session(user_id: int) -> str:
-    token = secrets.token_urlsafe(32)
-    con = _conn()
-    con.execute(
-        "INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)",
-        (token, user_id, int(time.time())),
-    )
-    con.commit()
-    con.close()
-    return token
-
-def _get_session(token: str) -> Optional[sqlite3.Row]:
-    con = _conn()
-    cur = con.execute("SELECT * FROM sessions WHERE token=?", (token,))
-    row = cur.fetchone()
-    con.close()
-    if not row:
-        return None
-    if int(time.time()) - row["created_at"] > SESSION_TTL_SECONDS:
-        con = _conn()
-        con.execute("DELETE FROM sessions WHERE token=?", (token,))
-        con.commit()
-        con.close()
-        return None
-    return row
-
+# -----------------------------
+# DB lookups
+# -----------------------------
 def _get_user_by_email(email: str) -> Optional[sqlite3.Row]:
     con = _conn()
     cur = con.execute("SELECT * FROM users WHERE email=?", (email.lower(),))
-    row = cur.fetchone()
-    con.close()
+    row = cur.fetchone(); con.close()
     return row
 
 def _get_user(user_id: int) -> Optional[sqlite3.Row]:
     con = _conn()
     cur = con.execute("SELECT * FROM users WHERE id=?", (user_id,))
-    row = cur.fetchone()
-    con.close()
+    row = cur.fetchone(); con.close()
+    return row
+
+def _create_session(user_id: int) -> str:
+    token = secrets.token_urlsafe(32)
+    con = _conn()
+    con.execute("INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)",
+                (token, user_id, int(time.time())))
+    con.commit(); con.close()
+    return token
+
+def _get_session(token: str) -> Optional[sqlite3.Row]:
+    con = _conn()
+    cur = con.execute("SELECT * FROM sessions WHERE token=?", (token,))
+    row = cur.fetchone(); con.close()
+    if not row:
+        return None
+    if int(time.time()) - row["created_at"] > SESSION_TTL_SECONDS:
+        con = _conn(); con.execute("DELETE FROM sessions WHERE token=?", (token,)); con.commit(); con.close()
+        return None
     return row
 
 # -----------------------------
-# Public dependency
+# Current user
 # -----------------------------
 def get_current_user(request: Request) -> Optional[Dict[str, Any]]:
     token = request.cookies.get(SESSION_COOKIE_NAME)
@@ -192,7 +236,7 @@ def get_current_user(request: Request) -> Optional[Dict[str, Any]]:
     }
 
 # -----------------------------
-# Credit helpers (used by app)
+# Credit helpers
 # -----------------------------
 def db_decrement_credit(user_id: int, *, amount: int = 1) -> None:
     con = _conn()
@@ -205,27 +249,22 @@ def db_decrement_credit(user_id: int, *, amount: int = 1) -> None:
         con.close()
         raise HTTPException(status_code=402, detail="Insufficient credits")
     con.execute("UPDATE users SET credits = credits - ? WHERE id=?", (amount, user_id))
-    con.commit()
-    con.close()
+    con.commit(); con.close()
 
 def db_increment_credit(user_id: int, *, amount: int) -> None:
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Top-up amount must be positive")
     con = _conn()
     con.execute("UPDATE users SET credits = credits + ? WHERE id=?", (amount, user_id))
-    con.commit()
-    con.close()
+    con.commit(); con.close()
 
 def db_log_usage(user_id: int, endpoint: str, meta: Dict[str, Any] | str = "") -> None:
     if isinstance(meta, dict):
         meta = json.dumps(meta)
     con = _conn()
-    con.execute(
-        "INSERT INTO usage_log (user_id, endpoint, meta) VALUES (?, ?, ?)",
-        (user_id, endpoint, meta),
-    )
-    con.commit()
-    con.close()
+    con.execute("INSERT INTO usage_log (user_id, endpoint, meta) VALUES (?, ?, ?)",
+                (user_id, endpoint, meta))
+    con.commit(); con.close()
 
 # -----------------------------
 # Routes
@@ -246,31 +285,24 @@ def signup(payload: SignupIn):
     existing = _get_user_by_email(email)
     con = _conn()
     if existing:
-        con.execute(
-            "UPDATE users SET password_hash=? WHERE email=?",
-            (_hash_password(payload.password), email),
-        )
+        con.execute("UPDATE users SET password_hash=? WHERE email=?",
+                    (_hash_password(payload.password), email))
     else:
-        # New accounts start with 0 credits (top-up required)
-        con.execute(
-            "INSERT INTO users (email, password_hash, credits) VALUES (?, ?, ?)",
-            (email, _hash_password(payload.password), 0),
-        )
-        # auto-admin if matches ADMIN_EMAIL
+        con.execute("INSERT INTO users (email, password_hash, credits) VALUES (?, ?, ?)",
+                    (email, _hash_password(payload.password), 0))
         if ADMIN_EMAIL and email == ADMIN_EMAIL:
             con.execute("UPDATE users SET is_admin=1 WHERE email=?", (email,))
-    con.commit()
-    con.close()
+    con.commit(); con.close()
     return {"ok": True, "message": "Account ready"}
 
 @router.post("/login")
-def login(payload: LoginIn, response: Response):
+def login(payload: LoginIn, response: Response, request: Request):
     email = _norm_email(payload.email)
     row = _get_user_by_email(email)
     if not row or not _verify_password(payload.password, row["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     token = _create_session(row["id"])
-    _set_cookie(response, token)
+    _set_cookie(request, response, token)
     return {"ok": True, "email": row["email"], "credits": row["credits"], "is_admin": bool(row["is_admin"])}
 
 @router.post("/logout")
@@ -279,9 +311,8 @@ def logout(response: Response, request: Request):
     if token:
         con = _conn()
         con.execute("DELETE FROM sessions WHERE token=?", (token,))
-        con.commit()
-        con.close()
-    _clear_cookie(response)
+        con.commit(); con.close()
+    _clear_cookie(request, response)
     return {"ok": True}
 
 @router.get("/me")
