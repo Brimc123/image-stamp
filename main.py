@@ -1,7 +1,7 @@
-# main.py — Image timestamp tool (with /health + legacy /api/stamp)
+# main.py — Image timestamp tool (with /api/ping AND /health)
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from starlette.middleware.sessions import SessionMiddleware
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -15,16 +15,16 @@ DATA_DIR = "data"
 CREDITS_FILE = os.path.join(DATA_DIR, "credits.json")
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# ----------------------------
-# Health check (stops 404 spam)
-# ----------------------------
+# ---------- Health checks ----------
 @app.get("/health")
 def health():
     return {"ok": True}
 
-# ----------------------------
-# Credit helpers (file-backed)
-# ----------------------------
+@app.get("/api/ping")
+def ping():
+    return {"ok": True, "message": "pong"}
+
+# ---------- Credits (file-backed) ----------
 def _load_credits() -> int:
     if not os.path.exists(CREDITS_FILE):
         return 0
@@ -53,9 +53,7 @@ def spend_credit() -> None:
         raise HTTPException(status_code=402, detail="Not enough credits. Please top up.")
     _save_credits(cur - 1)
 
-# ----------------------------
-# Imaging helpers
-# ----------------------------
+# ---------- Imaging helpers ----------
 def _load_font(size: int = 30) -> ImageFont.FreeTypeFont:
     for candidate in ["arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]:
         try:
@@ -76,11 +74,9 @@ def _stamp_image(binary: bytes, text: str, crop_bottom_px: int) -> bytes:
     with Image.open(io.BytesIO(binary)) as img:
         img = img.convert("RGB")
         w, h = img.size
-
         crop_bottom_px = max(0, min(int(crop_bottom_px), h - 1))
         if crop_bottom_px:
             img = img.crop((0, 0, w, h - crop_bottom_px))
-
         draw = ImageDraw.Draw(img)
         font = _load_font(30)
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -89,7 +85,6 @@ def _stamp_image(binary: bytes, text: str, crop_bottom_px: int) -> bytes:
         x = img.size[0] - tw - 12
         y = img.size[1] - th - 12
         _draw_text_with_outline(draw, (x, y), text, font)
-
         out = io.BytesIO()
         img.save(out, format="JPEG", quality=90, optimize=True)
         out.seek(0)
@@ -99,9 +94,7 @@ def _parse_time_str(t: str) -> datetime:
     fmt = "%H:%M:%S" if t and t.count(":") == 2 else "%H:%M"
     return datetime.strptime(t, fmt)
 
-# ----------------------------
-# HTML (string.Template)
-# ----------------------------
+# ---------- HTML ----------
 INDEX_HTML = """
 <!doctype html><html><head><meta charset="utf-8"><title>Home</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -238,9 +231,7 @@ TOOL_HTML = """
 </body></html>
 """
 
-# ----------------------------
-# Pages
-# ----------------------------
+# ---------- Pages ----------
 @app.get("/", response_class=HTMLResponse)
 def home():
     return INDEX_HTML
@@ -255,20 +246,12 @@ def tool_page():
     from string import Template
     return HTMLResponse(Template(TOOL_HTML).substitute(credits=get_credits()))
 
-# ----------------------------
-# Misc API
-# ----------------------------
-@app.get("/api/ping")
-def ping():
-    return {"ok": True, "message": "pong"}
-
+# ---------- Debug top-up ----------
 @app.get("/debug/add_credits")
 def debug_add_credits(n: int = 10):
     return {"ok": True, "credits": add_credits(n)}
 
-# ----------------------------
-# Core processing
-# ----------------------------
+# ---------- Core processing ----------
 async def _process_core(
     date_to_use: str,
     mode: str,
@@ -288,7 +271,7 @@ async def _process_core(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid time format. Use HH:MM or HH:MM:SS.")
 
-    # SINGLE mode
+    # SINGLE
     if mode == "single":
         f = files[0]
         binary = await f.read()
@@ -298,7 +281,7 @@ async def _process_core(
         headers = {"Content-Disposition": f'attachment; filename="{os.path.splitext(f.filename or "image")[0]}_stamped.jpg"'}
         return StreamingResponse(io.BytesIO(stamped), media_type="image/jpeg", headers=headers)
 
-    # MULTIPLE mode
+    # MULTIPLE
     if mode == "multiple":
         if end_dt is None:
             raise HTTPException(status_code=400, detail="End time is required for multiple mode.")
@@ -309,7 +292,6 @@ async def _process_core(
         if total_secs <= 0:
             raise HTTPException(status_code=400, detail="Invalid time range.")
 
-        # offsets (random if enough range, otherwise spread)
         if total_secs >= n:
             random_offsets = sorted(random.sample(range(total_secs), k=n))
         else:
@@ -331,7 +313,7 @@ async def _process_core(
 
     raise HTTPException(status_code=400, detail="Mode must be 'single' or 'multiple'.")
 
-# New endpoint name
+# New endpoint
 @app.post("/api/process")
 async def process_images(
     request: Request,
