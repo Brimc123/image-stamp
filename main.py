@@ -1,328 +1,387 @@
-# main.py
-from fastapi import FastAPI, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
-from io import BytesIO
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+# main.py  — full app (drop-in replacement)
 
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, PlainTextResponse
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import Response
+from typing import List, Optional
+from datetime import datetime, timedelta
+import random
+import io
+import os
+import json
+import zipfile
+from PIL import Image, ImageDraw, ImageFont
+
+# ----------------------------
+# App / middleware
+# ----------------------------
 app = FastAPI()
+app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "dev-secret"))
 
-# ----------------------- health/ping -----------------------
-@app.get("/health")
-def health() -> PlainTextResponse:
-    return PlainTextResponse("ok")
+DATA_DIR = "data"
+CREDITS_FILE = os.path.join(DATA_DIR, "credits.json")
+os.makedirs(DATA_DIR, exist_ok=True)
 
-@app.get("/api/ping")
-async def api_ping() -> JSONResponse:
-    return JSONResponse({"ok": True, "message": "pong"})
+# ----------------------------
+# Simple credit store (file-backed)
+# ----------------------------
+def _load_credits() -> int:
+    if not os.path.exists(CREDITS_FILE):
+        return 0
+    try:
+        with open(CREDITS_FILE, "r", encoding="utf-8") as f:
+            return int(json.load(f).get("credits", 0))
+    except Exception:
+        return 0
 
-# ----------------------- font helper -----------------------
-def _load_font(px: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    """
-    Try to load a nice TTF font (DejaVuSans). If not available, fall back to the
-    default Pillow bitmap font so we never crash on Render.
-    """
-    for path in (
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-    ):
+def _save_credits(n: int) -> None:
+    with open(CREDITS_FILE, "w", encoding="utf-8") as f:
+        json.dump({"credits": int(n)}, f)
+
+def get_credits() -> int:
+    return _load_credits()
+
+def add_credits(n: int) -> int:
+    cur = _load_credits()
+    cur += int(n)
+    _save_credits(cur)
+    return cur
+
+def spend_credit() -> None:
+    cur = _load_credits()
+    if cur < 1:
+        raise HTTPException(status_code=402, detail="Not enough credits. Please top up.")
+    _save_credits(cur - 1)
+
+# Seed credits once if env var set (handy for testing)
+if get_credits() == 0 and os.getenv("INITIAL_CREDITS"):
+    _save_credits(int(os.getenv("INITIAL_CREDITS")))
+
+# ----------------------------
+# Utilities
+# ----------------------------
+def _load_font(size: int = 30) -> ImageFont.FreeTypeFont:
+    # Try a common font; fall back to PIL default
+    for candidate in ["arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]:
         try:
-            return ImageFont.truetype(path, px)
+            return ImageFont.truetype(candidate, size)
         except Exception:
-            pass
+            continue
     return ImageFont.load_default()
 
-# ----------------------- stamping core -----------------------
-def apply_stamp(
-    base_im: Image.Image,
-    text: str,
-    position: str = "center",
-    size_px: int = 48,
-    opacity_pct: int = 60,
-    margin_px: int = 24,
-) -> Image.Image:
-    """
-    Draw a semi-transparent text watermark on the image.
-    """
-    # normalize orientation and ensure RGBA
-    im = ImageOps.exif_transpose(base_im).convert("RGBA")
+def _draw_text_with_outline(draw: ImageDraw.ImageDraw, xy, text, font):
+    x, y = xy
+    # black outline
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            if dx or dy:
+                draw.text((x + dx, y + dy), text, font=font, fill="black")
+    # white fill
+    draw.text((x, y), text, font=font, fill="white")
 
-    # draw onto transparent overlay, then alpha-compose
-    overlay = Image.new("RGBA", im.size, (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
+def _stamp_image(binary: bytes, text: str, crop_bottom_px: int) -> bytes:
+    with Image.open(io.BytesIO(binary)) as img:
+        img = img.convert("RGB")  # Ensure RGB for JPEG save
+        w, h = img.size
+        crop_bottom_px = max(0, min(crop_bottom_px, h - 1))
+        if crop_bottom_px:
+            img = img.crop((0, 0, w, h - crop_bottom_px))
 
-    font = _load_font(size_px)
-    # measure text
-    bbox = draw.textbbox((0, 0), text, font=font, stroke_width=2)
-    text_w = bbox[2] - bbox[0]
-    text_h = bbox[3] - bbox[1]
+        draw = ImageDraw.Draw(img)
+        font = _load_font(30)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
+        x = img.size[0] - tw - 12
+        y = img.size[1] - th - 12
+        _draw_text_with_outline(draw, (x, y), text, font)
 
-    # choose position
-    W, H = im.size
-    x, y = {
-        "top-left":      (margin_px, margin_px),
-        "top-right":     (W - text_w - margin_px, margin_px),
-        "bottom-left":   (margin_px, H - text_h - margin_px),
-        "bottom-right":  (W - text_w - margin_px, H - text_h - margin_px),
-        "center":        ((W - text_w) // 2, (H - text_h) // 2),
-    }.get(position, ((W - text_w) // 2, (H - text_h) // 2))
+        out = io.BytesIO()
+        img.save(out, format="JPEG", quality=90, optimize=True)
+        out.seek(0)
+        return out.read()
 
-    # opacity and colors
-    a = max(0, min(100, opacity_pct)) * 255 // 100
-    fill = (255, 255, 255, a)       # white text
-    stroke = (0, 0, 0, int(a * 0.9)) # dark outline for contrast
+def _parse_time_str(t: str) -> datetime:
+    # Accept HH:MM or HH:MM:SS
+    fmt = "%H:%M:%S" if t.count(":") == 2 else "%H:%M"
+    return datetime.strptime(t, fmt)
 
-    # draw text with thin stroke for readability
-    draw.text((x, y), text, font=font, fill=fill, stroke_width=2, stroke_fill=stroke)
+# ----------------------------
+# PAGES
+# ----------------------------
 
-    # combine
-    out = Image.alpha_composite(im, overlay)
-
-    # return in original mode if possible
-    if base_im.mode != "RGBA":
-        out = out.convert(base_im.mode)
-    return out
-
-# ----------------------- Image Stamp API -----------------------
-@app.post("/api/stamp")
-async def api_stamp(
-    file: UploadFile = File(...),
-    text: str = Form("Autodate"),
-    position: str = Form("center"),
-    size: int = Form(48),
-    opacity: int = Form(60),
-):
-    # read upload into PIL
-    data = await file.read()
-    try:
-        im = Image.open(BytesIO(data))
-    except Exception:
-        return JSONResponse({"ok": False, "error": "Unsupported image"}, status_code=400)
-
-    stamped = apply_stamp(im, text=text.strip() or "Autodate",
-                          position=position, size_px=int(size), opacity_pct=int(opacity))
-
-    # stream PNG back
-    buf = BytesIO()
-    stamped.save(buf, format="PNG")
-    buf.seek(0)
-    headers = {"Content-Disposition": 'inline; filename="stamped.png"'}
-    return StreamingResponse(buf, media_type="image/png", headers=headers)
-
-# ----------------------- Tester UI (/) -----------------------
-INDEX_HTML = """<!doctype html>
-<html lang="en">
+BILLING_HTML = """
+<!doctype html>
+<html>
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Image Stamp · Autodate</title>
+  <title>Billing</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    :root{
-      --bg:#f6f7fb; --card:#ffffff; --text:#111827; --muted:#6b7280; --border:#e5e7eb;
-      --accent:#4f46e5; --accent2:#3730a3; --shadow:0 10px 20px rgba(0,0,0,.07);
-      --radius:16px;
-    }
-    @media (prefers-color-scheme: dark){
-      :root{ --bg:#0f1221; --card:#12162b; --text:#e5e7eb; --muted:#9ca3af; --border:#232743; --shadow:0 12px 26px rgba(0,0,0,.35); }
-    }
-    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);
-      font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
-    .container{max-width:1000px;margin:30px auto;padding:0 18px}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
-    h1{margin:0 0 10px 0;font-size:22px}
-    .row{display:grid;grid-template-columns:1fr;gap:18px}
-    @media(min-width:900px){ .row{grid-template-columns: 1fr 1fr} }
-    label{display:block;font-weight:600;margin-top:10px}
-    input[type="text"],select,input[type="number"],input[type="range"]{
-      width:100%;padding:10px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text)
-    }
-    input[type="file"]{width:100%}
-    .btn{margin-top:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:0;border-radius:12px;padding:12px 16px;cursor:pointer;font-weight:700;box-shadow:0 10px 18px rgba(79,70,229,.35)}
-    .btn:disabled{opacity:.6;cursor:not-allowed}
-    .muted{color:var(--muted)}
-    .preview{width:100%;aspect-ratio:1/1;object-fit:contain;border:1px dashed var(--border);border-radius:12px;background:#00000008}
-    footer{margin-top:18px;color:var(--muted);text-align:center}
-    .note{font-size:13px;color:var(--muted)}
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; line-height: 1.4; margin: 32px; }
+    .btn { background:#6b46c1; color:white; padding:10px 14px; border:none; border-radius:10px; cursor:pointer; }
+    .btn:disabled { opacity:.6; cursor:not-allowed; }
+    .card { border:1px solid #eee; border-radius:12px; padding:16px; margin:12px 0; }
+    .muted { color:#666; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    a.link { color:#6b46c1; text-decoration:none; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="card">
-      <h1>Image Stamp Tester</h1>
-      <p class="muted">Upload an image, choose your watermark text and position, then click <b>Stamp</b>.</p>
+  <a class="link" href="/">Back</a>
+  <h1>Billing</h1>
+  <p>Credits: <strong>${credits}</strong> &middot; Price: £10/credit &middot; Minimum top-up: 5 credits (£50)</p>
 
-      <div class="row">
-        <div>
-          <label>Image file</label>
-          <input id="file" type="file" accept="image/*" />
+  <div class="row">
+    <button class="btn" onclick="alert('Top-up flow not wired yet. For testing, use the temporary Add Test Credits button below.')">Top up 5 credits (£50)</button>
+    <a class="link" href="/tool">Open image timestamp tool →</a>
+  </div>
 
-          <label>Watermark text</label>
-          <input id="text" type="text" placeholder="Autodate" value="Autodate" />
+  <div class="card">
+    <h3>Temporary developer helpers</h3>
+    <p class="muted">Only visible for now so you can test the tool. Remove before launch.</p>
+    <div class="row">
+      <button class="btn" onclick="add10()">Add Test Credits (+10)</button>
+      <button class="btn" onclick="ping()">Ping Backend</button>
+    </div>
+  </div>
 
-          <label>Position</label>
-          <select id="position">
-            <option>center</option>
-            <option>top-left</option>
-            <option>top-right</option>
-            <option>bottom-left</option>
-            <option selected>bottom-right</option>
-          </select>
+  <script>
+    async function add10(){
+      const r = await fetch('/debug/add_credits?n=10');
+      const j = await r.json();
+      alert('Credits now: '+j.credits);
+      location.reload();
+    }
+    async function ping(){
+      const r = await fetch('/api/ping');
+      const j = await r.json();
+      alert('Backend says ok='+j.ok+', message="'+j.message+'"');
+    }
+  </script>
+</body>
+</html>
+"""
 
-          <label>Text size (px)</label>
-          <input id="size" type="range" min="20" max="160" value="72" />
-          <div class="note"><span id="sizeVal">72</span> px</div>
+TOOL_HTML = """
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Image Timestamp Tool</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; line-height: 1.4; margin: 32px; }
+    h1 { margin-bottom: 4px; }
+    .muted { color:#666; }
+    .grid { display:grid; gap:12px; max-width: 720px; }
+    label { font-weight:600; }
+    input, select { padding:10px; border:1px solid #ddd; border-radius:10px; width:100%; }
+    .row { display:flex; gap:12px; }
+    .btn { background:#0ea5e9; color:white; padding:12px 16px; border:none; border-radius:10px; cursor:pointer; }
+    .btn.secondary { background:#6b46c1; }
+    .card { border:1px solid #eee; border-radius:12px; padding:16px; margin-top:16px;}
+    .badge { background:#f1f5f9; padding:4px 8px; border-radius:999px; }
+  </style>
+</head>
+<body>
+  <a href="/billing" style="text-decoration:none;color:#6b46c1;">← Back to billing</a>
+  <h1>Image Timestamp Tool</h1>
+  <p class="muted">Credits available: <strong>${credits}</strong> &nbsp; <span class="badge">1 credit per run</span></p>
 
-          <label>Opacity (%)</label>
-          <input id="opacity" type="range" min="20" max="100" value="60" />
-          <div class="note"><span id="opacityVal">60</span>%</div>
+  <form id="frm" class="grid" action="/api/process?download=1" method="post" enctype="multipart/form-data">
+    <div>
+      <label>Date to stamp</label>
+      <input required name="date_to_use" placeholder="e.g. 30 May 2025" />
+    </div>
 
-          <button id="go" class="btn">Stamp</button>
-        </div>
-
-        <div>
-          <img id="out" class="preview" alt="Stamped preview will appear here" />
-          <div style="margin-top:10px">
-            <a id="download" class="muted" href="#" download="stamped.png" style="display:none">Download stamped image</a>
-          </div>
-        </div>
+    <div class="row">
+      <div style="flex:1">
+        <label>Mode</label>
+        <select name="mode" id="mode">
+          <option value="single">Single image</option>
+          <option value="multiple">Multiple images (random times)</option>
+        </select>
+      </div>
+      <div style="flex:1">
+        <label>Crop from bottom (px)</label>
+        <input required type="number" min="0" value="60" name="crop_bottom_px" />
       </div>
     </div>
 
-    <footer>Need changes (logo, diagonal watermark, color)? Tell me and I’ll update.</footer>
+    <div class="row">
+      <div style="flex:1">
+        <label>Start time</label>
+        <input required type="time" step="1" value="13:00:00" name="start_time" id="start_time">
+      </div>
+      <div style="flex:1">
+        <label>End time <span class="muted">(multiple mode)</span></label>
+        <input type="time" step="1" value="15:00:00" name="end_time" id="end_time">
+      </div>
+    </div>
+
+    <div>
+      <label>Image(s)</label>
+      <input required type="file" name="images" id="images" accept="image/*" multiple />
+      <p class="muted">In <b>single</b> mode we use only the first file and stamp exactly the start time.  
+      In <b>multiple</b> mode we stamp each file with a random time between start & end, then return a ZIP.</p>
+    </div>
+
+    <div class="row">
+      <button class="btn" type="submit">Process (spends 1 credit)</button>
+      <button class="btn secondary" type="button" onclick="testPing()">Ping backend</button>
+    </div>
+  </form>
+
+  <div class="card">
+    <h3>How it works</h3>
+    <ul>
+      <li>Crops X pixels from the bottom of each image.</li>
+      <li>Stamps: <code>DATE, HH:MM:SS</code> bottom-right with white text + black outline.</li>
+      <li>Returns a JPEG (single) or a ZIP (multiple).</li>
+    </ul>
   </div>
 
   <script>
-    const size = document.getElementById('size');
-    const opacity = document.getElementById('opacity');
-    size.addEventListener('input', () => document.getElementById('sizeVal').textContent = size.value);
-    opacity.addEventListener('input', () => document.getElementById('opacityVal').textContent = opacity.value);
+    const modeSel = document.getElementById('mode');
+    const endTime = document.getElementById('end_time');
+    function toggleEnd(){
+      const m = modeSel.value;
+      endTime.disabled = (m !== 'multiple');
+      endTime.required = (m === 'multiple');
+    }
+    modeSel.addEventListener('change', toggleEnd);
+    toggleEnd();
 
-    document.getElementById('go').addEventListener('click', async () => {
-      const file = document.getElementById('file').files[0];
-      if(!file){ alert('Choose an image first'); return; }
-
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('text', document.getElementById('text').value);
-      fd.append('position', document.getElementById('position').value);
-      fd.append('size', size.value);
-      fd.append('opacity', opacity.value);
-
-      const btn = document.getElementById('go');
-      const prev = btn.textContent; btn.textContent='Stamping…'; btn.disabled = true;
-
-      try{
-        const res = await fetch('/api/stamp', { method:'POST', body: fd });
-        if(!res.ok) throw new Error('HTTP '+res.status);
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const img = document.getElementById('out');
-        img.src = url;
-        const dl = document.getElementById('download');
-        dl.href = url; dl.style.display = 'inline';
-      }catch(e){
-        console.error(e); alert('Stamp failed.');
-      }finally{
-        btn.textContent = prev; btn.disabled = false;
-      }
-    });
+    async function testPing(){
+      const r = await fetch('/api/ping');
+      const j = await r.json();
+      alert('ok='+j.ok+' message='+j.message);
+    }
   </script>
 </body>
 </html>
+"""
+
+INDEX_HTML = """
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Home</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; margin:32px}
+a.btn{display:inline-block;background:#0ea5e9;color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none}
+a.link{color:#6b46c1;text-decoration:none;margin-left:12px}
+</style></head>
+<body>
+  <h1>Welcome</h1>
+  <p>
+    <a class="btn" href="/tool">Open image timestamp tool</a>
+    <a class="link" href="/billing">Billing</a>
+  </p>
+</body></html>
 """
 
 @app.get("/", response_class=HTMLResponse)
-async def index() -> HTMLResponse:
-    return HTMLResponse(INDEX_HTML)
-
-# ----------------------- Billing page kept -----------------------
-BILLING_HTML = """<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Billing · Autodate</title>
-  <style>
-    :root{
-      --bg:#f6f7fb; --card:#ffffff; --text:#111827; --muted:#6b7280; --border:#e5e7eb;
-      --accent:#4f46e5; --accent-700:#3730a3; --success:#059669; --shadow:0 10px 20px rgba(0,0,0,.06);
-      --radius:16px; --radius-sm:10px;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root{ --bg:#0f1221; --card:#12162b; --text:#e5e7eb; --muted:#9ca3af; --border:#232743; --shadow:0 10px 22px rgba(0,0,0,.35); }
-    }
-    *{box-sizing:border-box} html,body{height:100%}
-    body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
-    .container{max-width:1040px;margin:32px auto;padding:0 20px}
-    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
-    .brand{display:flex;gap:10px;align-items:center}
-    .logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#7c3aed);box-shadow:var(--shadow)}
-    .title{font-weight:700;font-size:20px}
-    a.back{color:var(--muted);text-decoration:none} a.back:hover{color:var(--text)}
-    .grid{display:grid;grid-template-columns:1fr;gap:18px}
-    @media(min-width:900px){ .grid{grid-template-columns: 1.1fr .9fr} }
-    .card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px;}
-    .card h2{margin:0 0 10px 0;font-size:18px}
-    .muted{color:var(--muted)}
-    .balance{display:flex;justify-content:space-between;align-items:center;gap:16px;background:linear-gradient(180deg,rgba(79,70,229,.08),transparent);border-radius:10px; padding:14px 16px; border:1px dashed var(--border); margin-bottom:14px;}
-    .kpis{display:flex;gap:18px;flex-wrap:wrap}
-    .kpi .label{color:var(--muted);font-size:13px} .kpi .value{font-weight:700;font-size:22px}
-    .btn{appearance:none;border:0;cursor:pointer;font-weight:600;background:linear-gradient(135deg,var(--accent),var(--accent-700));color:#fff; padding:12px 16px;border-radius:12px; box-shadow:0 8px 16px rgba(79,70,229,.35); }
-    table{width:100%;border-collapse:separate;border-spacing:0;margin-top:6px}
-    thead th{text-align:left;font-size:13px;color:var(--muted);font-weight:600;padding:12px;border-bottom:1px solid var(--border)}
-    tbody td{padding:14px 12px;border-bottom:1px solid var(--border)} tbody tr:last-child td{border-bottom:0}
-    .empty{text-align:center;color:var(--muted);padding:28px;border:1px dashed var(--border);border-radius:12px;margin-top:8px}
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <a href="/" class="back">← Back</a>
-      <div class="brand"><div class="logo"></div><div class="title">Autodate · Billing</div></div>
-    </div>
-
-    <div class="grid">
-      <section class="card">
-        <div class="balance">
-          <div class="kpis">
-            <div class="kpi"><div class="label">Credits</div><div class="value">0</div></div>
-            <div class="kpi"><div class="label">Price</div><div class="value">£10 / credit</div></div>
-            <div class="kpi"><div class="label">Minimum top-up</div><div class="value">5 credits (£50)</div></div>
-          </div>
-          <button class="btn" id="topup">Top up 5 credits (£50)</button>
-        </div>
-
-        <h2>Recent Top-ups</h2>
-        <div class="empty">No top-ups yet</div>
-
-        <h2 style="margin-top:18px">Recent Usage</h2>
-        <div class="empty">No usage yet</div>
-
-        <p class="muted" style="margin-top:14px">Embedded template. Ready to wire to real data.</p>
-      </section>
-
-      <aside class="card">
-        <h2>Account Summary</h2>
-        <ul class="muted" style="padding-left:18px; margin:10px 0 0 0;">
-          <li>Plan: <strong>Pay-as-you-go</strong></li>
-          <li>Billing currency: <strong>GBP (£)</strong></li>
-          <li>Invoices: <a href="#" class="muted" onclick="alert('Coming soon'); return false;">view history</a></li>
-          <li>Support: <a href="mailto:support@autodate.co.uk">support@autodate.co.uk</a></li>
-        </ul>
-      </aside>
-    </div>
-  </div>
-
-  <script>
-    document.getElementById('topup').addEventListener('click', async () => {
-      const res = await fetch('/api/ping'); const data = await res.json();
-      alert(`Backend says ok=${data.ok}, message="${data.message}"`);
-    });
-  </script>
-</body>
-</html>
-"""
+def home():
+    return INDEX_HTML
 
 @app.get("/billing", response_class=HTMLResponse)
-async def billing() -> HTMLResponse:
-    return HTMLResponse(BILLING_HTML)
+def billing_page():
+    from string import Template
+    html = Template(BILLING_HTML).substitute(credits=get_credits())
+    return HTMLResponse(html)
+
+@app.get("/tool", response_class=HTMLResponse)
+def tool_page():
+    from string import Template
+    html = Template(TOOL_HTML).substitute(credits=get_credits())
+    return HTMLResponse(html)
+
+# ----------------------------
+# API
+# ----------------------------
+
+@app.get("/api/ping")
+def ping():
+    return {"ok": True, "message": "pong"}
+
+@app.get("/debug/add_credits")
+def debug_add_credits(n: int = 10):
+    # TEMPORARY helper for testing during development
+    return {"ok": True, "credits": add_credits(n)}
+
+@app.post("/api/process")
+async def process_images(
+    request: Request,
+    date_to_use: str = Form(...),
+    mode: str = Form(...),  # "single" | "multiple"
+    crop_bottom_px: int = Form(...),
+    start_time: str = Form(...),
+    end_time: Optional[str] = Form(None),
+    images: List[UploadFile] = File(...)
+):
+    # Check credits (spend only on success)
+    if get_credits() < 1:
+        raise HTTPException(status_code=402, detail="Not enough credits. Please top up.")
+
+    if not images:
+        raise HTTPException(status_code=400, detail="Please upload at least one image.")
+
+    # Parse times
+    try:
+        start_dt = _parse_time_str(start_time)
+        end_dt = _parse_time_str(end_time) if end_time else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid time format. Use HH:MM or HH:MM:SS.")
+
+    # Single-image mode
+    if mode == "single":
+        # use only the first image, stamp exactly start time
+        file = images[0]
+        binary = await file.read()
+        stamp_text = f"{date_to_use}, {start_dt.strftime('%H:%M:%S')}"
+        stamped = _stamp_image(binary, stamp_text, crop_bottom_px)
+
+        # Spend credit on success
+        spend_credit()
+
+        headers = {"Content-Disposition": f'attachment; filename="{os.path.splitext(file.filename or "image")[0]}_stamped.jpg"'}
+        return StreamingResponse(io.BytesIO(stamped), media_type="image/jpeg", headers=headers)
+
+    # Multiple-images mode (random times between start & end)
+    if mode == "multiple":
+        if end_dt is None:
+            raise HTTPException(status_code=400, detail="End time is required for multiple mode.")
+        if end_dt <= start_dt:
+            raise HTTPException(status_code=400, detail="End time must be after start time.")
+
+        # Generate random times within the interval (unique-ish, then sorted)
+        n = len(images)
+        total_secs = (end_dt - start_dt).total_seconds()
+        random_offsets = sorted(random.sample(range(int(total_secs)), k=min(n, int(total_secs)) )) \
+                         if total_secs >= n else sorted([int(i*total_secs/n) for i in range(n)])
+        # Ensure we have an offset per image
+        while len(random_offsets) < n:
+            random_offsets.append(random_offsets[-1] if random_offsets else 0)
+
+        mem_zip = io.BytesIO()
+        with zipfile.ZipFile(mem_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for idx, file in enumerate(images):
+                binary = await file.read()
+                ts = start_dt + timedelta(seconds=int(random_offsets[idx]))
+                text = f"{date_to_use}, {ts.strftime('%H:%M:%S')}"
+                stamped = _stamp_image(binary, text, crop_bottom_px)
+
+                base = os.path.splitext(file.filename or f"image_{idx+1}.jpg")[0]
+                zf.writestr(f"{base}_stamped.jpg", stamped)
+        mem_zip.seek(0)
+
+        # Spend credit on success
+        spend_credit()
+
+        headers = {"Content-Disposition": 'attachment; filename="stamped_images.zip"'}
+        return StreamingResponse(mem_zip, media_type="application/zip", headers=headers)
+
+    # Unknown mode
+    raise HTTPException(status_code=400, detail="Mode must be 'single' or 'multiple'.")
