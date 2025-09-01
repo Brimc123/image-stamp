@@ -51,7 +51,9 @@ def _db_path():
 
 def db_conn():
     path = _db_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True) if "/" in path else None
+    d = os.path.dirname(path)
+    if d:
+        os.makedirs(d, exist_ok=True)
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
@@ -371,6 +373,11 @@ def require_user(request: Request):
 def health():
     return {"ok": True, "db": _db_path(), "env": APP_ENV}
 
+# Health probe used by your deploy logs
+@app.get("/api/ping")
+def api_ping():
+    return {"ok": True, "time": datetime.utcnow().isoformat()}
+
 # Debug helper so you can check quickly in the browser
 @app.get("/__whoami", response_class=PlainTextResponse)
 def whoami():
@@ -379,6 +386,11 @@ def whoami():
 @app.get("/", response_class=HTMLResponse)
 def home():
     return RedirectResponse("/tool", status_code=302)
+
+# Avoid HEAD / 405 noise in logs
+@app.head("/")
+def home_head():
+    return PlainTextResponse("", status_code=200)
 
 # Alias so /app works (old link)
 @app.get("/app")
