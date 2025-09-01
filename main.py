@@ -155,7 +155,7 @@ def list_usage(user_id: int):
     return rows
 
 # -------------------------
-# HTML (string.Template – no {{ }} so Python won’t choke)
+# HTML templates
 # -------------------------
 login_html = Template(r"""
 <!doctype html>
@@ -264,6 +264,7 @@ document.getElementById('topupBtn').addEventListener('click', async () => {
 </html>
 """)
 
+# Existing tool (unchanged)
 tool_html = Template(r"""
 <!doctype html>
 <html lang="en">
@@ -333,7 +334,130 @@ document.getElementById('form').addEventListener('submit', async (e) => {
   const r = await fetch('/api/stamp', { method:'POST', body: fd });
 
   if(!r.ok){
-    // Friendly redirect when out of credits
+    if(r.status === 402) { window.location.href = '/billing?nocredits=1'; return; }
+    alert('Failed: ' + r.status);
+    return;
+  }
+
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'stamped.zip'; a.click();
+  URL.revokeObjectURL(url);
+  document.getElementById('result').textContent = 'Downloaded stamped.zip';
+});
+</script>
+</body>
+</html>
+""")
+
+# New, prettier tool (safe preview at /tool2)
+tool2_html = Template(r"""
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Image Timestamp Tool · Autodate (Preview)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+:root{
+  --bg:#0b1020; --card:#0f172a; --muted:#94a3b8; --text:#e5e7eb; --primary:#22c55e; --stroke:#1f2937;
+}
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:linear-gradient(180deg,#0b1020, #0f172a 35%, #0b1020);color:var(--text);min-height:100svh}
+.container{max-width:1000px;margin:0 auto;padding:28px}
+a{color:#93c5fd}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--stroke);background:rgba(255,255,255,.02);border-radius:999px;font-weight:600}
+.card{background:var(--card);border:1px solid var(--stroke);border-radius:18px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.grid{display:grid;grid-template-columns:1.15fr .85fr;gap:18px}
+label{display:block;margin:12px 0 6px;color:var(--muted)}
+input,select{width:100%;padding:12px;border-radius:12px;border:1px solid var(--stroke);background:#0b1220;color:var(--text)}
+button{padding:12px 16px;border:1px solid #16a34a;background:var(--primary);color:#0b1220;font-weight:800;border-radius:12px;cursor:pointer}
+.small{opacity:.85}
+.drop{border:1.5px dashed #334155;border-radius:14px;padding:16px;background:#0b1220;display:flex;align-items:center;justify-content:center;min-height:120px;text-align:center}
+.drop.drag{outline:2px solid #60a5fa}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hint{font-size:.9rem;color:var(--muted);margin-top:6px}
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="badge">🖼️ AutoDate · Preview UI</div>
+      <div class="small"><a href="/tool">Back to classic</a> · <a href="/billing">Billing</a></div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2 style="margin:0 0 8px 0">Timestamp Images</h2>
+        <form id="form">
+          <label>Images</label>
+          <input id="fileInput" type="file" name="files" multiple required accept="image/*" hidden />
+          <div id="drop" class="drop">Drag & drop images here, or click to choose</div>
+
+          <div class="row2" style="margin-top:12px">
+            <div>
+              <label>Target date</label>
+              <input type="date" name="date" required />
+            </div>
+            <div>
+              <label>Date format</label>
+              <select name="date_format">
+                <option value="d_mmm_yyyy">26 Mar 2025, 12:07:36</option>
+                <option value="dd_slash_mm_yyyy">01/01/2025, 13:23:30</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row2">
+            <div>
+              <label>Start time</label>
+              <input type="time" name="start" step="1" required />
+            </div>
+            <div>
+              <label>End time <span class="small">(optional)</span></label>
+              <input type="time" name="end" step="1" />
+            </div>
+          </div>
+
+          <label style="margin-top:10px">Crop (px)</label>
+          <div class="row2">
+            <input name="crop_top" type="number" min="0" step="1" placeholder="top 0" />
+            <input name="crop_bottom" type="number" min="0" step="1" value="120" />
+          </div>
+          <div class="hint">Bottom default 120px to remove GPS bar; set to 0 if not needed.</div>
+
+          <button style="margin-top:14px">Process</button>
+        </form>
+        <div class="hint" style="margin-top:10px">Each run deducts 1 credit from your balance.</div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin:0 0 6px 0">Result</h3>
+        <div id="result" class="small">You will get a zip download.</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const drop = document.getElementById('drop');
+const input = document.getElementById('fileInput');
+drop.addEventListener('click', ()=> input.click());
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.add('drag')}))
+;['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.remove('drag')}))
+drop.addEventListener('drop', e => { input.files = e.dataTransfer.files; });
+
+document.getElementById('form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  // If user dropped files but didn't click input, include them:
+  if(input.files && input.files.length) {
+    [...input.files].forEach(f => fd.append('files', f));
+  }
+  const r = await fetch('/api/stamp', { method:'POST', body: fd });
+
+  if(!r.ok){
     if(r.status === 402) { window.location.href = '/billing?nocredits=1'; return; }
     alert('Failed: ' + r.status);
     return;
@@ -373,12 +497,10 @@ def require_user(request: Request):
 def health():
     return {"ok": True, "db": _db_path(), "env": APP_ENV}
 
-# Health probe used by your deploy logs
 @app.get("/api/ping")
 def api_ping():
     return {"ok": True, "time": datetime.utcnow().isoformat()}
 
-# Debug helper so you can check quickly in the browser
 @app.get("/__whoami", response_class=PlainTextResponse)
 def whoami():
     return "main.py active"
@@ -387,12 +509,10 @@ def whoami():
 def home():
     return RedirectResponse("/tool", status_code=302)
 
-# Avoid HEAD / 405 noise in logs
 @app.head("/")
 def home_head():
     return PlainTextResponse("", status_code=200)
 
-# Alias so /app works (old link)
 @app.get("/app")
 def app_alias():
     return RedirectResponse("/tool", status_code=302)
@@ -415,7 +535,7 @@ def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login", status_code=302)
 
-# ----- Billing page (no Stripe, just records top-ups) -----
+# ----- Billing page -----
 @app.get("/billing", response_class=HTMLResponse)
 def billing(request: Request):
     u = current_user(request)
@@ -462,7 +582,7 @@ def api_topup(request: Request):
     refreshed = get_user_by_email(u["email"])
     return {"ok": True, "credits": refreshed["credits"]}
 
-# ----- Tool page -----
+# ----- Tool pages -----
 @app.get("/tool", response_class=HTMLResponse)
 def tool(request: Request):
     u = current_user(request)
@@ -470,11 +590,18 @@ def tool(request: Request):
         return RedirectResponse("/login", status_code=302)
     return HTMLResponse(tool_html.substitute({}))
 
+# New preview UI (no behavior changes)
+@app.get("/tool2", response_class=HTMLResponse)
+def tool2(request: Request):
+    u = current_user(request)
+    if not u:
+        return RedirectResponse("/login", status_code=302)
+    return HTMLResponse(tool2_html.substitute({}))
+
 # -------------------------
 # Image stamping
 # -------------------------
 def load_font(size: int):
-    # fallbacks if custom path not set
     candidates = []
     if FONT_PATH:
         candidates.append(FONT_PATH)
@@ -492,40 +619,32 @@ def load_font(size: int):
 def draw_timestamp(img: Image.Image, text: str) -> Image.Image:
     im = img.convert("RGBA")
     draw = ImageDraw.Draw(im)
-
-    # relative sizing by width
     w, h = im.size
-    font_size = max(18, int(w * 0.032))  # ~3.2% of width; tweak to taste
+    font_size = max(18, int(w * 0.032))
     font = load_font(font_size)
-
-    # measure
     tw, th = draw.textbbox((0,0), text, font=font)[2:]
     pad = int(font_size * 0.4)
     x = w - tw - pad
     y = h - th - pad
-
-    # outline (black stroke for readability)
     for ox in (-1,0,1):
         for oy in (-1,0,1):
             if ox==0 and oy==0: continue
             draw.text((x+ox, y+oy), text, font=font, fill=(0,0,0,255))
-    # text fill (white)
     draw.text((x, y), text, font=font, fill=(255,255,255,255))
     return im.convert("RGB")
 
 def fmt_datetime(dt: datetime, fmt_key: str) -> str:
     if fmt_key == "dd_slash_mm_yyyy":
         return dt.strftime("%d/%m/%Y, %H:%M:%S")
-    # default like “26 Mar 2025, 12:07:36”
     return dt.strftime("%d %b %Y, %H:%M:%S")
 
 @app.post("/api/stamp")
 async def api_stamp(
     request: Request,
     files: List[UploadFile] = File(...),
-    date: str = Form(...),          # "2025-03-26"
-    start: str = Form(...),         # "12:07:36"
-    end: Optional[str] = Form(None),# "13:23:30"
+    date: str = Form(...),
+    start: str = Form(...),
+    end: Optional[str] = Form(None),
     crop_top: Optional[int] = Form(0),
     crop_bottom: Optional[int] = Form(0),
     date_format: Optional[str] = Form("d_mmm_yyyy"),
@@ -534,13 +653,10 @@ async def api_stamp(
     if not u:
         return JSONResponse({"ok": False, "error": "not_signed_in"}, status_code=401)
 
-    # check credits (1 credit per run)
     row = ensure_user(u["email"])
     if row["credits"] <= 0:
-        # client JS will redirect to /billing?nocredits=1 when it sees 402
         return JSONResponse({"ok": False, "error": "no_credits"}, status_code=402)
 
-    # parse times
     base_date = datetime.strptime(date, "%Y-%m-%d").date()
     start_t = datetime.strptime(start, "%H:%M:%S").time()
     end_t = datetime.strptime(end, "%H:%M:%S").time() if end else start_t
@@ -549,7 +665,6 @@ async def api_stamp(
     if end_dt < start_dt:
         end_dt = start_dt
 
-    # process
     import zipfile, tempfile, os as _os
     tmp = tempfile.TemporaryDirectory()
     zip_path = _os.path.join(tmp.name, "stamped.zip")
@@ -560,7 +675,6 @@ async def api_stamp(
         raw = await f.read()
         img = Image.open(io.BytesIO(raw)).convert("RGB")
 
-        # crop if asked (remove fixed bars e.g. top GPS stripe)
         ct = int(crop_top or 0)
         cb = int(crop_bottom or 0)
         w, h = img.size
@@ -569,7 +683,6 @@ async def api_stamp(
         if top or bottom:
             img = img.crop((0, top, w, max(top, h-bottom)))
 
-        # choose timestamp for this image
         if n == 1 or start_dt == end_dt:
             dt = start_dt
         else:
@@ -580,19 +693,15 @@ async def api_stamp(
         text = fmt_datetime(dt, date_format)
         stamped = draw_timestamp(img, text)
 
-        # write to zip
         name = f.filename or f"image_{i+1}.jpg"
         buf = io.BytesIO()
         stamped.save(buf, format="JPEG", quality=92)
         zf.writestr(name.replace(".jpeg",".jpg"), buf.getvalue())
 
     zf.close()
-
-    # deduct 1 credit per run
     add_usage(row["id"], "stamp", -1, f"{n} image(s)")
     new_row = get_user_by_email(u["email"])
 
-    # stream the zip
     def iterfile():
         with open(zip_path, "rb") as f:
             yield from f
