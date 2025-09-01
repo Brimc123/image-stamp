@@ -155,7 +155,7 @@ def list_usage(user_id: int):
     return rows
 
 # -------------------------
-# HTML templates
+# HTML (string.Template – no {{ }} so Python won’t choke)
 # -------------------------
 login_html = Template(r"""
 <!doctype html>
@@ -216,7 +216,7 @@ a{color:#93c5fd}
 </head>
 <body>
   <div class="container">
-    <a href="/tool" class="small">← Back to Image Tool</a>
+    <a href="/tool2" class="small">← Back to Tool</a>
     <h1>Billing</h1>
 
     ${note}
@@ -264,7 +264,7 @@ document.getElementById('topupBtn').addEventListener('click', async () => {
 </html>
 """)
 
-# Existing tool (unchanged)
+# Classic tool (unchanged)
 tool_html = Template(r"""
 <!doctype html>
 <html lang="en">
@@ -351,55 +351,91 @@ document.getElementById('form').addEventListener('submit', async (e) => {
 </html>
 """)
 
-# New, prettier tool (safe preview at /tool2)
+# Upgraded preview tool (route /tool2)
 tool2_html = Template(r"""
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Image Timestamp Tool · Autodate (Preview)</title>
+<title>AutoDate · Timestamp Tool (Preview)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
 :root{
-  --bg:#0b1020; --card:#0f172a; --muted:#94a3b8; --text:#e5e7eb; --primary:#22c55e; --stroke:#1f2937;
+  --bg:#0b1020; --card:#0f172a; --muted:#9aa6b2; --text:#e5e7eb; --primary:#22c55e;
+  --stroke:#1f2937; --soft:#111827; --accent:#60a5fa; --destructive:#ef4444;
 }
 *{box-sizing:border-box}
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:linear-gradient(180deg,#0b1020, #0f172a 35%, #0b1020);color:var(--text);min-height:100svh}
-.container{max-width:1000px;margin:0 auto;padding:28px}
-a{color:#93c5fd}
+body{
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  margin:0; background:radial-gradient(1200px 600px at 20% -10%, #10203c 0%, transparent 55%), linear-gradient(180deg,#0b1020, #0f172a 55%, #0b1020);
+  color:var(--text); min-height:100svh;
+}
+.container{max-width:1150px;margin:0 auto;padding:28px}
+a{color:#93c5fd;text-underline-offset:3px}
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
-.badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--stroke);background:rgba(255,255,255,.02);border-radius:999px;font-weight:600}
-.card{background:var(--card);border:1px solid var(--stroke);border-radius:18px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
-.grid{display:grid;grid-template-columns:1.15fr .85fr;gap:18px}
-label{display:block;margin:12px 0 6px;color:var(--muted)}
-input,select{width:100%;padding:12px;border-radius:12px;border:1px solid var(--stroke);background:#0b1220;color:var(--text)}
-button{padding:12px 16px;border:1px solid #16a34a;background:var(--primary);color:#0b1220;font-weight:800;border-radius:12px;cursor:pointer}
+.brand{display:flex;align-items:center;gap:10px;font-weight:900}
+.badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--stroke);
+  background:rgba(255,255,255,.03);border-radius:999px}
+.nav{display:flex;gap:14px}
+.nav a{color:#cbd5e1}
+.card{background:rgba(15,23,42,.85);backdrop-filter:blur(6px);border:1px solid var(--stroke);border-radius:18px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.grid{display:grid;grid-template-columns:1.25fr .75fr;gap:18px}
+label{display:block;margin:12px 0 6px;color:var(--muted);font-weight:600}
+input,select{
+  width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);
+  background:#0b1220;color:var(--text);outline:none;transition:.15s;
+}
+input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(96,165,250,.15)}
+button{
+  padding:12px 16px;border:1px solid #16a34a;background:var(--primary);color:#0b1220;font-weight:800;border-radius:12px;cursor:pointer;
+  transition:transform .05s ease;min-width:140px
+}
+button:active{transform:translateY(1px)}
 .small{opacity:.85}
-.drop{border:1.5px dashed #334155;border-radius:14px;padding:16px;background:#0b1220;display:flex;align-items:center;justify-content:center;min-height:120px;text-align:center}
-.drop.drag{outline:2px solid #60a5fa}
+.drop{border:1.5px dashed #334155;border-radius:14px;padding:18px;background:linear-gradient(180deg,#0b1220,#0b1324);
+  display:flex;align-items:center;justify-content:center;min-height:140px;text-align:center}
+.drop.drag{outline:2px solid var(--accent)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .hint{font-size:.9rem;color:var(--muted);margin-top:6px}
+.pills{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.pill{padding:6px 10px;border:1px solid var(--stroke);background:rgba(255,255,255,.04);border-radius:999px;cursor:pointer}
+.preview{display:grid;grid-template-columns:repeat(auto-fill, minmax(84px,1fr));gap:10px;margin-top:12px}
+.thumb{position:relative;border-radius:10px;overflow:hidden;border:1px solid #243043;background:#0b1220}
+.thumb img{display:block;width:100%;height:84px;object-fit:cover}
+.count{margin-left:auto;color:#a3b3c2}
+.toast{position:fixed;right:16px;bottom:16px;background:#111827;border:1px solid #1f2937;color:#e5e7eb;padding:10px 14px;border-radius:12px;opacity:0;transform:translateY(8px);transition:.2s}
+.toast.show{opacity:1;transform:translateY(0)}
+@media (max-width: 920px){ .grid{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <div class="badge">🖼️ AutoDate · Preview UI</div>
-      <div class="small"><a href="/tool">Back to classic</a> · <a href="/billing">Billing</a></div>
+      <div class="brand">
+        <div class="badge">🖼️ <b>AutoDate</b> · Preview</div>
+      </div>
+      <div class="nav small">
+        <a href="/tool">Classic</a>
+        <a href="/billing">Billing</a>
+        <a href="/logout">Logout</a>
+      </div>
     </div>
 
     <div class="grid">
       <div class="card">
         <h2 style="margin:0 0 8px 0">Timestamp Images</h2>
-        <form id="form">
-          <label>Images</label>
+        <div class="small" style="margin-top:-2px;color:#a7b3c2">Randomises time per image if an end time is provided.</div>
+
+        <form id="form" style="margin-top:8px">
+          <label>Images <span id="fileCount" class="count">(none)</span></label>
           <input id="fileInput" type="file" name="files" multiple required accept="image/*" hidden />
           <div id="drop" class="drop">Drag & drop images here, or click to choose</div>
+          <div id="previews" class="preview" aria-hidden="true"></div>
 
           <div class="row2" style="margin-top:12px">
             <div>
               <label>Target date</label>
-              <input type="date" name="date" required />
+              <input id="date" type="date" name="date" required />
             </div>
             <div>
               <label>Date format</label>
@@ -413,24 +449,32 @@ button{padding:12px 16px;border:1px solid #16a34a;background:var(--primary);colo
           <div class="row2">
             <div>
               <label>Start time</label>
-              <input type="time" name="start" step="1" required />
+              <input id="start" type="time" name="start" step="1" required />
             </div>
             <div>
               <label>End time <span class="small">(optional)</span></label>
-              <input type="time" name="end" step="1" />
+              <input id="end" type="time" name="end" step="1" />
             </div>
           </div>
 
           <label style="margin-top:10px">Crop (px)</label>
           <div class="row2">
             <input name="crop_top" type="number" min="0" step="1" placeholder="top 0" />
-            <input name="crop_bottom" type="number" min="0" step="1" value="120" />
+            <input id="cropBottom" name="crop_bottom" type="number" min="0" step="1" value="120" />
           </div>
-          <div class="hint">Bottom default 120px to remove GPS bar; set to 0 if not needed.</div>
+          <div class="pills small">
+            Presets:
+            <span class="pill" data-crop="0">0</span>
+            <span class="pill" data-crop="120">120</span>
+            <span class="pill" data-crop="160">160</span>
+          </div>
+          <div class="hint">Tip: bottom default 120px removes many phone GPS bars. Set to 0 if not needed.</div>
 
-          <button style="margin-top:14px">Process</button>
+          <div style="display:flex;gap:12px;align-items:center;margin-top:14px">
+            <button id="goBtn">Process</button>
+            <span class="small" id="status" aria-live="polite"></span>
+          </div>
         </form>
-        <div class="hint" style="margin-top:10px">Each run deducts 1 credit from your balance.</div>
       </div>
 
       <div class="card">
@@ -440,26 +484,77 @@ button{padding:12px 16px;border:1px solid #16a34a;background:var(--primary);colo
     </div>
   </div>
 
+  <div id="toast" class="toast">Done</div>
+
 <script>
-const drop = document.getElementById('drop');
-const input = document.getElementById('fileInput');
+const $ = sel => document.querySelector(sel);
+const drop = $('#drop');
+const input = $('#fileInput');
+const previews = $('#previews');
+const fileCount = $('#fileCount');
+const goBtn = $('#goBtn');
+const statusEl = $('#status');
+const toast = $('#toast');
+
+function showToast(msg){
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(()=>toast.classList.remove('show'), 1800);
+}
+
+function renderPreviews(files){
+  previews.innerHTML = '';
+  if(!files || !files.length){ fileCount.textContent='(none)'; return; }
+  fileCount.textContent = '(' + files.length + (files.length===1?' file':' files') + ')';
+  [...files].slice(0,40).forEach(f=>{
+    if(!f.type.startsWith('image/')) return;
+    const url = URL.createObjectURL(f);
+    const card = document.createElement('div');
+    card.className='thumb';
+    card.innerHTML = '<img src="'+url+'" alt="'+(f.name||"image")+'" />';
+    previews.appendChild(card);
+    card.querySelector('img').onload = () => URL.revokeObjectURL(url);
+  });
+}
+
 drop.addEventListener('click', ()=> input.click());
 ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.add('drag')}))
 ;['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.remove('drag')}))
-drop.addEventListener('drop', e => { input.files = e.dataTransfer.files; });
+drop.addEventListener('drop', e => { input.files = e.dataTransfer.files; renderPreviews(input.files); });
+input.addEventListener('change', ()=> renderPreviews(input.files));
+
+// Defaults: today & now
+(function setDefaults(){
+  const now = new Date();
+  $('#date').value = new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10);
+  const pad = n=>String(n).padStart(2,'0');
+  $('#start').value = pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
+})();
+
+// Crop presets
+document.querySelectorAll('.pill').forEach(p=>{
+  p.addEventListener('click', ()=> { $('#cropBottom').value = p.dataset.crop; });
+});
 
 document.getElementById('form').addEventListener('submit', async (e) => {
   e.preventDefault();
+  if(!input.files || !input.files.length){ alert('Please add at least one image.'); return; }
+
   const fd = new FormData(e.target);
-  // If user dropped files but didn't click input, include them:
-  if(input.files && input.files.length) {
-    [...input.files].forEach(f => fd.append('files', f));
-  }
+  // ensure dropped files included:
+  [...(input.files||[])].forEach(f => fd.append('files', f));
+
+  goBtn.disabled = true;
+  goBtn.textContent = 'Processing…';
+  statusEl.textContent = 'Working on your images…';
+
   const r = await fetch('/api/stamp', { method:'POST', body: fd });
 
   if(!r.ok){
+    goBtn.disabled = false; goBtn.textContent = 'Process'; statusEl.textContent='';
     if(r.status === 402) { window.location.href = '/billing?nocredits=1'; return; }
-    alert('Failed: ' + r.status);
+    const txt = await r.text().catch(()=> '');
+    alert('Failed: ' + r.status + (txt ? ('\n'+txt) : ''));
     return;
   }
 
@@ -468,7 +563,11 @@ document.getElementById('form').addEventListener('submit', async (e) => {
   const a = document.createElement('a');
   a.href = url; a.download = 'stamped.zip'; a.click();
   URL.revokeObjectURL(url);
-  document.getElementById('result').textContent = 'Downloaded stamped.zip';
+
+  const bal = r.headers.get('X-Credits-Balance');
+  $('#result').textContent = 'Downloaded stamped.zip' + (bal?(' — Credits left: '+bal):'');
+  showToast('Download ready' + (bal?(' · credits: '+bal):''));
+  goBtn.disabled = false; goBtn.textContent = 'Process'; statusEl.textContent='';
 });
 </script>
 </body>
@@ -497,25 +596,29 @@ def require_user(request: Request):
 def health():
     return {"ok": True, "db": _db_path(), "env": APP_ENV}
 
+# Health probe used by deploy logs
 @app.get("/api/ping")
 def api_ping():
     return {"ok": True, "time": datetime.utcnow().isoformat()}
 
+# Debug helper
 @app.get("/__whoami", response_class=PlainTextResponse)
 def whoami():
     return "main.py active"
 
 @app.get("/", response_class=HTMLResponse)
 def home():
-    return RedirectResponse("/tool", status_code=302)
+    return RedirectResponse("/tool2", status_code=302)
 
+# Avoid HEAD / 405 noise
 @app.head("/")
 def home_head():
     return PlainTextResponse("", status_code=200)
 
+# Alias so /app works (old link)
 @app.get("/app")
 def app_alias():
-    return RedirectResponse("/tool", status_code=302)
+    return RedirectResponse("/tool2", status_code=302)
 
 # ----- Auth -----
 @app.get("/login", response_class=HTMLResponse)
@@ -528,14 +631,14 @@ async def login_post(request: Request, email: str = Form(...), code: str = Form(
         return HTMLResponse("<h3>Wrong code</h3><a href='/login'>Back</a>", status_code=401)
     ensure_user(email.strip().lower())
     request.session["user"] = {"email": email.strip().lower()}
-    return RedirectResponse("/tool", status_code=302)
+    return RedirectResponse("/tool2", status_code=302)
 
 @app.get("/logout")
 def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login", status_code=302)
 
-# ----- Billing page -----
+# ----- Billing page (no Stripe, just records top-ups) -----
 @app.get("/billing", response_class=HTMLResponse)
 def billing(request: Request):
     u = current_user(request)
@@ -590,7 +693,6 @@ def tool(request: Request):
         return RedirectResponse("/login", status_code=302)
     return HTMLResponse(tool_html.substitute({}))
 
-# New preview UI (no behavior changes)
 @app.get("/tool2", response_class=HTMLResponse)
 def tool2(request: Request):
     u = current_user(request)
