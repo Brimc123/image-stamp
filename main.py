@@ -165,14 +165,14 @@ login_html = Template(r"""
 <title>Log in · Autodate</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0f172a;color:#e2e8f0}
-.card{max-width:420px;margin:3rem auto;background:#111827;border:1px solid #1f2937;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
-h1{margin:0 0 12px;font-size:1.5rem;color:#fff}
-label{display:block;margin:12px 0 6px}
-input{width:100%;padding:12px;border-radius:10px;border:1px solid #374151;background:#0b1220;color:#e5e7eb}
-button{margin-top:16px;width:100%;padding:12px 16px;border:0;border-radius:10px;background:#22c55e;color:#0b1220;font-weight:700;cursor:pointer}
-.small{opacity:.8;font-size:.9rem;margin-top:10px}
-a{color:#93c5fd}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0f172a;color:#0e1726}
+.card{max-width:420px;margin:3rem auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(2,6,23,.15)}
+h1{margin:0 0 12px;font-size:1.6rem;color:#0b1220}
+label{display:block;margin:12px 0 6px;color:#0b1220}
+input{width:100%;padding:12px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;color:#0b1220}
+button{margin-top:16px;width:100%;padding:12px 16px;border:0;border-radius:10px;background:linear-gradient(180deg,#22c55e,#16a34a);color:#061016;font-weight:800;cursor:pointer}
+.small{opacity:.8;font-size:.9rem;margin-top:10px;color:#334155}
+a{color:#2563eb}
 </style>
 </head>
 <body>
@@ -199,19 +199,19 @@ billing_html = Template(r"""
 <title>Billing · Autodate</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0f172a;color:#e2e8f0}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:linear-gradient(180deg,#0e1530,#0f1b3d);color:#0e1726}
 .container{max-width:980px;margin:0 auto}
-h1{font-size:2rem;margin:.3rem 0 1rem}
-.card{background:#111827;border:1px solid #1f2937;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
-.row{display:grid;grid-template-columns:1fr 140px 140px;gap:16px;padding:14px 16px;border-top:1px solid #1f2937}
-.row.header{color:#94a3b8;background:#0b1220;border-radius:16px 16px 0 0;border-top:0}
-.badge{display:inline-block;padding:.25rem .5rem;border-radius:999px;background:#1f2937;color:#cbd5e1}
-button{padding:10px 14px;border-radius:10px;border:1px solid #16a34a;background:#22c55e;color:#0b1220;font-weight:800;cursor:pointer}
-.small{opacity:.8}
+h1{font-size:2rem;margin:.3rem 0 1rem;color:#e8eefc}
+.card{background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 12px 40px rgba(2,6,23,.12)}
+.row{display:grid;grid-template-columns:1fr 140px 140px;gap:16px;padding:14px 16px;border-top:1px solid #e5e7eb}
+.row.header{color:#475569;background:#f1f5f9;border-radius:16px 16px 0 0;border-top:0}
+.badge{display:inline-block;padding:.35rem .7rem;border-radius:999px;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe}
+button{padding:10px 14px;border-radius:10px;border:1px solid #16a34a;background:linear-gradient(180deg,#22c55e,#16a34a);color:#062015;font-weight:800;cursor:pointer}
+.small{opacity:.85;color:#dbe2f0}
 a{color:#93c5fd}
 .flex{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .mt{margin-top:18px}
-.note{margin:0 0 12px 0;padding:12px;border-radius:12px;background:#1f2937;border:1px solid #334155}
+.note{margin:0 0 12px 0;padding:12px;border-radius:12px;background:#fffbea;border:1px solid #fde68a;color:#92400e}
 </style>
 </head>
 <body>
@@ -233,13 +233,13 @@ a{color:#93c5fd}
       We total your top-ups and <strong>invoice weekly</strong> to the email on file. By proceeding you agree to be billed for the selected top-up.
     </p>
 
-    <h2 class="mt">Recent Top-ups</h2>
+    <h2 class="mt" style="color:#e8eefc">Recent Top-ups</h2>
     <div class="card">
       <div class="row header"><div>When</div><div>Credits</div><div>Charged</div></div>
       ${topups_rows}
     </div>
 
-    <h2 class="mt">Recent Usage</h2>
+    <h2 class="mt" style="color:#e8eefc">Recent Usage</h2>
     <div class="card">
       <div class="row header"><div>When</div><div>Action</div><div>Credits Δ</div></div>
       ${usage_rows}
@@ -351,7 +351,9 @@ document.getElementById('form').addEventListener('submit', async (e) => {
 </html>
 """)
 
-# Upgraded preview tool (PLAIN STRING, not Template!)
+# =========================
+# New PREVIEW tool (PLAIN STRING, not Template)
+# =========================
 tool2_html = r"""
 <!doctype html>
 <html lang="en">
@@ -361,50 +363,74 @@ tool2_html = r"""
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
 :root{
-  --bg:#0b1020; --card:#0f172a; --muted:#9aa6b2; --text:#e5e7eb; --primary:#22c55e;
-  --stroke:#1f2937; --soft:#111827; --accent:#60a5fa; --destructive:#ef4444;
+  --bg1:#0e1530; --bg2:#101c3f; --grid:#132044;
+  --card:#ffffff; --card-soft:#f7f9fc; --text:#0b1220; --muted:#5b6b86;
+  --primary:#22c55e; --primary-2:#16a34a; --accent:#2563eb; --stroke:#e6eaf2;
 }
 *{box-sizing:border-box}
 body{
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-  margin:0; background:radial-gradient(1200px 600px at 20% -10%, #10203c 0%, transparent 55%), linear-gradient(180deg,#0b1020, #0f172a 55%, #0b1020);
-  color:var(--text); min-height:100svh;
+  margin:0;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(37,99,235,.35), transparent 55%),
+    linear-gradient(180deg,var(--bg1), var(--bg2));
+  min-height:100svh;
+  color:var(--text);
+}
+/* soft grid */
+body::before{
+  content:"";
+  position:fixed; inset:0;
+  background:
+    linear-gradient(transparent 31px, rgba(255,255,255,.05) 32px),
+    linear-gradient(90deg, transparent 31px, rgba(255,255,255,.05) 32px);
+  background-size:32px 32px;
+  mask-image: radial-gradient(1000px 600px at 30% 0%, rgba(0,0,0,1), rgba(0,0,0,.2) 60%, transparent 80%);
+  pointer-events:none;
 }
 .container{max-width:1150px;margin:0 auto;padding:28px}
-a{color:#93c5fd;text-underline-offset:3px}
+a{color:#e3ecff;text-underline-offset:3px}
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:900}
-.badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--stroke);
-  background:rgba(255,255,255,.03);border-radius:999px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:900;color:#eaf1ff}
+.badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid rgba(255,255,255,.25);
+  background:rgba(255,255,255,.08);border-radius:999px}
 .nav{display:flex;gap:14px}
-.nav a{color:#cbd5e1}
-.card{background:rgba(15,23,42,.85);backdrop-filter:blur(6px);border:1px solid var(--stroke);border-radius:18px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.nav a{color:#d7e5ff}
+.card{
+  background:var(--card); border:1px solid var(--stroke); border-radius:18px; padding:18px;
+  box-shadow:0 12px 44px rgba(6,11,22,.22);
+}
 .grid{display:grid;grid-template-columns:1.25fr .75fr;gap:18px}
-label{display:block;margin:12px 0 6px;color:var(--muted);font-weight:600}
+label{display:block;margin:12px 0 6px;color:#364254;font-weight:700}
 input,select{
   width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);
-  background:#0b1220;color:var(--text);outline:none;transition:.15s;
+  background:#fff;color:var(--text);outline:none;transition:.15s;
 }
-input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(96,165,250,.15)}
+input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
 button{
-  padding:12px 16px;border:1px solid #16a34a;background:var(--primary);color:#0b1220;font-weight:800;border-radius:12px;cursor:pointer;
-  transition:transform .05s ease;min-width:140px
+  padding:12px 16px;border:1px solid var(--primary-2);
+  background:linear-gradient(180deg,var(--primary),var(--primary-2));
+  color:#062015;font-weight:900;border-radius:12px;cursor:pointer;
+  transition:transform .06s ease, filter .2s ease, box-shadow .2s ease; min-width:150px
 }
+button:hover{filter:brightness(1.05); box-shadow:0 8px 24px rgba(22,163,74,.35)}
 button:active{transform:translateY(1px)}
-.small{opacity:.85}
-.drop{border:1.5px dashed #334155;border-radius:14px;padding:18px;background:linear-gradient(180deg,#0b1220,#0b1324);
-  display:flex;align-items:center;justify-content:center;min-height:140px;text-align:center}
-.drop.drag{outline:2px solid var(--accent)}
+.small{opacity:.9;color:#64748b}
+.drop{border:1.5px dashed #c8d3e5;border-radius:14px;padding:18px;background:var(--card-soft);
+  display:flex;align-items:center;justify-content:center;min-height:140px;text-align:center;color:#42506a}
+.drop.drag{outline:2px solid #93c5fd}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.hint{font-size:.9rem;color:var(--muted);margin-top:6px}
+.hint{font-size:.92rem;color:#6b7a93;margin-top:6px}
 .pills{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
-.pill{padding:6px 10px;border:1px solid var(--stroke);background:rgba(255,255,255,.04);border-radius:999px;cursor:pointer}
+.pill{padding:6px 10px;border:1px solid var(--stroke);background:#fff;border-radius:999px;cursor:pointer;color:#41506b}
 .preview{display:grid;grid-template-columns:repeat(auto-fill, minmax(84px,1fr));gap:10px;margin-top:12px}
-.thumb{position:relative;border-radius:10px;overflow:hidden;border:1px solid #243043;background:#0b1220}
+.thumb{position:relative;border-radius:10px;overflow:hidden;border:1px solid #dde5f1;background:#f8fbff}
 .thumb img{display:block;width:100%;height:84px;object-fit:cover}
-.count{margin-left:auto;color:#a3b3c2}
-.toast{position:fixed;right:16px;bottom:16px;background:#111827;border:1px solid #1f2937;color:#e5e7eb;padding:10px 14px;border-radius:12px;opacity:0;transform:translateY(8px);transition:.2s}
-.toast.show{opacity:1;transform:translateY(0)}
+.count{margin-left:auto;color:#74829d}
+.right .card{background:rgba(255,255,255,.92)}
+.result-title{margin:0 0 6px 0;color:#1f2937}
+.spinner{width:18px;height:18px;border:2px solid #a7f3d0;border-top-color:#065f46;border-radius:50%;display:none; animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 @media (max-width: 920px){ .grid{grid-template-columns:1fr} }
 </style>
 </head>
@@ -423,8 +449,8 @@ button:active{transform:translateY(1px)}
 
     <div class="grid">
       <div class="card">
-        <h2 style="margin:0 0 8px 0">Timestamp Images</h2>
-        <div class="small" style="margin-top:-2px;color:#a7b3c2">Randomises time per image if an end time is provided.</div>
+        <h2 style="margin:0 0 6px 0;color:#0b1220">Timestamp Images</h2>
+        <div class="small" style="margin-top:-2px">Randomises time per image if an end time is provided.</div>
 
         <form id="form" style="margin-top:8px">
           <label>Images <span id="fileCount" class="count">(none)</span></label>
@@ -472,19 +498,20 @@ button:active{transform:translateY(1px)}
 
           <div style="display:flex;gap:12px;align-items:center;margin-top:14px">
             <button id="goBtn">Process</button>
+            <div id="spin" class="spinner" aria-hidden="true"></div>
             <span class="small" id="status" aria-live="polite"></span>
           </div>
         </form>
       </div>
 
-      <div class="card">
-        <h3 style="margin:0 0 6px 0">Result</h3>
-        <div id="result" class="small">You will get a zip download.</div>
+      <div class="right">
+        <div class="card">
+          <h3 class="result-title">Result</h3>
+          <div id="result" class="small">You will get a zip download.</div>
+        </div>
       </div>
     </div>
   </div>
-
-  <div id="toast" class="toast">Done</div>
 
 <script>
 const $ = sel => document.querySelector(sel);
@@ -494,13 +521,7 @@ const previews = $('#previews');
 const fileCount = $('#fileCount');
 const goBtn = $('#goBtn');
 const statusEl = $('#status');
-const toast = $('#toast');
-
-function showToast(msg){
-  toast.textContent = msg;
-  toast.classList.add('show');
-  setTimeout(()=>toast.classList.remove('show'), 1800);
-}
+const spin = $('#spin');
 
 function renderPreviews(files){
   previews.innerHTML = '';
@@ -545,12 +566,13 @@ document.getElementById('form').addEventListener('submit', async (e) => {
 
   goBtn.disabled = true;
   goBtn.textContent = 'Processing…';
+  spin.style.display = 'inline-block';
   statusEl.textContent = 'Working on your images…';
 
   const r = await fetch('/api/stamp', { method:'POST', body: fd });
 
   if(!r.ok){
-    goBtn.disabled = false; goBtn.textContent = 'Process'; statusEl.textContent='';
+    goBtn.disabled = false; goBtn.textContent = 'Process'; spin.style.display = 'none'; statusEl.textContent='';
     if(r.status === 402) { window.location.href = '/billing?nocredits=1'; return; }
     const txt = await r.text().catch(()=> '');
     alert('Failed: ' + r.status + (txt ? ('\\n'+txt) : ''));
@@ -565,8 +587,8 @@ document.getElementById('form').addEventListener('submit', async (e) => {
 
   const bal = r.headers.get('X-Credits-Balance');
   document.getElementById('result').textContent = 'Downloaded stamped.zip' + (bal?(' — Credits left: '+bal):'');
-  showToast('Download ready' + (bal?(' · credits: '+bal):''));
-  goBtn.disabled = false; goBtn.textContent = 'Process'; statusEl.textContent='';
+
+  goBtn.disabled = false; goBtn.textContent = 'Process'; spin.style.display = 'none'; statusEl.textContent='';
 });
 </script>
 </body>
@@ -595,12 +617,10 @@ def require_user(request: Request):
 def health():
     return {"ok": True, "db": _db_path(), "env": APP_ENV}
 
-# Health probe used by deploy logs
 @app.get("/api/ping")
 def api_ping():
     return {"ok": True, "time": datetime.utcnow().isoformat()}
 
-# Debug helper
 @app.get("/__whoami", response_class=PlainTextResponse)
 def whoami():
     return "main.py active"
@@ -609,12 +629,10 @@ def whoami():
 def home():
     return RedirectResponse("/tool2", status_code=302)
 
-# Avoid HEAD / 405 noise
 @app.head("/")
 def home_head():
     return PlainTextResponse("", status_code=200)
 
-# Alias so /app works (old link)
 @app.get("/app")
 def app_alias():
     return RedirectResponse("/tool2", status_code=302)
@@ -697,7 +715,6 @@ def tool2(request: Request):
     u = current_user(request)
     if not u:
         return RedirectResponse("/login", status_code=302)
-    # tool2_html is a plain string (no Template.substitute!)
     return HTMLResponse(tool2_html)
 
 # -------------------------
