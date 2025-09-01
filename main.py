@@ -1,6 +1,7 @@
 import os
 import io
 import csv
+import hmac
 import random
 import sqlite3
 from datetime import datetime, timedelta
@@ -8,42 +9,34 @@ from string import Template
 from typing import List, Optional
 
 from fastapi import FastAPI, Form, UploadFile, File, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, PlainTextResponse, Response
+from fastapi.responses import (
+    HTMLResponse, JSONResponse, StreamingResponse,
+    RedirectResponse, PlainTextResponse, Response
+)
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from PIL import Image, ImageDraw, ImageFont
-
-# --- at the top where you read envs ---
-ADMIN_CODE = (os.getenv("ADMIN_CODE", "change-me") or "").strip()
-
-# --- in login_post() ---
-import hmac
-
-@app.post("/login")
-async def login_post(request: Request, email: str = Form(...), code: str = Form(...)):
-    email = (email or "").strip().lower()
-    code  = (code or "").strip()
-
-    if not hmac.compare_digest(code, ADMIN_CODE):
-        return HTMLResponse("<h3>Wrong code</h3><a href='/login'>Back</a>", status_code=401)
-
-    row = ensure_user(email)
-    ...
-
 
 # -------------------------
 # Config via environment
 # -------------------------
 APP_ENV = os.getenv("APP_ENV", "production")
-SESSION_SECRET = os.getenv("SESSION_SECRET", "change-me")
-ADMIN_CODE = os.getenv("ADMIN_CODE", "change-me")
+SESSION_SECRET = (os.getenv("SESSION_SECRET", "change-me") or "").strip()
+ADMIN_CODE = (os.getenv("ADMIN_CODE", "change-me") or "").strip()
 ADMIN_EMAIL = (os.getenv("ADMIN_EMAIL", "admin@example.com") or "").lower().strip()
-ALLOWED_ORIGINS_RAW = os.getenv("ALLOWED_ORIGINS", "https://autodate.co.uk,https://www.autodate.co.uk,https://image-stamp.onrender.com")
+
+ALLOWED_ORIGINS_RAW = os.getenv(
+    "ALLOWED_ORIGINS",
+    "https://autodate.co.uk,https://www.autodate.co.uk,https://image-stamp.onrender.com"
+)
 ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
+
 DB_FILE = os.getenv("DB_FILE", "/var/data/app.db")
 DB_PATH = os.getenv("DB_PATH", "dev.db")
+
 CREDIT_COST_GBP = float(os.getenv("CREDIT_COST_GBP", "10"))
 MIN_TOPUP_CREDITS = int(os.getenv("MIN_TOPUP", "5"))
+
 FONT_PATH = os.getenv("FONT_PATH", "")
 SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "imgstamp_session")
 
@@ -53,7 +46,12 @@ BRAND_NAME = os.getenv("BRAND_NAME", "AutoDate")
 # App & middleware
 # -------------------------
 app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", session_cookie=SESSION_COOKIE_NAME)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    same_site="lax",
+    session_cookie=SESSION_COOKIE_NAME
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS or ["*"],
@@ -114,7 +112,7 @@ def db_init():
     );
     """)
 
-    # ---- Schema upgrades (safe to run repeatedly)
+    # ---- Schema upgrades (idempotent)
     if not _column_exists(cur, "users", "is_active"):
         cur.execute("ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1")
     if not _column_exists(cur, "users", "suspended_at"):
@@ -142,7 +140,10 @@ def ensure_user(email: str):
     conn = db_conn()
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
-    cur.execute("INSERT INTO users(email, credits, created_at, is_active) VALUES (?,?,?,1)", (email, 0, now))
+    cur.execute(
+        "INSERT INTO users(email, credits, created_at, is_active) VALUES (?,?,?,1)",
+        (email, 0, now)
+    )
     conn.commit()
     conn.close()
     return get_user_by_email(email)
@@ -152,11 +153,15 @@ def add_topup(user_id: int, credits: int):
     conn = db_conn()
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
-    cur.execute("INSERT INTO topups(user_id, credits, amount_gbp, created_at) VALUES (?,?,?,?)",
-                (user_id, credits, amount, now))
+    cur.execute(
+        "INSERT INTO topups(user_id, credits, amount_gbp, created_at) VALUES (?,?,?,?)",
+        (user_id, credits, amount, now)
+    )
     cur.execute("UPDATE users SET credits = credits + ? WHERE id=?", (credits, user_id))
-    cur.execute("INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
-                (user_id, "topup", credits, f"{credits} credits", now))
+    cur.execute(
+        "INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
+        (user_id, "topup", credits, f"{credits} credits", now)
+    )
     conn.commit()
     conn.close()
 
@@ -164,8 +169,10 @@ def add_usage(user_id: int, action: str, credits_delta: int, meta: str = ""):
     conn = db_conn()
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
-    cur.execute("INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
-                (user_id, action, credits_delta, meta, now))
+    cur.execute(
+        "INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
+        (user_id, action, credits_delta, meta, now)
+    )
     cur.execute("UPDATE users SET credits = credits + ? WHERE id=?", (credits_delta, user_id))
     conn.commit()
     conn.close()
@@ -380,7 +387,7 @@ body::before{
 label{display:block;margin:12px 0 6px;color:#364254;font-weight:800;letter-spacing:.2px}
 input,select{
   width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);
-  background:#fff;color:var(--text);outline:none;transition:.15s;
+  background:#fff;color:#var(--text);outline:none;transition:.15s;
 }
 input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
 button{
@@ -522,8 +529,8 @@ function renderPreviews(files){
 }
 
 drop.addEventListener('click', ()=> input.click());
-['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.add('drag')}))
-;['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.remove('drag')}))
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.add('drag')}));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.remove('drag')}));
 drop.addEventListener('drop', e => { input.files = e.dataTransfer.files; renderPreviews(input.files); });
 input.addEventListener('change', ()=> renderPreviews(input.files));
 
@@ -558,7 +565,7 @@ document.getElementById('form').addEventListener('submit', async (e) => {
     goBtn.disabled = false; goBtn.textContent = 'Process'; spin.style.display = 'none'; statusEl.textContent='';
     if(r.status === 402) { window.location.href = '/billing?nocredits=1'; return; }
     const txt = await r.text().catch(()=> '');
-    alert('Failed: ' + r.status + (txt ? ('\\n'+txt) : ''));
+    alert('Failed: ' + r.status + (txt ? ('\n'+txt) : ''));
     return;
   }
 
@@ -713,11 +720,14 @@ def login_get(request: Request):
 
 @app.post("/login")
 async def login_post(request: Request, email: str = Form(...), code: str = Form(...)):
-    if code != ADMIN_CODE:
+    # normalize inputs (avoid hidden spaces) and compare in constant time
+    email = (email or "").strip().lower()
+    code = (code or "").strip()
+
+    if not hmac.compare_digest(code, ADMIN_CODE):
         return HTMLResponse("<h3>Wrong code</h3><a href='/login'>Back</a>", status_code=401)
-    email = email.strip().lower()
+
     row = ensure_user(email)
-    # If suspended, don't start a session.
     if int(row["is_active"] or 0) != 1:
         return RedirectResponse("/suspended", status_code=302)
     try:
@@ -784,10 +794,8 @@ def api_topup(request: Request):
 # ----- Tool pages -----
 @app.get("/tool", response_class=HTMLResponse)
 def tool(request: Request):
-    row = require_active_user_row(request)
-    if isinstance(row, (RedirectResponse, HTMLResponse)):
-        return row
-    return HTMLResponse(tool_html.substitute({}))
+    # keep the "Classic" link working without maintaining 2 UIs
+    return RedirectResponse("/tool2", status_code=302)
 
 @app.get("/tool2", response_class=HTMLResponse)
 def tool2(request: Request):
@@ -849,8 +857,11 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
 
     users_rows = ""
     for r in users:
-        status = "Active" if int(r["is_active"] or 0) == 1 else f"Suspended<br><span class='small'>{fmt(r['suspended_at'])}</span><br><span class='small'>{(r['suspended_reason'] or '')}</span>"
-        # Action cell
+        status = "Active" if int(r["is_active"] or 0) == 1 else (
+            f"Suspended<br><span class='small'>{fmt(r['suspended_at'])}</span>"
+            f"<br><span class='small'>{(r['suspended_reason'] or '')}</span>"
+        )
+
         if ADMIN_EMAIL and r["email"].lower() == ADMIN_EMAIL:
             action = "<span class='small'>—</span>"
         elif int(r["is_active"] or 0) == 1:
@@ -889,7 +900,11 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
 
     topups_rows = ""
     for t in tops:
-        topups_rows += f"<tr><td>{fmt(t['created_at'])}</td><td>{t['email']}</td><td>{t['credits']}</td><td>£{t['amount_gbp']:.0f}</td></tr>"
+        topups_rows += (
+            f"<tr><td>{fmt(t['created_at'])}</td>"
+            f"<td>{t['email']}</td><td>{t['credits']}</td>"
+            f"<td>£{t['amount_gbp']:.0f}</td></tr>"
+        )
     if not topups_rows:
         topups_rows = "<tr><td colspan=4>No top-ups in range</td></tr>"
 
@@ -913,7 +928,10 @@ def admin_suspend_user(request: Request, email: str = Form(...), reason: str = F
     conn = db_conn()
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
-    cur.execute("UPDATE users SET is_active=0, suspended_at=?, suspended_reason=? WHERE email=?", (now, reason.strip(), email.lower()))
+    cur.execute(
+        "UPDATE users SET is_active=0, suspended_at=?, suspended_reason=? WHERE email=?",
+        (now, (reason or "").strip(), email.lower())
+    )
     conn.commit()
     conn.close()
     return RedirectResponse("/admin", status_code=302)
@@ -925,7 +943,10 @@ def admin_unsuspend_user(request: Request, email: str = Form(...)):
         return u
     conn = db_conn()
     cur = conn.cursor()
-    cur.execute("UPDATE users SET is_active=1, suspended_at=NULL, suspended_reason=NULL WHERE email=?", (email.lower(),))
+    cur.execute(
+        "UPDATE users SET is_active=1, suspended_at=NULL, suspended_reason=NULL WHERE email=?",
+        (email.lower(),)
+    )
     conn.commit()
     conn.close()
     return RedirectResponse("/admin", status_code=302)
@@ -1034,7 +1055,8 @@ def draw_timestamp(img: Image.Image, text: str) -> Image.Image:
     y = h - th - pad
     for ox in (-1,0,1):
         for oy in (-1,0,1):
-            if ox==0 and oy==0: continue
+            if ox==0 and oy==0: 
+                continue
             draw.text((x+ox, y+oy), text, font=font, fill=(0,0,0,255))
     draw.text((x, y), text, font=font, fill=(255,255,255,255))
     return im.convert("RGB")
@@ -1057,7 +1079,6 @@ async def api_stamp(
 ):
     row = require_active_user_row(request)
     if isinstance(row, (RedirectResponse, HTMLResponse)):
-        # If redirected, convert to an API-friendly response where useful
         return JSONResponse({"ok": False, "error": "not_active"}, status_code=403)
 
     if row["credits"] <= 0:
