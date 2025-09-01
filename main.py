@@ -1,5 +1,6 @@
 import os
 import io
+import csv
 import random
 import sqlite3
 from datetime import datetime, timedelta
@@ -7,7 +8,7 @@ from string import Template
 from typing import List, Optional
 
 from fastapi import FastAPI, Form, UploadFile, File, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, PlainTextResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from PIL import Image, ImageDraw, ImageFont
@@ -18,16 +19,17 @@ from PIL import Image, ImageDraw, ImageFont
 APP_ENV = os.getenv("APP_ENV", "production")
 SESSION_SECRET = os.getenv("SESSION_SECRET", "change-me")
 ADMIN_CODE = os.getenv("ADMIN_CODE", "change-me")
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@example.com")
+ADMIN_EMAIL = (os.getenv("ADMIN_EMAIL", "admin@example.com") or "").lower().strip()
 ALLOWED_ORIGINS_RAW = os.getenv("ALLOWED_ORIGINS", "https://autodate.co.uk,https://www.autodate.co.uk,https://image-stamp.onrender.com")
 ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
 DB_FILE = os.getenv("DB_FILE", "/var/data/app.db")
 DB_PATH = os.getenv("DB_PATH", "dev.db")
 CREDIT_COST_GBP = float(os.getenv("CREDIT_COST_GBP", "10"))
 MIN_TOPUP_CREDITS = int(os.getenv("MIN_TOPUP", "5"))
-
 FONT_PATH = os.getenv("FONT_PATH", "")
 SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "imgstamp_session")
+
+BRAND_NAME = os.getenv("BRAND_NAME", "AutoDate")
 
 # -------------------------
 # App & middleware
@@ -82,8 +84,8 @@ def db_init():
     CREATE TABLE IF NOT EXISTS usage (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
-        action TEXT NOT NULL,
-        credits_delta INTEGER NOT NULL,
+        action TEXT NOT NULL,           -- 'stamp', 'topup', 'login', ...
+        credits_delta INTEGER NOT NULL, -- -1 for stamp, +N for topup, 0 for login
         meta TEXT,
         created_at TEXT NOT NULL,
         FOREIGN KEY(user_id) REFERENCES users(id)
@@ -154,7 +156,7 @@ def list_usage(user_id: int):
     return rows
 
 # -------------------------
-# HTML templates
+# HTML templates (login & classic)
 # -------------------------
 login_html = Template(r"""
 <!doctype html>
@@ -164,7 +166,7 @@ login_html = Template(r"""
 <title>Log in · Autodate</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0f172a;color:#0e1726}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0f172a}
 .card{max-width:420px;margin:3rem auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(2,6,23,.15)}
 h1{margin:0 0 12px;font-size:1.6rem;color:#0b1220}
 label{display:block;margin:12px 0 6px;color:#0b1220}
@@ -263,7 +265,7 @@ document.getElementById('topupBtn').addEventListener('click', async () => {
 </html>
 """)
 
-# Classic tool (unchanged)
+# Classic tool (stays dark)
 tool_html = Template(r"""
 <!doctype html>
 <html lang="en">
@@ -302,12 +304,6 @@ a{color:#93c5fd}
 
           <label>End time (for multiple images; optional)</label>
           <input type="time" name="end" step="1" />
-
-          <label>Crop (pixels from each edge, e.g. to remove top GPS bar)</label>
-          <div class="grid">
-            <input name="crop_top" type="number" min="0" step="1" placeholder="top 0" />
-            <input name="crop_bottom" type="number" min="0" step="1" placeholder="bottom 0" />
-          </div>
 
           <label>Date format (match your originals)</label>
           <select name="date_format">
@@ -351,7 +347,7 @@ document.getElementById('form').addEventListener('submit', async (e) => {
 """)
 
 # =========================
-# NEW /tool2 — visuals only (plain string)
+# /tool2 (visuals you liked)
 # =========================
 tool2_html = r"""
 <!doctype html>
@@ -377,7 +373,6 @@ body{
   min-height:100svh;
   color:var(--text);
 }
-/* soft grid overlay */
 body::before{
   content:""; position:fixed; inset:0; pointer-events:none;
   background:
@@ -388,21 +383,17 @@ body::before{
   mask-image: radial-gradient(1100px 700px at 30% 0%, #000, rgba(0,0,0,.3) 60%, transparent 80%);
 }
 .container{max-width:1150px;margin:0 auto;padding:28px}
-/* header */
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:900;color:#eaf1ff}
 .badge{
   display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;color:#eaf1ff;
-  background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.25);
-  backdrop-filter: blur(8px);
+  background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.25); backdrop-filter: blur(8px);
 }
 .nav{display:flex;gap:16px}
 .nav a{color:#e7efff;text-underline-offset:3px}
-/* gradient-border card */
 .card{
   position:relative; border-radius:22px; padding:22px; background:var(--card);
-  border:1px solid var(--stroke);
-  box-shadow:0 18px 50px rgba(6,11,22,.22);
+  border:1px solid var(--stroke); box-shadow:0 18px 50px rgba(6,11,22,.22);
 }
 .card.gfx::before{
   content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1px;
@@ -412,7 +403,6 @@ body::before{
 }
 .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:20px}
 .right .card{position:sticky; top:24px; background:rgba(255,255,255,.95)}
-/* form */
 label{display:block;margin:12px 0 6px;color:#364254;font-weight:800;letter-spacing:.2px}
 input,select{
   width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);
@@ -613,8 +603,74 @@ document.getElementById('form').addEventListener('submit', async (e) => {
 </html>
 """
 
+# =========================
+# Admin dashboard (MASTER)
+# =========================
+admin_html = Template(r"""
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Admin · ${brand}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:22px;background:#0b1220;color:#e8eefc}
+.wrap{max-width:1100px;margin:0 auto}
+h1{margin:.2rem 0 1rem}
+.card{background:#0f172a;border:1px solid #1f2a44;border-radius:14px;padding:16px;box-shadow:0 12px 28px rgba(2,6,23,.25)}
+.small{opacity:.85}
+a{color:#93c5fd}
+input{background:#0b1220;border:1px solid #1f2a44;color:#e8eefc;border-radius:10px;padding:8px 10px}
+button{padding:8px 12px;border-radius:10px;border:1px solid #16a34a;background:#22c55e;color:#062015;font-weight:800;cursor:pointer}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px 10px;border-bottom:1px solid #1f2a44;text-align:left}
+th{color:#9fb2d9}
+.badge{display:inline-block;padding:.2rem .5rem;border-radius:999px;background:#1f2a44}
+.flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="flex" style="justify-content:space-between">
+      <h1>${brand} · Admin</h1>
+      <div><a href="/tool2">Tool</a> · <a href="/billing">Billing</a> · <a href="/logout">Logout</a></div>
+    </div>
+
+    <form method="get" class="card" style="margin-bottom:16px;display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+      <div><div class="small">Start</div><input type="date" name="start" value="${start}"></div>
+      <div><div class="small">End</div><input type="date" name="end" value="${end}"></div>
+      <div><button type="submit">Apply</button></div>
+      <div class="small">Exports: <a href="/admin/export/topups.csv?start=${start}&end=${end}">Top-ups CSV</a> · <a href="/admin/export/summary.csv?start=${start}&end=${end}">Summary CSV</a></div>
+    </form>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="flex" style="justify-content:space-between">
+        <h3 style="margin:0">Users</h3>
+        <div class="small">Range: <span class="badge">${start} → ${end}</span></div>
+      </div>
+      <table style="margin-top:8px">
+        <tr>
+          <th>Email</th><th>Credits</th><th>Created</th><th>Last login</th>
+          <th>Stamp runs</th><th>Top-ups</th><th>Top-up credits</th><th>Top-up £</th>
+        </tr>
+        ${users_rows}
+      </table>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 8px 0">Recent Top-ups in range</h3>
+      <table>
+        <tr><th>When</th><th>User</th><th>Credits</th><th>£</th></tr>
+        ${topups_rows}
+      </table>
+    </div>
+  </div>
+</body>
+</html>
+""")
+
 # -------------------------
-# Utility: auth
+# Utility: auth helpers
 # -------------------------
 def current_user(request: Request):
     u = request.session.get("user")
@@ -626,6 +682,14 @@ def require_user(request: Request):
     u = current_user(request)
     if not u:
         return RedirectResponse("/login", status_code=302)
+    return u
+
+def require_admin(request: Request):
+    u = require_user(request)
+    if not u:
+        return u
+    if not ADMIN_EMAIL or u["email"].lower() != ADMIN_EMAIL:
+        return HTMLResponse("<h3>Forbidden</h3><p>Admin only.</p>", status_code=403)
     return u
 
 # -------------------------
@@ -664,8 +728,14 @@ def login_get(request: Request):
 async def login_post(request: Request, email: str = Form(...), code: str = Form(...)):
     if code != ADMIN_CODE:
         return HTMLResponse("<h3>Wrong code</h3><a href='/login'>Back</a>", status_code=401)
-    ensure_user(email.strip().lower())
-    request.session["user"] = {"email": email.strip().lower()}
+    email = email.strip().lower()
+    row = ensure_user(email)
+    # record login event (0 credit change)
+    try:
+        add_usage(row["id"], "login", 0, "signin")
+    except Exception as e:
+        print("login log failed:", e)
+    request.session["user"] = {"email": email}
     return RedirectResponse("/tool2", status_code=302)
 
 @app.get("/logout")
@@ -734,6 +804,164 @@ def tool2(request: Request):
     if not u:
         return RedirectResponse("/login", status_code=302)
     return HTMLResponse(tool2_html)
+
+# ----- Admin dashboard & exports -----
+@app.get("/admin", response_class=HTMLResponse)
+def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional[str] = None):
+    u = require_admin(request)
+    if isinstance(u, HTMLResponse):  # forbidden
+        return u
+
+    # default range: last 7 days (inclusive)
+    today = datetime.utcnow().date()
+    if not start:
+        start = (today - timedelta(days=6)).isoformat()
+    if not end:
+        end = today.isoformat()
+
+    start_dt = datetime.fromisoformat(start)
+    end_dt = datetime.fromisoformat(end) + timedelta(days=1)  # inclusive end
+
+    conn = db_conn()
+    cur = conn.cursor()
+
+    # per-user summary in range
+    cur.execute("""
+        SELECT
+          u.id, u.email, u.credits, u.created_at,
+          (SELECT MAX(created_at) FROM usage WHERE user_id=u.id AND action='login') AS last_login,
+          (SELECT COUNT(*) FROM usage WHERE user_id=u.id AND action='stamp' AND created_at>=? AND created_at<?) AS stamp_runs,
+          (SELECT COUNT(*) FROM topups WHERE user_id=u.id AND created_at>=? AND created_at<?) AS topup_count,
+          (SELECT COALESCE(SUM(credits),0) FROM topups WHERE user_id=u.id AND created_at>=? AND created_at<?) AS topup_credits,
+          (SELECT COALESCE(SUM(amount_gbp),0) FROM topups WHERE user_id=u.id AND created_at>=? AND created_at<?) AS topup_amount
+        FROM users u
+        ORDER BY u.id DESC
+    """, (start_dt.isoformat(), end_dt.isoformat(),
+          start_dt.isoformat(), end_dt.isoformat(),
+          start_dt.isoformat(), end_dt.isoformat(),
+          start_dt.isoformat(), end_dt.isoformat()))
+    users = cur.fetchall()
+
+    # recent topups in range (limit 200)
+    cur.execute("""
+        SELECT t.created_at, u.email, t.credits, t.amount_gbp
+        FROM topups t JOIN users u ON u.id=t.user_id
+        WHERE t.created_at>=? AND t.created_at<?
+        ORDER BY t.created_at DESC
+        LIMIT 200
+    """, (start_dt.isoformat(), end_dt.isoformat()))
+    tops = cur.fetchall()
+    conn.close()
+
+    def fmt(dt):
+        return (dt or "").replace("T"," ").split(".")[0] if dt else "—"
+
+    users_rows = ""
+    for r in users:
+        users_rows += (
+            f"<tr>"
+            f"<td>{r['email']}</td>"
+            f"<td>{r['credits']}</td>"
+            f"<td>{fmt(r['created_at'])}</td>"
+            f"<td>{fmt(r['last_login'])}</td>"
+            f"<td>{r['stamp_runs']}</td>"
+            f"<td>{r['topup_count']}</td>"
+            f"<td>{r['topup_credits']}</td>"
+            f"<td>£{r['topup_amount']:.0f}</td>"
+            f"</tr>"
+        )
+
+    if not users_rows:
+        users_rows = "<tr><td colspan=8>No users yet</td></tr>"
+
+    topups_rows = ""
+    for t in tops:
+        topups_rows += f"<tr><td>{fmt(t['created_at'])}</td><td>{t['email']}</td><td>{t['credits']}</td><td>£{t['amount_gbp']:.0f}</td></tr>"
+    if not topups_rows:
+        topups_rows = "<tr><td colspan=4>No top-ups in range</td></tr>"
+
+    html = admin_html.substitute(
+        brand=BRAND_NAME,
+        start=start,
+        end=end,
+        users_rows=users_rows,
+        topups_rows=topups_rows
+    )
+    return HTMLResponse(html)
+
+@app.get("/admin/export/topups.csv")
+def export_topups_csv(request: Request, start: str, end: str):
+    u = require_admin(request)
+    if isinstance(u, HTMLResponse):
+        return u
+
+    start_dt = datetime.fromisoformat(start)
+    end_dt = datetime.fromisoformat(end) + timedelta(days=1)
+
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT t.created_at, u.email, t.credits, t.amount_gbp
+        FROM topups t JOIN users u ON u.id=t.user_id
+        WHERE t.created_at>=? AND t.created_at<?
+        ORDER BY t.created_at ASC
+    """, (start_dt.isoformat(), end_dt.isoformat()))
+    rows = cur.fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["when_utc", "email", "credits", "amount_gbp"])
+    for r in rows:
+        writer.writerow([r["created_at"], r["email"], r["credits"], f"{r['amount_gbp']:.2f}"])
+    data = output.getvalue().encode("utf-8")
+    headers = {
+        "Content-Disposition": f'attachment; filename="topups_{start}_to_{end}.csv"'
+    }
+    return Response(content=data, media_type="text/csv; charset=utf-8", headers=headers)
+
+@app.get("/admin/export/summary.csv")
+def export_summary_csv(request: Request, start: str, end: str):
+    u = require_admin(request)
+    if isinstance(u, HTMLResponse):
+        return u
+
+    start_dt = datetime.fromisoformat(start)
+    end_dt = datetime.fromisoformat(end) + timedelta(days=1)
+
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT
+          u.email, u.credits AS current_credits,
+          (SELECT COUNT(*) FROM topups WHERE user_id=u.id AND created_at>=? AND created_at<?) AS topup_count,
+          (SELECT COALESCE(SUM(credits),0) FROM topups WHERE user_id=u.id AND created_at>=? AND created_at<?) AS topup_credits,
+          (SELECT COALESCE(SUM(amount_gbp),0) FROM topups WHERE user_id=u.id AND created_at>=? AND created_at<?) AS topup_amount,
+          (SELECT COUNT(*) FROM usage WHERE user_id=u.id AND action='stamp' AND created_at>=? AND created_at<?) AS stamp_runs,
+          (SELECT COALESCE(SUM(-credits_delta),0) FROM usage WHERE user_id=u.id AND action='stamp' AND created_at>=? AND created_at<?) AS credits_used
+        FROM users u
+        ORDER BY u.email ASC
+    """, (start_dt.isoformat(), end_dt.isoformat(),
+          start_dt.isoformat(), end_dt.isoformat(),
+          start_dt.isoformat(), end_dt.isoformat(),
+          start_dt.isoformat(), end_dt.isoformat(),
+          start_dt.isoformat(), end_dt.isoformat()))
+    rows = cur.fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["email","topup_count","topup_credits","topup_amount_gbp","stamp_runs","credits_used","current_credits"])
+    for r in rows:
+        writer.writerow([
+            r["email"], r["topup_count"], r["topup_credits"],
+            f"{r['topup_amount']:.2f}", r["stamp_runs"], r["credits_used"], r["current_credits"]
+        ])
+    data = output.getvalue().encode("utf-8")
+    headers = {
+        "Content-Disposition": f'attachment; filename="summary_{start}_to_{end}.csv"'
+    }
+    return Response(content=data, media_type="text/csv; charset=utf-8", headers=headers)
 
 # -------------------------
 # Image stamping
