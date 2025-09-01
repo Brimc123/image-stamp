@@ -59,6 +59,10 @@ def db_conn():
     conn.row_factory = sqlite3.Row
     return conn
 
+def _column_exists(cur, table, col):
+    cur.execute(f"PRAGMA table_info({table})")
+    return any(r["name"] == col for r in cur.fetchall())
+
 def db_init():
     conn = db_conn()
     cur = conn.cursor()
@@ -84,13 +88,22 @@ def db_init():
     CREATE TABLE IF NOT EXISTS usage (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
-        action TEXT NOT NULL,           -- 'stamp', 'topup', 'login', ...
-        credits_delta INTEGER NOT NULL, -- -1 for stamp, +N for topup, 0 for login
+        action TEXT NOT NULL,
+        credits_delta INTEGER NOT NULL,
         meta TEXT,
         created_at TEXT NOT NULL,
         FOREIGN KEY(user_id) REFERENCES users(id)
     );
     """)
+
+    # ---- Schema upgrades (safe to run repeatedly)
+    if not _column_exists(cur, "users", "is_active"):
+        cur.execute("ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1")
+    if not _column_exists(cur, "users", "suspended_at"):
+        cur.execute("ALTER TABLE users ADD COLUMN suspended_at TEXT")
+    if not _column_exists(cur, "users", "suspended_reason"):
+        cur.execute("ALTER TABLE users ADD COLUMN suspended_reason TEXT")
+
     conn.commit()
     conn.close()
 
@@ -111,7 +124,7 @@ def ensure_user(email: str):
     conn = db_conn()
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
-    cur.execute("INSERT INTO users(email, credits, created_at) VALUES (?,?,?)", (email, 0, now))
+    cur.execute("INSERT INTO users(email, credits, created_at, is_active) VALUES (?,?,?,1)", (email, 0, now))
     conn.commit()
     conn.close()
     return get_user_by_email(email)
@@ -192,6 +205,32 @@ a{color:#2563eb}
 </html>
 """)
 
+suspended_html = Template(r"""
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Account Suspended</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0b1220}
+.card{max-width:560px;margin:3rem auto;background:#111827;border:1px solid #1f2937;border-radius:16px;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,.35);color:#e2e8f0}
+h1{margin:0 0 12px;font-size:1.4rem}
+.badge{display:inline-block;background:#7c2d12;color:#fff;padding:.2rem .5rem;border-radius:999px;border:1px solid #9a3412}
+a{color:#93c5fd}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Account Suspended</h1>
+    <p><span class="badge">Access blocked</span></p>
+    <p>Your account is currently suspended. If this is unexpected, please contact the site owner.</p>
+    <p><a href="/login">Back to login</a></p>
+  </div>
+</body>
+</html>
+""")
+
 billing_html = Template(r"""
 <!doctype html>
 <html lang="en">
@@ -259,86 +298,6 @@ document.getElementById('topupBtn').addEventListener('click', async () => {
   const j = await r.json();
   if(j.ok){ alert('Top-up added. New balance: ' + j.credits); location.reload(); }
   else { alert('Top-up failed: ' + (j.error||'unknown')); }
-});
-</script>
-</body>
-</html>
-""")
-
-tool_html = Template(r"""
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>Image Timestamp Tool · Autodate</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<style>
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0f172a;color:#e2e8f0}
-.container{max-width:980px;margin:0 auto}
-h1{font-size:2rem;margin:.3rem 0 1rem}
-.card{background:#111827;border:1px solid #1f2937;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:16px}
-label{display:block;margin:10px 0 6px}
-input,select{width:100%;padding:10px;border-radius:10px;border:1px solid #374151;background:#0b1220;color:#e5e7eb}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-button{margin-top:16px;padding:12px 16px;border:0;border-radius:10px;background:#22c55e;color:#0b1220;font-weight:700;cursor:pointer}
-a{color:#93c5fd}
-.small{opacity:.8}
-</style>
-</head>
-<body>
-  <div class="container">
-    <div class="grid">
-      <div>
-        <a href="/billing" class="small">← Billing</a>
-        <h1>Image Timestamp Tool</h1>
-        <form id="form">
-          <label>Images (one or many)</label>
-          <input type="file" name="files" multiple required accept="image/*" />
-
-          <label>Target date</label>
-          <input type="date" name="date" required />
-
-          <label>Start time</label>
-          <input type="time" name="start" step="1" required />
-
-          <label>End time (for multiple images; optional)</label>
-          <input type="time" name="end" step="1" />
-
-          <label>Date format (match your originals)</label>
-          <select name="date_format">
-            <option value="d_mmm_yyyy">26 Mar 2025, 12:07:36</option>
-            <option value="dd_slash_mm_yyyy">01/01/2025, 13:23:30</option>
-          </select>
-
-          <button>Process</button>
-        </form>
-        <p class="small">Each run deducts 1 credit from your balance.</p>
-      </div>
-      <div class="card">
-        <h3>Result</h3>
-        <div id="result" class="small">You will get a zip download.</div>
-      </div>
-    </div>
-  </div>
-
-<script>
-document.getElementById('form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const r = await fetch('/api/stamp', { method:'POST', body: fd });
-
-  if(!r.ok){
-    if(r.status === 402) { window.location.href = '/billing?nocredits=1'; return; }
-    alert('Failed: ' + r.status);
-    return;
-  }
-
-  const blob = await r.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'stamped.zip'; a.click();
-  URL.revokeObjectURL(url);
-  document.getElementById('result').textContent = 'Downloaded stamped.zip';
 });
 </script>
 </body>
@@ -623,6 +582,8 @@ th,td{padding:8px 10px;border-bottom:1px solid #1f2a44;text-align:left}
 th{color:#9fb2d9}
 .badge{display:inline-block;padding:.2rem .5rem;border-radius:999px;background:#1f2a44}
 .flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.reason{width:180px}
+label{font-size:.8rem;color:#9fb2d9}
 </style>
 </head>
 <body>
@@ -648,6 +609,7 @@ th{color:#9fb2d9}
         <tr>
           <th>Email</th><th>Credits</th><th>Created</th><th>Last login</th>
           <th>Stamp runs</th><th>Top-ups</th><th>Top-up credits</th><th>Top-up £</th>
+          <th>Status</th><th>Action</th>
         </tr>
         ${users_rows}
       </table>
@@ -682,11 +644,22 @@ def require_user(request: Request):
 
 def require_admin(request: Request):
     u = require_user(request)
-    if not u:
+    if isinstance(u, RedirectResponse):
         return u
     if not ADMIN_EMAIL or u["email"].lower() != ADMIN_EMAIL:
         return HTMLResponse("<h3>Forbidden</h3><p>Admin only.</p>", status_code=403)
     return u
+
+def require_active_user_row(request: Request):
+    """Return sqlite row for the logged-in user; if suspended, clear session and redirect to /suspended."""
+    u = current_user(request)
+    if not u:
+        return RedirectResponse("/login", status_code=302)
+    row = get_user_by_email(u["email"])
+    if not row or int(row["is_active"] or 0) != 1:
+        request.session.clear()
+        return RedirectResponse("/suspended", status_code=302)
+    return row
 
 # -------------------------
 # Routes
@@ -726,6 +699,9 @@ async def login_post(request: Request, email: str = Form(...), code: str = Form(
         return HTMLResponse("<h3>Wrong code</h3><a href='/login'>Back</a>", status_code=401)
     email = email.strip().lower()
     row = ensure_user(email)
+    # If suspended, don't start a session.
+    if int(row["is_active"] or 0) != 1:
+        return RedirectResponse("/suspended", status_code=302)
     try:
         add_usage(row["id"], "login", 0, "signin")
     except Exception as e:
@@ -738,17 +714,20 @@ def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login", status_code=302)
 
+@app.get("/suspended", response_class=HTMLResponse)
+def suspended_page():
+    return HTMLResponse(suspended_html.substitute({}))
+
 # ----- Billing page -----
 @app.get("/billing", response_class=HTMLResponse)
 def billing(request: Request):
-    u = current_user(request)
-    if not u:
-        return RedirectResponse("/login", status_code=302)
+    row = require_active_user_row(request)
+    if isinstance(row, (RedirectResponse, HTMLResponse)):
+        return row
 
-    user_row = get_user_by_email(u["email"])
-    credits = user_row["credits"] if user_row else 0
-    tops = list_topups(user_row["id"]) if user_row else []
-    use = list_usage(user_row["id"]) if user_row else []
+    credits = row["credits"]
+    tops = list_topups(row["id"])
+    use = list_usage(row["id"])
 
     def fmt_rows(rows, kind):
         if not rows:
@@ -777,38 +756,36 @@ def billing(request: Request):
 
 @app.post("/api/topup")
 def api_topup(request: Request):
-    u = current_user(request)
-    if not u:
-        return JSONResponse({"ok": False, "error": "not_signed_in"}, status_code=401)
-    row = ensure_user(u["email"])
+    row = require_active_user_row(request)
+    if isinstance(row, (RedirectResponse, HTMLResponse)):
+        return JSONResponse({"ok": False, "error": "not_active"}, status_code=403)
     add_topup(row["id"], MIN_TOPUP_CREDITS)
-    refreshed = get_user_by_email(u["email"])
+    refreshed = get_user_by_email(row["email"])
     return {"ok": True, "credits": refreshed["credits"]}
 
 # ----- Tool pages -----
 @app.get("/tool", response_class=HTMLResponse)
 def tool(request: Request):
-    u = current_user(request)
-    if not u:
-        return RedirectResponse("/login", status_code=302)
+    row = require_active_user_row(request)
+    if isinstance(row, (RedirectResponse, HTMLResponse)):
+        return row
     return HTMLResponse(tool_html.substitute({}))
 
 @app.get("/tool2", response_class=HTMLResponse)
 def tool2(request: Request):
-    u = current_user(request)
-    if not u:
-        return RedirectResponse("/login", status_code=302)
-    show_admin = ADMIN_EMAIL and u["email"].lower() == ADMIN_EMAIL
+    row = require_active_user_row(request)
+    if isinstance(row, (RedirectResponse, HTMLResponse)):
+        return row
+    show_admin = ADMIN_EMAIL and row["email"].lower() == ADMIN_EMAIL
     admin_link = '<a href="/admin">Admin</a>' if show_admin else ''
     admin_link = (admin_link + ' ') if admin_link else ''
-    # IMPORTANT: safe_substitute so literal $ in JS (like const $ = ...) doesn't crash the template engine
     return HTMLResponse(tool2_html.safe_substitute(admin_link=admin_link))
 
 # ----- Admin dashboard & exports -----
 @app.get("/admin", response_class=HTMLResponse)
 def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional[str] = None):
     u = require_admin(request)
-    if isinstance(u, HTMLResponse):  # forbidden
+    if isinstance(u, (RedirectResponse, HTMLResponse)):
         return u
 
     today = datetime.utcnow().date()
@@ -825,7 +802,7 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
 
     cur.execute("""
         SELECT
-          u.id, u.email, u.credits, u.created_at,
+          u.id, u.email, u.credits, u.created_at, u.is_active, u.suspended_at, u.suspended_reason,
           (SELECT MAX(created_at) FROM usage WHERE user_id=u.id AND action='login') AS last_login,
           (SELECT COUNT(*) FROM usage WHERE user_id=u.id AND action='stamp' AND created_at>=? AND created_at<?) AS stamp_runs,
           (SELECT COUNT(*) FROM topups WHERE user_id=u.id AND created_at>=? AND created_at<?) AS topup_count,
@@ -854,6 +831,26 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
 
     users_rows = ""
     for r in users:
+        status = "Active" if int(r["is_active"] or 0) == 1 else f"Suspended<br><span class='small'>{fmt(r['suspended_at'])}</span><br><span class='small'>{(r['suspended_reason'] or '')}</span>"
+        # Action cell
+        if ADMIN_EMAIL and r["email"].lower() == ADMIN_EMAIL:
+            action = "<span class='small'>—</span>"
+        elif int(r["is_active"] or 0) == 1:
+            action = (
+                "<form method='post' action='/admin/user/suspend' class='flex'>"
+                f"<input type='hidden' name='email' value='{r['email']}'>"
+                "<label>Reason</label><input name='reason' class='reason' placeholder='e.g. unpaid invoice'/>"
+                "<button> Suspend </button>"
+                "</form>"
+            )
+        else:
+            action = (
+                "<form method='post' action='/admin/user/unsuspend' class='flex'>"
+                f"<input type='hidden' name='email' value='{r['email']}'>"
+                "<button> Reinstate </button>"
+                "</form>"
+            )
+
         users_rows += (
             f"<tr>"
             f"<td>{r['email']}</td>"
@@ -864,11 +861,13 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
             f"<td>{r['topup_count']}</td>"
             f"<td>{r['topup_credits']}</td>"
             f"<td>£{r['topup_amount']:.0f}</td>"
+            f"<td>{status}</td>"
+            f"<td>{action}</td>"
             f"</tr>"
         )
 
     if not users_rows:
-        users_rows = "<tr><td colspan=8>No users yet</td></tr>"
+        users_rows = "<tr><td colspan=10>No users yet</td></tr>"
 
     topups_rows = ""
     for t in tops:
@@ -885,10 +884,38 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
     )
     return HTMLResponse(html)
 
+@app.post("/admin/user/suspend")
+def admin_suspend_user(request: Request, email: str = Form(...), reason: str = Form("")):
+    u = require_admin(request)
+    if isinstance(u, (RedirectResponse, HTMLResponse)):
+        return u
+    if ADMIN_EMAIL and email.lower() == ADMIN_EMAIL:
+        return HTMLResponse("<h3>Cannot suspend admin account.</h3><p><a href='/admin'>Back</a></p>", status_code=400)
+
+    conn = db_conn()
+    cur = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    cur.execute("UPDATE users SET is_active=0, suspended_at=?, suspended_reason=? WHERE email=?", (now, reason.strip(), email.lower()))
+    conn.commit()
+    conn.close()
+    return RedirectResponse("/admin", status_code=302)
+
+@app.post("/admin/user/unsuspend")
+def admin_unsuspend_user(request: Request, email: str = Form(...)):
+    u = require_admin(request)
+    if isinstance(u, (RedirectResponse, HTMLResponse)):
+        return u
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET is_active=1, suspended_at=NULL, suspended_reason=NULL WHERE email=?", (email.lower(),))
+    conn.commit()
+    conn.close()
+    return RedirectResponse("/admin", status_code=302)
+
 @app.get("/admin/export/topups.csv")
 def export_topups_csv(request: Request, start: str, end: str):
     u = require_admin(request)
-    if isinstance(u, HTMLResponse):
+    if isinstance(u, (RedirectResponse, HTMLResponse)):
         return u
 
     start_dt = datetime.fromisoformat(start)
@@ -919,7 +946,7 @@ def export_topups_csv(request: Request, start: str, end: str):
 @app.get("/admin/export/summary.csv")
 def export_summary_csv(request: Request, start: str, end: str):
     u = require_admin(request)
-    if isinstance(u, HTMLResponse):
+    if isinstance(u, (RedirectResponse, HTMLResponse)):
         return u
 
     start_dt = datetime.fromisoformat(start)
@@ -1010,11 +1037,11 @@ async def api_stamp(
     crop_bottom: Optional[int] = Form(0),
     date_format: Optional[str] = Form("d_mmm_yyyy"),
 ):
-    u = current_user(request)
-    if not u:
-        return JSONResponse({"ok": False, "error": "not_signed_in"}, status_code=401)
+    row = require_active_user_row(request)
+    if isinstance(row, (RedirectResponse, HTMLResponse)):
+        # If redirected, convert to an API-friendly response where useful
+        return JSONResponse({"ok": False, "error": "not_active"}, status_code=403)
 
-    row = ensure_user(u["email"])
     if row["credits"] <= 0:
         return JSONResponse({"ok": False, "error": "no_credits"}, status_code=402)
 
@@ -1060,8 +1087,9 @@ async def api_stamp(
         zf.writestr(name.replace(".jpeg",".jpg"), buf.getvalue())
 
     zf.close()
+    # deduct 1 credit per run
     add_usage(row["id"], "stamp", -1, f"{n} image(s)")
-    new_row = get_user_by_email(u["email"])
+    new_row = get_user_by_email(row["email"])
 
     def iterfile():
         with open(zip_path, "rb") as f:
