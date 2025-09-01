@@ -155,7 +155,7 @@ def list_usage(user_id: int):
     return rows
 
 # -------------------------
-# HTML (string.Template – no {{ }} so Python won’t choke)
+# HTML templates
 # -------------------------
 login_html = Template(r"""
 <!doctype html>
@@ -351,8 +351,8 @@ document.getElementById('form').addEventListener('submit', async (e) => {
 </html>
 """)
 
-# Upgraded preview tool (route /tool2)
-tool2_html = Template(r"""
+# Upgraded preview tool (PLAIN STRING, not Template!)
+tool2_html = r"""
 <!doctype html>
 <html lang="en">
 <head>
@@ -526,14 +526,14 @@ input.addEventListener('change', ()=> renderPreviews(input.files));
 // Defaults: today & now
 (function setDefaults(){
   const now = new Date();
-  $('#date').value = new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10);
+  document.getElementById('date').value = new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10);
   const pad = n=>String(n).padStart(2,'0');
-  $('#start').value = pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
+  document.getElementById('start').value = pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
 })();
 
 // Crop presets
 document.querySelectorAll('.pill').forEach(p=>{
-  p.addEventListener('click', ()=> { $('#cropBottom').value = p.dataset.crop; });
+  p.addEventListener('click', ()=> { document.getElementById('cropBottom').value = p.dataset.crop; });
 });
 
 document.getElementById('form').addEventListener('submit', async (e) => {
@@ -541,7 +541,6 @@ document.getElementById('form').addEventListener('submit', async (e) => {
   if(!input.files || !input.files.length){ alert('Please add at least one image.'); return; }
 
   const fd = new FormData(e.target);
-  // ensure dropped files included:
   [...(input.files||[])].forEach(f => fd.append('files', f));
 
   goBtn.disabled = true;
@@ -554,7 +553,7 @@ document.getElementById('form').addEventListener('submit', async (e) => {
     goBtn.disabled = false; goBtn.textContent = 'Process'; statusEl.textContent='';
     if(r.status === 402) { window.location.href = '/billing?nocredits=1'; return; }
     const txt = await r.text().catch(()=> '');
-    alert('Failed: ' + r.status + (txt ? ('\n'+txt) : ''));
+    alert('Failed: ' + r.status + (txt ? ('\\n'+txt) : ''));
     return;
   }
 
@@ -565,14 +564,14 @@ document.getElementById('form').addEventListener('submit', async (e) => {
   URL.revokeObjectURL(url);
 
   const bal = r.headers.get('X-Credits-Balance');
-  $('#result').textContent = 'Downloaded stamped.zip' + (bal?(' — Credits left: '+bal):'');
+  document.getElementById('result').textContent = 'Downloaded stamped.zip' + (bal?(' — Credits left: '+bal):'');
   showToast('Download ready' + (bal?(' · credits: '+bal):''));
   goBtn.disabled = false; goBtn.textContent = 'Process'; statusEl.textContent='';
 });
 </script>
 </body>
 </html>
-""")
+"""
 
 # -------------------------
 # Utility: auth
@@ -698,7 +697,8 @@ def tool2(request: Request):
     u = current_user(request)
     if not u:
         return RedirectResponse("/login", status_code=302)
-    return HTMLResponse(tool2_html.substitute({}))
+    # tool2_html is a plain string (no Template.substitute!)
+    return HTMLResponse(tool2_html)
 
 # -------------------------
 # Image stamping
