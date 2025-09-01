@@ -21,13 +21,12 @@ ADMIN_CODE = os.getenv("ADMIN_CODE", "change-me")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@example.com")
 ALLOWED_ORIGINS_RAW = os.getenv("ALLOWED_ORIGINS", "https://autodate.co.uk,https://www.autodate.co.uk,https://image-stamp.onrender.com")
 ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
-DB_FILE = os.getenv("DB_FILE", "/var/data/app.db")  # Render persistent disk path if mounted, else fallback file
-DB_PATH = os.getenv("DB_PATH", "dev.db")            # ignored when DB_FILE is absolute
+DB_FILE = os.getenv("DB_FILE", "/var/data/app.db")
+DB_PATH = os.getenv("DB_PATH", "dev.db")
 CREDIT_COST_GBP = float(os.getenv("CREDIT_COST_GBP", "10"))
 MIN_TOPUP_CREDITS = int(os.getenv("MIN_TOPUP", "5"))
 
-# Optional custom font in repo (put e.g. fonts/Roboto-Regular.ttf)
-FONT_PATH = os.getenv("FONT_PATH", "")  # leave empty to use system DejaVuSans
+FONT_PATH = os.getenv("FONT_PATH", "")
 SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "imgstamp_session")
 
 # -------------------------
@@ -352,7 +351,7 @@ document.getElementById('form').addEventListener('submit', async (e) => {
 """)
 
 # =========================
-# New PREVIEW tool (PLAIN STRING, not Template)
+# NEW /tool2 — visuals only (plain string)
 # =========================
 tool2_html = r"""
 <!doctype html>
@@ -363,75 +362,89 @@ tool2_html = r"""
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
 :root{
-  --bg1:#0e1530; --bg2:#101c3f; --grid:#132044;
+  --bg1:#0f1c3e; --bg2:#0d1834; --grid:#132044;
   --card:#ffffff; --card-soft:#f7f9fc; --text:#0b1220; --muted:#5b6b86;
-  --primary:#22c55e; --primary-2:#16a34a; --accent:#2563eb; --stroke:#e6eaf2;
+  --primary:#22c55e; --primary2:#16a34a; --accent:#2563eb; --stroke:#e6eaf2;
 }
 *{box-sizing:border-box}
 body{
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
   margin:0;
   background:
-    radial-gradient(1200px 600px at 15% -10%, rgba(37,99,235,.35), transparent 55%),
-    linear-gradient(180deg,var(--bg1), var(--bg2));
+    radial-gradient(1200px 640px at 10% -10%, rgba(37,99,235,.35), transparent 60%),
+    radial-gradient(900px 520px at 100% 0%, rgba(34,197,94,.18), transparent 65%),
+    linear-gradient(180deg,var(--bg1),var(--bg2));
   min-height:100svh;
   color:var(--text);
 }
-/* soft grid */
+/* soft grid overlay */
 body::before{
-  content:"";
-  position:fixed; inset:0;
+  content:""; position:fixed; inset:0; pointer-events:none;
   background:
     linear-gradient(transparent 31px, rgba(255,255,255,.05) 32px),
     linear-gradient(90deg, transparent 31px, rgba(255,255,255,.05) 32px);
   background-size:32px 32px;
-  mask-image: radial-gradient(1000px 600px at 30% 0%, rgba(0,0,0,1), rgba(0,0,0,.2) 60%, transparent 80%);
-  pointer-events:none;
+  opacity:.4;
+  mask-image: radial-gradient(1100px 700px at 30% 0%, #000, rgba(0,0,0,.3) 60%, transparent 80%);
 }
 .container{max-width:1150px;margin:0 auto;padding:28px}
-a{color:#e3ecff;text-underline-offset:3px}
-.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+/* header */
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:900;color:#eaf1ff}
-.badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid rgba(255,255,255,.25);
-  background:rgba(255,255,255,.08);border-radius:999px}
-.nav{display:flex;gap:14px}
-.nav a{color:#d7e5ff}
-.card{
-  background:var(--card); border:1px solid var(--stroke); border-radius:18px; padding:18px;
-  box-shadow:0 12px 44px rgba(6,11,22,.22);
+.badge{
+  display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;color:#eaf1ff;
+  background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.25);
+  backdrop-filter: blur(8px);
 }
-.grid{display:grid;grid-template-columns:1.25fr .75fr;gap:18px}
-label{display:block;margin:12px 0 6px;color:#364254;font-weight:700}
+.nav{display:flex;gap:16px}
+.nav a{color:#e7efff;text-underline-offset:3px}
+/* gradient-border card */
+.card{
+  position:relative; border-radius:22px; padding:22px; background:var(--card);
+  border:1px solid var(--stroke);
+  box-shadow:0 18px 50px rgba(6,11,22,.22);
+}
+.card.gfx::before{
+  content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1px;
+  background:linear-gradient(120deg, rgba(37,99,235,.55), rgba(34,197,94,.55));
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none;
+}
+.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:20px}
+.right .card{position:sticky; top:24px; background:rgba(255,255,255,.95)}
+/* form */
+label{display:block;margin:12px 0 6px;color:#364254;font-weight:800;letter-spacing:.2px}
 input,select{
   width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);
   background:#fff;color:var(--text);outline:none;transition:.15s;
 }
-input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
 button{
-  padding:12px 16px;border:1px solid var(--primary-2);
-  background:linear-gradient(180deg,var(--primary),var(--primary-2));
+  padding:12px 16px; border:1px solid var(--primary2);
+  background:linear-gradient(180deg,var(--primary),var(--primary2));
   color:#062015;font-weight:900;border-radius:12px;cursor:pointer;
-  transition:transform .06s ease, filter .2s ease, box-shadow .2s ease; min-width:150px
+  transition:transform .06s ease, filter .2s ease, box-shadow .2s ease; min-width:158px
 }
-button:hover{filter:brightness(1.05); box-shadow:0 8px 24px rgba(22,163,74,.35)}
+button:hover{filter:brightness(1.06); box-shadow:0 10px 26px rgba(22,163,74,.36)}
 button:active{transform:translateY(1px)}
 .small{opacity:.9;color:#64748b}
-.drop{border:1.5px dashed #c8d3e5;border-radius:14px;padding:18px;background:var(--card-soft);
-  display:flex;align-items:center;justify-content:center;min-height:140px;text-align:center;color:#42506a}
+.drop{
+  border:1.5px dashed #c8d3e5;border-radius:14px;padding:22px;background:var(--card-soft);
+  display:flex;align-items:center;justify-content:center;min-height:150px;text-align:center;color:#42506a
+}
 .drop.drag{outline:2px solid #93c5fd}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .hint{font-size:.92rem;color:#6b7a93;margin-top:6px}
 .pills{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 .pill{padding:6px 10px;border:1px solid var(--stroke);background:#fff;border-radius:999px;cursor:pointer;color:#41506b}
-.preview{display:grid;grid-template-columns:repeat(auto-fill, minmax(84px,1fr));gap:10px;margin-top:12px}
-.thumb{position:relative;border-radius:10px;overflow:hidden;border:1px solid #dde5f1;background:#f8fbff}
-.thumb img{display:block;width:100%;height:84px;object-fit:cover}
+.preview{display:grid;grid-template-columns:repeat(auto-fill, minmax(88px,1fr));gap:10px;margin-top:12px}
+.thumb{position:relative;border-radius:12px;overflow:hidden;border:1px solid #dde5f1;background:#f8fbff}
+.thumb img{display:block;width:100%;height:88px;object-fit:cover}
 .count{margin-left:auto;color:#74829d}
-.right .card{background:rgba(255,255,255,.92)}
 .result-title{margin:0 0 6px 0;color:#1f2937}
 .spinner{width:18px;height:18px;border:2px solid #a7f3d0;border-top-color:#065f46;border-radius:50%;display:none; animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-@media (max-width: 920px){ .grid{grid-template-columns:1fr} }
+@media (max-width: 960px){ .grid{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
@@ -448,14 +461,19 @@ button:active{transform:translateY(1px)}
     </div>
 
     <div class="grid">
-      <div class="card">
+      <div class="card gfx">
         <h2 style="margin:0 0 6px 0;color:#0b1220">Timestamp Images</h2>
         <div class="small" style="margin-top:-2px">Randomises time per image if an end time is provided.</div>
 
         <form id="form" style="margin-top:8px">
           <label>Images <span id="fileCount" class="count">(none)</span></label>
           <input id="fileInput" type="file" name="files" multiple required accept="image/*" hidden />
-          <div id="drop" class="drop">Drag & drop images here, or click to choose</div>
+          <div id="drop" class="drop">
+            <div>
+              <div style="font-size:28px;line-height:1.1;opacity:.6">⬆️</div>
+              Drag & drop images here, or click to choose
+            </div>
+          </div>
           <div id="previews" class="preview" aria-hidden="true"></div>
 
           <div class="row2" style="margin-top:12px">
@@ -496,7 +514,7 @@ button:active{transform:translateY(1px)}
           </div>
           <div class="hint">Tip: bottom default 120px removes many phone GPS bars. Set to 0 if not needed.</div>
 
-          <div style="display:flex;gap:12px;align-items:center;margin-top:14px">
+          <div style="display:flex;gap:12px;align-items:center;margin-top:16px">
             <button id="goBtn">Process</button>
             <div id="spin" class="spinner" aria-hidden="true"></div>
             <span class="small" id="status" aria-live="polite"></span>
@@ -527,7 +545,7 @@ function renderPreviews(files){
   previews.innerHTML = '';
   if(!files || !files.length){ fileCount.textContent='(none)'; return; }
   fileCount.textContent = '(' + files.length + (files.length===1?' file':' files') + ')';
-  [...files].slice(0,40).forEach(f=>{
+  [...files].slice(0,60).forEach(f=>{
     if(!f.type.startsWith('image/')) return;
     const url = URL.createObjectURL(f);
     const card = document.createElement('div');
@@ -655,7 +673,7 @@ def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login", status_code=302)
 
-# ----- Billing page (no Stripe, just records top-ups) -----
+# ----- Billing page -----
 @app.get("/billing", response_class=HTMLResponse)
 def billing(request: Request):
     u = current_user(request)
