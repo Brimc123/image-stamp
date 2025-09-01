@@ -13,6 +13,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from PIL import Image, ImageDraw, ImageFont
 
+# --- at the top where you read envs ---
+ADMIN_CODE = (os.getenv("ADMIN_CODE", "change-me") or "").strip()
+
+# --- in login_post() ---
+import hmac
+
+@app.post("/login")
+async def login_post(request: Request, email: str = Form(...), code: str = Form(...)):
+    email = (email or "").strip().lower()
+    code  = (code or "").strip()
+
+    if not hmac.compare_digest(code, ADMIN_CODE):
+        return HTMLResponse("<h3>Wrong code</h3><a href='/login'>Back</a>", status_code=401)
+
+    row = ensure_user(email)
+    ...
+
+
 # -------------------------
 # Config via environment
 # -------------------------
