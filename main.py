@@ -6,11 +6,11 @@ from datetime import datetime, timedelta
 from string import Template
 from typing import List, Optional
 
-from fastapi import FastAPI, Form, UploadFile, File, Request, Response, Depends
+from fastapi import FastAPI, Form, UploadFile, File, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont
 
 # -------------------------
 # Config via environment
@@ -24,16 +24,17 @@ ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip(
 DB_FILE = os.getenv("DB_FILE", "/var/data/app.db")  # Render persistent disk path if mounted, else fallback file
 DB_PATH = os.getenv("DB_PATH", "dev.db")            # ignored when DB_FILE is absolute
 CREDIT_COST_GBP = float(os.getenv("CREDIT_COST_GBP", "10"))
-MIN_TOPUP_CREDITS = 5
+MIN_TOPUP_CREDITS = int(os.getenv("MIN_TOPUP", "5"))
 
 # Optional custom font in repo (put e.g. fonts/Roboto-Regular.ttf)
 FONT_PATH = os.getenv("FONT_PATH", "")  # leave empty to use system DejaVuSans
+SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "imgstamp_session")
 
 # -------------------------
 # App & middleware
 # -------------------------
 app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", session_cookie=os.getenv("SESSION_COOKIE_NAME","imgstamp_session"))
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", session_cookie=SESSION_COOKIE_NAME)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS or ["*"],
@@ -45,8 +46,12 @@ app.add_middleware(
 # -------------------------
 # DB helpers
 # -------------------------
+def _db_path():
+    return DB_FILE if DB_FILE.startswith("/") else DB_PATH
+
 def db_conn():
-    path = DB_FILE if DB_FILE.startswith("/") else DB_PATH
+    path = _db_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True) if "/" in path else None
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
@@ -127,7 +132,7 @@ def add_usage(user_id: int, action: str, credits_delta: int, meta: str = ""):
     now = datetime.utcnow().isoformat()
     cur.execute("INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
                 (user_id, action, credits_delta, meta, now))
-    cur.execute("UPDATE users SET credits = credits + ? WHERE id=?", (credits_delta, user_id))  # delta likely negative
+    cur.execute("UPDATE users SET credits = credits + ? WHERE id=?", (credits_delta, user_id))
     conn.commit()
     conn.close()
 
@@ -204,12 +209,15 @@ button{padding:10px 14px;border-radius:10px;border:1px solid #16a34a;background:
 a{color:#93c5fd}
 .flex{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .mt{margin-top:18px}
+.note{margin:0 0 12px 0;padding:12px;border-radius:12px;background:#1f2937;border:1px solid #334155}
 </style>
 </head>
 <body>
   <div class="container">
     <a href="/tool" class="small">← Back to Image Tool</a>
     <h1>Billing</h1>
+
+    ${note}
 
     <div class="flex">
       <div class="badge">Credits: ${credits}</div>
@@ -321,7 +329,14 @@ document.getElementById('form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
   const r = await fetch('/api/stamp', { method:'POST', body: fd });
-  if(!r.ok){ alert('Failed: ' + r.status); return; }
+
+  if(!r.ok){
+    // Friendly redirect when out of credits
+    if(r.status === 402) { window.location.href = '/billing?nocredits=1'; return; }
+    alert('Failed: ' + r.status);
+    return;
+  }
+
   const blob = await r.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -354,14 +369,20 @@ def require_user(request: Request):
 # -------------------------
 @app.get("/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, "db": _db_path(), "env": APP_ENV}
 
-@app.get("/api/ping")
-def ping():
-    return {"ok": True, "message": "pong"}
+# Debug helper so you can check quickly in the browser
+@app.get("/__whoami", response_class=PlainTextResponse)
+def whoami():
+    return "main.py active"
 
 @app.get("/", response_class=HTMLResponse)
 def home():
+    return RedirectResponse("/tool", status_code=302)
+
+# Alias so /app works (old link)
+@app.get("/app")
+def app_alias():
     return RedirectResponse("/tool", status_code=302)
 
 # ----- Auth -----
@@ -406,7 +427,10 @@ def billing(request: Request):
                 out.append(f'<div class="row"><div>{when}</div><div>{r["action"]}</div><div>{r["credits_delta"]}</div></div>')
         return "\n".join(out)
 
+    note = '<div class="note">You\'re out of credits. Please top up to continue.</div>' if request.query_params.get("nocredits") == "1" else ""
+
     html = billing_html.substitute(
+        note = note,
         credits = credits,
         price = int(CREDIT_COST_GBP),
         minc = MIN_TOPUP_CREDITS,
@@ -501,6 +525,7 @@ async def api_stamp(
     # check credits (1 credit per run)
     row = ensure_user(u["email"])
     if row["credits"] <= 0:
+        # client JS will redirect to /billing?nocredits=1 when it sees 402
         return JSONResponse({"ok": False, "error": "no_credits"}, status_code=402)
 
     # parse times
