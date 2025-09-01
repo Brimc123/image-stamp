@@ -1,7 +1,6 @@
 import os
 import io
 import csv
-import hmac
 import random
 import sqlite3
 from datetime import datetime, timedelta
@@ -9,10 +8,7 @@ from string import Template
 from typing import List, Optional
 
 from fastapi import FastAPI, Form, UploadFile, File, Request
-from fastapi.responses import (
-    HTMLResponse, JSONResponse, StreamingResponse,
-    RedirectResponse, PlainTextResponse, Response
-)
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, PlainTextResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from PIL import Image, ImageDraw, ImageFont
@@ -21,8 +17,9 @@ from PIL import Image, ImageDraw, ImageFont
 # Config via environment
 # -------------------------
 APP_ENV = os.getenv("APP_ENV", "production")
-SESSION_SECRET = (os.getenv("SESSION_SECRET", "change-me") or "").strip()
-ADMIN_CODE = (os.getenv("ADMIN_CODE", "change-me") or "").strip()
+SESSION_SECRET = os.getenv("SESSION_SECRET", "change-me")
+ADMIN_CODE = os.getenv("ADMIN_CODE", "change-me-admin")           # private admin-only code
+USER_CODE = os.getenv("USER_CODE", "")                             # shared customer code
 ADMIN_EMAIL = (os.getenv("ADMIN_EMAIL", "admin@example.com") or "").lower().strip()
 
 ALLOWED_ORIGINS_RAW = os.getenv(
@@ -36,7 +33,6 @@ DB_PATH = os.getenv("DB_PATH", "dev.db")
 
 CREDIT_COST_GBP = float(os.getenv("CREDIT_COST_GBP", "10"))
 MIN_TOPUP_CREDITS = int(os.getenv("MIN_TOPUP", "5"))
-
 FONT_PATH = os.getenv("FONT_PATH", "")
 SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "imgstamp_session")
 
@@ -46,12 +42,7 @@ BRAND_NAME = os.getenv("BRAND_NAME", "AutoDate")
 # App & middleware
 # -------------------------
 app = FastAPI()
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=SESSION_SECRET,
-    same_site="lax",
-    session_cookie=SESSION_COOKIE_NAME
-)
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", session_cookie=SESSION_COOKIE_NAME)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS or ["*"],
@@ -112,7 +103,7 @@ def db_init():
     );
     """)
 
-    # ---- Schema upgrades (idempotent)
+    # ---- schema upgrades (idempotent)
     if not _column_exists(cur, "users", "is_active"):
         cur.execute("ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1")
     if not _column_exists(cur, "users", "suspended_at"):
@@ -140,10 +131,7 @@ def ensure_user(email: str):
     conn = db_conn()
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
-    cur.execute(
-        "INSERT INTO users(email, credits, created_at, is_active) VALUES (?,?,?,1)",
-        (email, 0, now)
-    )
+    cur.execute("INSERT INTO users(email, credits, created_at, is_active) VALUES (?,?,?,1)", (email, 0, now))
     conn.commit()
     conn.close()
     return get_user_by_email(email)
@@ -153,15 +141,11 @@ def add_topup(user_id: int, credits: int):
     conn = db_conn()
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
-    cur.execute(
-        "INSERT INTO topups(user_id, credits, amount_gbp, created_at) VALUES (?,?,?,?)",
-        (user_id, credits, amount, now)
-    )
+    cur.execute("INSERT INTO topups(user_id, credits, amount_gbp, created_at) VALUES (?,?,?,?)",
+                (user_id, credits, amount, now))
     cur.execute("UPDATE users SET credits = credits + ? WHERE id=?", (credits, user_id))
-    cur.execute(
-        "INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
-        (user_id, "topup", credits, f"{credits} credits", now)
-    )
+    cur.execute("INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
+                (user_id, "topup", credits, f"{credits} credits", now))
     conn.commit()
     conn.close()
 
@@ -169,10 +153,8 @@ def add_usage(user_id: int, action: str, credits_delta: int, meta: str = ""):
     conn = db_conn()
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
-    cur.execute(
-        "INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
-        (user_id, action, credits_delta, meta, now)
-    )
+    cur.execute("INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
+                (user_id, action, credits_delta, meta, now))
     cur.execute("UPDATE users SET credits = credits + ? WHERE id=?", (credits_delta, user_id))
     conn.commit()
     conn.close()
@@ -329,13 +311,13 @@ document.getElementById('topupBtn').addEventListener('click', async () => {
 </html>
 """)
 
-# ======= TOOL2 (Preview UI) =======
+# ======= TOOL2 (Preview UI) with logo + Clear button =======
 tool2_html = Template(r"""
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>AutoDate · Timestamp Tool (Preview)</title>
+<title>AutoDate · Timestamp Tool</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
 :root{
@@ -354,22 +336,10 @@ body{
   min-height:100svh;
   color:var(--text);
 }
-body::before{
-  content:""; position:fixed; inset:0; pointer-events:none;
-  background:
-    linear-gradient(transparent 31px, rgba(255,255,255,.05) 32px),
-    linear-gradient(90deg, transparent 31px, rgba(255,255,255,.05) 32px);
-  background-size:32px 32px;
-  opacity:.4;
-  mask-image: radial-gradient(1100px 700px at 30% 0%, #000, rgba(0,0,0,.3) 60%, transparent 80%);
-}
 .container{max-width:1150px;margin:0 auto;padding:28px}
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:900;color:#eaf1ff}
-.badge{
-  display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;color:#eaf1ff;
-  background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.25); backdrop-filter: blur(8px);
-}
+.logo{display:flex;align-items:center;gap:12px}
+.logo svg{width:44px;height:44px;display:block;filter:drop-shadow(0 6px 16px rgba(37,99,235,.35))}
 .nav{display:flex;gap:16px}
 .nav a{color:#e7efff;text-underline-offset:3px}
 .card{
@@ -387,7 +357,7 @@ body::before{
 label{display:block;margin:12px 0 6px;color:#364254;font-weight:800;letter-spacing:.2px}
 input,select{
   width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);
-  background:#fff;color:#var(--text);outline:none;transition:.15s;
+  background:#fff;color:var(--text);outline:none;transition:.15s;
 }
 input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
 button{
@@ -398,6 +368,9 @@ button{
 }
 button:hover{filter:brightness(1.06); box-shadow:0 10px 26px rgba(22,163,74,.36)}
 button:active{transform:translateY(1px)}
+button.ghost{
+  background:#ffffff;border:1px solid var(--stroke);color:#3b4b6a;min-width:auto
+}
 .small{opacity:.9;color:#64748b}
 .drop{
   border:1.5px dashed #c8d3e5;border-radius:14px;padding:22px;background:var(--card-soft);
@@ -421,8 +394,26 @@ button:active{transform:translateY(1px)}
 <body>
   <div class="container">
     <div class="header">
-      <div class="brand">
-        <div class="badge">🖼️ <b>AutoDate</b> · Preview</div>
+      <div class="logo" aria-label="AutoDate">
+        <!-- Simple logo: calendar + mountain photo + clock tick -->
+        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AutoDate">
+          <defs>
+            <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0" stop-color="#2563eb"/>
+              <stop offset="1" stop-color="#22c55e"/>
+            </linearGradient>
+          </defs>
+          <!-- calendar frame -->
+          <rect x="6" y="10" rx="8" ry="8" width="40" height="40" fill="#fff" stroke="url(#g1)" stroke-width="2"/>
+          <rect x="6" y="10" width="40" height="10" rx="8" ry="8" fill="url(#g1)"/>
+          <!-- photo -->
+          <rect x="12" y="24" width="28" height="20" rx="4" fill="#eaf2ff" stroke="#cfe0ff"/>
+          <path d="M14 40l6-7 5 6 6-8 7 9" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="22" cy="30" r="2" fill="#22c55e"/>
+          <!-- clock badge -->
+          <circle cx="46" cy="46" r="12" fill="#0b1a3a" stroke="url(#g1)" stroke-width="2"/>
+          <path d="M46 39v7l5 3" stroke="#a7f3d0" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+        </svg>
       </div>
       <div class="nav small">
         <a href="/tool">Classic</a>
@@ -486,8 +477,9 @@ button:active{transform:translateY(1px)}
           </div>
           <div class="hint">Tip: bottom default 120px removes many phone GPS bars. Set to 0 if not needed.</div>
 
-          <div style="display:flex;gap:12px;align-items:center;margin-top:16px">
+          <div style="display:flex;gap:12px;align-items:center;margin-top:16px;flex-wrap:wrap">
             <button id="goBtn">Process</button>
+            <button id="clearBtn" type="button" class="ghost">Clear images</button>
             <div id="spin" class="spinner" aria-hidden="true"></div>
             <span class="small" id="status" aria-live="polite"></span>
           </div>
@@ -510,8 +502,10 @@ const input = $('#fileInput');
 const previews = $('#previews');
 const fileCount = $('#fileCount');
 const goBtn = $('#goBtn');
+const clearBtn = $('#clearBtn');
 const statusEl = $('#status');
 const spin = $('#spin');
+const resultEl = document.getElementById('result');
 
 function renderPreviews(files){
   previews.innerHTML = '';
@@ -528,9 +522,17 @@ function renderPreviews(files){
   });
 }
 
+function clearAll(){
+  input.value = "";
+  renderPreviews(input.files);
+  statusEl.textContent = '';
+  resultEl.textContent = 'You will get a zip download.';
+}
+clearBtn.addEventListener('click', clearAll);
+
 drop.addEventListener('click', ()=> input.click());
-['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.add('drag')}));
-['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.remove('drag')}));
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.add('drag')}))
+;['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.remove('drag')}))
 drop.addEventListener('drop', e => { input.files = e.dataTransfer.files; renderPreviews(input.files); });
 input.addEventListener('change', ()=> renderPreviews(input.files));
 
@@ -565,7 +567,7 @@ document.getElementById('form').addEventListener('submit', async (e) => {
     goBtn.disabled = false; goBtn.textContent = 'Process'; spin.style.display = 'none'; statusEl.textContent='';
     if(r.status === 402) { window.location.href = '/billing?nocredits=1'; return; }
     const txt = await r.text().catch(()=> '');
-    alert('Failed: ' + r.status + (txt ? ('\n'+txt) : ''));
+    alert('Failed: ' + r.status + (txt ? ('\\n'+txt) : ''));
     return;
   }
 
@@ -576,9 +578,10 @@ document.getElementById('form').addEventListener('submit', async (e) => {
   URL.revokeObjectURL(url);
 
   const bal = r.headers.get('X-Credits-Balance');
-  document.getElementById('result').textContent = 'Downloaded stamped.zip' + (bal?(' — Credits left: '+bal):'');
+  resultEl.textContent = 'Downloaded stamped.zip' + (bal?(' — Credits left: '+bal):'');
 
   goBtn.disabled = false; goBtn.textContent = 'Process'; spin.style.display = 'none'; statusEl.textContent='';
+  clearAll(); // auto-clear after download
 });
 </script>
 </body>
@@ -720,14 +723,14 @@ def login_get(request: Request):
 
 @app.post("/login")
 async def login_post(request: Request, email: str = Form(...), code: str = Form(...)):
-    # normalize inputs (avoid hidden spaces) and compare in constant time
-    email = (email or "").strip().lower()
-    code = (code or "").strip()
-
-    if not hmac.compare_digest(code, ADMIN_CODE):
+    # Accept either ADMIN_CODE or USER_CODE (if set).
+    ok = (code == ADMIN_CODE) or (USER_CODE and code == USER_CODE)
+    if not ok:
         return HTMLResponse("<h3>Wrong code</h3><a href='/login'>Back</a>", status_code=401)
 
+    email = email.strip().lower()
     row = ensure_user(email)
+    # If suspended, don't start a session.
     if int(row["is_active"] or 0) != 1:
         return RedirectResponse("/suspended", status_code=302)
     try:
@@ -792,9 +795,8 @@ def api_topup(request: Request):
     return {"ok": True, "credits": refreshed["credits"]}
 
 # ----- Tool pages -----
-@app.get("/tool", response_class=HTMLResponse)
-def tool(request: Request):
-    # keep the "Classic" link working without maintaining 2 UIs
+@app.get("/tool")
+def tool_redirect():
     return RedirectResponse("/tool2", status_code=302)
 
 @app.get("/tool2", response_class=HTMLResponse)
@@ -857,11 +859,7 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
 
     users_rows = ""
     for r in users:
-        status = "Active" if int(r["is_active"] or 0) == 1 else (
-            f"Suspended<br><span class='small'>{fmt(r['suspended_at'])}</span>"
-            f"<br><span class='small'>{(r['suspended_reason'] or '')}</span>"
-        )
-
+        status = "Active" if int(r["is_active"] or 0) == 1 else f"Suspended<br><span class='small'>{fmt(r['suspended_at'])}</span><br><span class='small'>{(r['suspended_reason'] or '')}</span>"
         if ADMIN_EMAIL and r["email"].lower() == ADMIN_EMAIL:
             action = "<span class='small'>—</span>"
         elif int(r["is_active"] or 0) == 1:
@@ -900,11 +898,7 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
 
     topups_rows = ""
     for t in tops:
-        topups_rows += (
-            f"<tr><td>{fmt(t['created_at'])}</td>"
-            f"<td>{t['email']}</td><td>{t['credits']}</td>"
-            f"<td>£{t['amount_gbp']:.0f}</td></tr>"
-        )
+        topups_rows += f"<tr><td>{fmt(t['created_at'])}</td><td>{t['email']}</td><td>{t['credits']}</td><td>£{t['amount_gbp']:.0f}</td></tr>"
     if not topups_rows:
         topups_rows = "<tr><td colspan=4>No top-ups in range</td></tr>"
 
@@ -928,10 +922,7 @@ def admin_suspend_user(request: Request, email: str = Form(...), reason: str = F
     conn = db_conn()
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
-    cur.execute(
-        "UPDATE users SET is_active=0, suspended_at=?, suspended_reason=? WHERE email=?",
-        (now, (reason or "").strip(), email.lower())
-    )
+    cur.execute("UPDATE users SET is_active=0, suspended_at=?, suspended_reason=? WHERE email=?", (now, reason.strip(), email.lower()))
     conn.commit()
     conn.close()
     return RedirectResponse("/admin", status_code=302)
@@ -943,10 +934,7 @@ def admin_unsuspend_user(request: Request, email: str = Form(...)):
         return u
     conn = db_conn()
     cur = conn.cursor()
-    cur.execute(
-        "UPDATE users SET is_active=1, suspended_at=NULL, suspended_reason=NULL WHERE email=?",
-        (email.lower(),)
-    )
+    cur.execute("UPDATE users SET is_active=1, suspended_at=NULL, suspended_reason=NULL WHERE email=?", (email.lower(),))
     conn.commit()
     conn.close()
     return RedirectResponse("/admin", status_code=302)
@@ -1055,8 +1043,7 @@ def draw_timestamp(img: Image.Image, text: str) -> Image.Image:
     y = h - th - pad
     for ox in (-1,0,1):
         for oy in (-1,0,1):
-            if ox==0 and oy==0: 
-                continue
+            if ox==0 and oy==0: continue
             draw.text((x+ox, y+oy), text, font=font, fill=(0,0,0,255))
     draw.text((x, y), text, font=font, fill=(255,255,255,255))
     return im.convert("RGB")
