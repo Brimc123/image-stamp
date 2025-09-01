@@ -156,7 +156,7 @@ def list_usage(user_id: int):
     return rows
 
 # -------------------------
-# HTML templates (login & classic)
+# HTML templates
 # -------------------------
 login_html = Template(r"""
 <!doctype html>
@@ -265,7 +265,6 @@ document.getElementById('topupBtn').addEventListener('click', async () => {
 </html>
 """)
 
-# Classic tool (stays dark)
 tool_html = Template(r"""
 <!doctype html>
 <html lang="en">
@@ -346,9 +345,7 @@ document.getElementById('form').addEventListener('submit', async (e) => {
 </html>
 """)
 
-# =========================
-# /tool2 — now a Template so we can inject the Admin link when you're the master
-# =========================
+# ======= TOOL2 (Preview UI) =======
 tool2_html = Template(r"""
 <!doctype html>
 <html lang="en">
@@ -604,9 +601,7 @@ document.getElementById('form').addEventListener('submit', async (e) => {
 </html>
 """)
 
-# =========================
-# Admin dashboard (MASTER)
-# =========================
+# ======= Admin UI =======
 admin_html = Template(r"""
 <!doctype html>
 <html lang="en">
@@ -731,7 +726,6 @@ async def login_post(request: Request, email: str = Form(...), code: str = Form(
         return HTMLResponse("<h3>Wrong code</h3><a href='/login'>Back</a>", status_code=401)
     email = email.strip().lower()
     row = ensure_user(email)
-    # record login event (0 credit change)
     try:
         add_usage(row["id"], "login", 0, "signin")
     except Exception as e:
@@ -804,12 +798,11 @@ def tool2(request: Request):
     u = current_user(request)
     if not u:
         return RedirectResponse("/login", status_code=302)
-    # Only show Admin link to the master account
     show_admin = ADMIN_EMAIL and u["email"].lower() == ADMIN_EMAIL
     admin_link = '<a href="/admin">Admin</a>' if show_admin else ''
-    # Add a little spacer if present
     admin_link = (admin_link + ' ') if admin_link else ''
-    return HTMLResponse(tool2_html.substitute(admin_link=admin_link))
+    # IMPORTANT: safe_substitute so literal $ in JS (like const $ = ...) doesn't crash the template engine
+    return HTMLResponse(tool2_html.safe_substitute(admin_link=admin_link))
 
 # ----- Admin dashboard & exports -----
 @app.get("/admin", response_class=HTMLResponse)
@@ -818,7 +811,6 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
     if isinstance(u, HTMLResponse):  # forbidden
         return u
 
-    # default range: last 7 days (inclusive)
     today = datetime.utcnow().date()
     if not start:
         start = (today - timedelta(days=6)).isoformat()
@@ -826,12 +818,11 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
         end = today.isoformat()
 
     start_dt = datetime.fromisoformat(start)
-    end_dt = datetime.fromisoformat(end) + timedelta(days=1)  # inclusive end
+    end_dt = datetime.fromisoformat(end) + timedelta(days=1)
 
     conn = db_conn()
     cur = conn.cursor()
 
-    # per-user summary in range
     cur.execute("""
         SELECT
           u.id, u.email, u.credits, u.created_at,
@@ -848,7 +839,6 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
           start_dt.isoformat(), end_dt.isoformat()))
     users = cur.fetchall()
 
-    # recent topups in range (limit 200)
     cur.execute("""
         SELECT t.created_at, u.email, t.credits, t.amount_gbp
         FROM topups t JOIN users u ON u.id=t.user_id
