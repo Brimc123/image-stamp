@@ -18,13 +18,13 @@ from PIL import Image, ImageDraw, ImageFont
 # -------------------------
 APP_ENV = os.getenv("APP_ENV", "production")
 SESSION_SECRET = os.getenv("SESSION_SECRET", "change-me")
-ADMIN_CODE = os.getenv("ADMIN_CODE", "change-me-admin")           # private admin-only code
-USER_CODE = os.getenv("USER_CODE", "")                             # shared customer code
+ADMIN_CODE = os.getenv("ADMIN_CODE", "change-me-admin")
+USER_CODE = os.getenv("USER_CODE", "change-me-user")
 ADMIN_EMAIL = (os.getenv("ADMIN_EMAIL", "admin@example.com") or "").lower().strip()
 
 ALLOWED_ORIGINS_RAW = os.getenv(
     "ALLOWED_ORIGINS",
-    "https://autodate.co.uk,https://www.autodate.co.uk,https://image-stamp.onrender.com"
+    "https://autodate.co.uk,https://www.autodate.co.uk,https://image-stamp.onrender.com",
 )
 ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
 
@@ -33,16 +33,21 @@ DB_PATH = os.getenv("DB_PATH", "dev.db")
 
 CREDIT_COST_GBP = float(os.getenv("CREDIT_COST_GBP", "10"))
 MIN_TOPUP_CREDITS = int(os.getenv("MIN_TOPUP", "5"))
+
 FONT_PATH = os.getenv("FONT_PATH", "")
 SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "imgstamp_session")
-
 BRAND_NAME = os.getenv("BRAND_NAME", "AutoDate")
 
 # -------------------------
 # App & middleware
 # -------------------------
 app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", session_cookie=SESSION_COOKIE_NAME)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    same_site="lax",
+    session_cookie=SESSION_COOKIE_NAME,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS or ["*"],
@@ -73,6 +78,7 @@ def _column_exists(cur, table, col):
 def db_init():
     conn = db_conn()
     cur = conn.cursor()
+    # base tables
     cur.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,18 +109,29 @@ def db_init():
     );
     """)
 
-    # ---- schema upgrades (idempotent)
+    # schema upgrades (idempotent)
     if not _column_exists(cur, "users", "is_active"):
         cur.execute("ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1")
     if not _column_exists(cur, "users", "suspended_at"):
         cur.execute("ALTER TABLE users ADD COLUMN suspended_at TEXT")
     if not _column_exists(cur, "users", "suspended_reason"):
         cur.execute("ALTER TABLE users ADD COLUMN suspended_reason TEXT")
+    if not _column_exists(cur, "users", "password_hash"):
+        # keep it nullable; older DBs might have it NOT NULL — we handle that in inserts
+        cur.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
 
     conn.commit()
     conn.close()
 
 db_init()
+
+def users_has_col(col: str) -> bool:
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(users)")
+    ok = any(r["name"] == col for r in cur.fetchall())
+    conn.close()
+    return ok
 
 def get_user_by_email(email: str):
     conn = db_conn()
@@ -131,7 +148,17 @@ def ensure_user(email: str):
     conn = db_conn()
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
-    cur.execute("INSERT INTO users(email, credits, created_at, is_active) VALUES (?,?,?,1)", (email, 0, now))
+    # If password_hash column exists (and may be NOT NULL in some old DBs), include it
+    if users_has_col("password_hash"):
+        cur.execute(
+            "INSERT INTO users(email, credits, created_at, is_active, password_hash) VALUES (?,?,?,1,?)",
+            (email, 0, now, ""),
+        )
+    else:
+        cur.execute(
+            "INSERT INTO users(email, credits, created_at, is_active) VALUES (?,?,?,1)",
+            (email, 0, now),
+        )
     conn.commit()
     conn.close()
     return get_user_by_email(email)
@@ -141,11 +168,15 @@ def add_topup(user_id: int, credits: int):
     conn = db_conn()
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
-    cur.execute("INSERT INTO topups(user_id, credits, amount_gbp, created_at) VALUES (?,?,?,?)",
-                (user_id, credits, amount, now))
+    cur.execute(
+        "INSERT INTO topups(user_id, credits, amount_gbp, created_at) VALUES (?,?,?,?)",
+        (user_id, credits, amount, now),
+    )
     cur.execute("UPDATE users SET credits = credits + ? WHERE id=?", (credits, user_id))
-    cur.execute("INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
-                (user_id, "topup", credits, f"{credits} credits", now))
+    cur.execute(
+        "INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
+        (user_id, "topup", credits, f"{credits} credits", now),
+    )
     conn.commit()
     conn.close()
 
@@ -153,8 +184,10 @@ def add_usage(user_id: int, action: str, credits_delta: int, meta: str = ""):
     conn = db_conn()
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
-    cur.execute("INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
-                (user_id, action, credits_delta, meta, now))
+    cur.execute(
+        "INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
+        (user_id, action, credits_delta, meta, now),
+    )
     cur.execute("UPDATE users SET credits = credits + ? WHERE id=?", (credits_delta, user_id))
     conn.commit()
     conn.close()
@@ -205,7 +238,7 @@ a{color:#2563eb}
       <label>Access Code</label>
       <input name="code" type="password" placeholder="••••••••" required />
       <button type="submit">Enter</button>
-      <div class="small">Use the access code provided to you.</div>
+      <div class="small">Use your access code. Admin uses the admin code; users use the user code.</div>
     </form>
   </div>
 </body>
@@ -311,7 +344,10 @@ document.getElementById('topupBtn').addEventListener('click', async () => {
 </html>
 """)
 
-# ======= TOOL2 (Preview UI) with logo + Clear button =======
+# ----- Minimal classic tool stub to avoid NameError if visited -----
+tool_html = Template(r"<!doctype html><html><body><p>Use <a href='/tool2'>AutoDate</a>.</p></body></html>")
+
+# ======= TOOL2 (Preview UI) with Clear + logo =======
 tool2_html = Template(r"""
 <!doctype html>
 <html lang="en">
@@ -336,10 +372,18 @@ body{
   min-height:100svh;
   color:var(--text);
 }
+body::before{
+  content:""; position:fixed; inset:0; pointer-events:none;
+  background:
+    linear-gradient(transparent 31px, rgba(255,255,255,.05) 32px),
+    linear-gradient(90deg, transparent 31px, rgba(255,255,255,.05) 32px);
+  background-size:32px 32px; opacity:.4;
+  mask-image: radial-gradient(1100px 700px at 30% 0%, #000, rgba(0,0,0,.3) 60%, transparent 80%);
+}
 .container{max-width:1150px;margin:0 auto;padding:28px}
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}
-.logo{display:flex;align-items:center;gap:12px}
-.logo svg{width:44px;height:44px;display:block;filter:drop-shadow(0 6px 16px rgba(37,99,235,.35))}
+.brand{display:flex;align-items:center;gap:12px;font-weight:900;color:#eaf1ff}
+.brand svg{width:28px;height:28px}
 .nav{display:flex;gap:16px}
 .nav a{color:#e7efff;text-underline-offset:3px}
 .card{
@@ -364,13 +408,10 @@ button{
   padding:12px 16px; border:1px solid var(--primary2);
   background:linear-gradient(180deg,var(--primary),var(--primary2));
   color:#062015;font-weight:900;border-radius:12px;cursor:pointer;
-  transition:transform .06s ease, filter .2s ease, box-shadow .2s ease; min-width:158px
+  transition:transform .06s ease, filter .2s ease, box-shadow .2s ease; min-width:138px
 }
 button:hover{filter:brightness(1.06); box-shadow:0 10px 26px rgba(22,163,74,.36)}
 button:active{transform:translateY(1px)}
-button.ghost{
-  background:#ffffff;border:1px solid var(--stroke);color:#3b4b6a;min-width:auto
-}
 .small{opacity:.9;color:#64748b}
 .drop{
   border:1.5px dashed #c8d3e5;border-radius:14px;padding:22px;background:var(--card-soft);
@@ -394,29 +435,16 @@ button.ghost{
 <body>
   <div class="container">
     <div class="header">
-      <div class="logo" aria-label="AutoDate">
-        <!-- Simple logo: calendar + mountain photo + clock tick -->
-        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AutoDate">
-          <defs>
-            <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
-              <stop offset="0" stop-color="#2563eb"/>
-              <stop offset="1" stop-color="#22c55e"/>
-            </linearGradient>
-          </defs>
-          <!-- calendar frame -->
-          <rect x="6" y="10" rx="8" ry="8" width="40" height="40" fill="#fff" stroke="url(#g1)" stroke-width="2"/>
-          <rect x="6" y="10" width="40" height="10" rx="8" ry="8" fill="url(#g1)"/>
-          <!-- photo -->
-          <rect x="12" y="24" width="28" height="20" rx="4" fill="#eaf2ff" stroke="#cfe0ff"/>
-          <path d="M14 40l6-7 5 6 6-8 7 9" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
-          <circle cx="22" cy="30" r="2" fill="#22c55e"/>
-          <!-- clock badge -->
-          <circle cx="46" cy="46" r="12" fill="#0b1a3a" stroke="url(#g1)" stroke-width="2"/>
-          <path d="M46 39v7l5 3" stroke="#a7f3d0" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+      <div class="brand">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="6" y="10" width="36" height="28" rx="4" stroke="white" opacity=".9"/>
+          <path d="M12 18h24M16 14v4M32 14v4" stroke="white" opacity=".9"/>
+          <circle cx="28" cy="28" r="7" stroke="white" opacity=".9"/>
+          <path d="M28 24v4l3 3" stroke="white" opacity=".9"/>
         </svg>
+        <div>AutoDate</div>
       </div>
       <div class="nav small">
-        <a href="/tool">Classic</a>
         ${admin_link}
         <a href="/billing">Billing</a>
         <a href="/logout">Logout</a>
@@ -478,8 +506,8 @@ button.ghost{
           <div class="hint">Tip: bottom default 120px removes many phone GPS bars. Set to 0 if not needed.</div>
 
           <div style="display:flex;gap:12px;align-items:center;margin-top:16px;flex-wrap:wrap">
-            <button id="goBtn">Process</button>
-            <button id="clearBtn" type="button" class="ghost">Clear images</button>
+            <button id="goBtn" type="submit">Process</button>
+            <button id="clearBtn" type="button" title="Clear selected images">Clear</button>
             <div id="spin" class="spinner" aria-hidden="true"></div>
             <span class="small" id="status" aria-live="polite"></span>
           </div>
@@ -505,7 +533,6 @@ const goBtn = $('#goBtn');
 const clearBtn = $('#clearBtn');
 const statusEl = $('#status');
 const spin = $('#spin');
-const resultEl = document.getElementById('result');
 
 function renderPreviews(files){
   previews.innerHTML = '';
@@ -522,19 +549,20 @@ function renderPreviews(files){
   });
 }
 
-function clearAll(){
-  input.value = "";
-  renderPreviews(input.files);
+function clearUI(){
+  input.value = '';
+  previews.innerHTML = '';
+  fileCount.textContent = '(none)';
   statusEl.textContent = '';
-  resultEl.textContent = 'You will get a zip download.';
+  $('#result').textContent = 'You will get a zip download.';
 }
-clearBtn.addEventListener('click', clearAll);
 
 drop.addEventListener('click', ()=> input.click());
 ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.add('drag')}))
 ;['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.remove('drag')}))
 drop.addEventListener('drop', e => { input.files = e.dataTransfer.files; renderPreviews(input.files); });
 input.addEventListener('change', ()=> renderPreviews(input.files));
+clearBtn.addEventListener('click', clearUI);
 
 // Defaults: today & now
 (function setDefaults(){
@@ -567,7 +595,7 @@ document.getElementById('form').addEventListener('submit', async (e) => {
     goBtn.disabled = false; goBtn.textContent = 'Process'; spin.style.display = 'none'; statusEl.textContent='';
     if(r.status === 402) { window.location.href = '/billing?nocredits=1'; return; }
     const txt = await r.text().catch(()=> '');
-    alert('Failed: ' + r.status + (txt ? ('\\n'+txt) : ''));
+    alert('Failed: ' + r.status + (txt ? ('\n'+txt) : ''));
     return;
   }
 
@@ -578,10 +606,10 @@ document.getElementById('form').addEventListener('submit', async (e) => {
   URL.revokeObjectURL(url);
 
   const bal = r.headers.get('X-Credits-Balance');
-  resultEl.textContent = 'Downloaded stamped.zip' + (bal?(' — Credits left: '+bal):'');
+  document.getElementById('result').textContent = 'Downloaded stamped.zip' + (bal?(' — Credits left: '+bal):'');
 
   goBtn.disabled = false; goBtn.textContent = 'Process'; spin.style.display = 'none'; statusEl.textContent='';
-  clearAll(); // auto-clear after download
+  clearUI(); // auto-clear previews after download
 });
 </script>
 </body>
@@ -679,7 +707,6 @@ def require_admin(request: Request):
     return u
 
 def require_active_user_row(request: Request):
-    """Return sqlite row for the logged-in user; if suspended, clear session and redirect to /suspended."""
     u = current_user(request)
     if not u:
         return RedirectResponse("/login", status_code=302)
@@ -723,20 +750,27 @@ def login_get(request: Request):
 
 @app.post("/login")
 async def login_post(request: Request, email: str = Form(...), code: str = Form(...)):
-    # Accept either ADMIN_CODE or USER_CODE (if set).
-    ok = (code == ADMIN_CODE) or (USER_CODE and code == USER_CODE)
-    if not ok:
-        return HTMLResponse("<h3>Wrong code</h3><a href='/login'>Back</a>", status_code=401)
+    email = (email or "").strip().lower()
 
-    email = email.strip().lower()
+    # Admin must use ADMIN_CODE; everyone else must use USER_CODE
+    if email == ADMIN_EMAIL:
+        if code != ADMIN_CODE:
+            return HTMLResponse("<h3>Wrong code</h3><a href='/login'>Back</a>", status_code=401)
+    else:
+        if code != USER_CODE:
+            return HTMLResponse("<h3>Wrong code</h3><a href='/login'>Back</a>", status_code=401)
+
     row = ensure_user(email)
+
     # If suspended, don't start a session.
     if int(row["is_active"] or 0) != 1:
         return RedirectResponse("/suspended", status_code=302)
+
     try:
         add_usage(row["id"], "login", 0, "signin")
     except Exception as e:
         print("login log failed:", e)
+
     request.session["user"] = {"email": email}
     return RedirectResponse("/tool2", status_code=302)
 
@@ -795,9 +829,12 @@ def api_topup(request: Request):
     return {"ok": True, "credits": refreshed["credits"]}
 
 # ----- Tool pages -----
-@app.get("/tool")
-def tool_redirect():
-    return RedirectResponse("/tool2", status_code=302)
+@app.get("/tool", response_class=HTMLResponse)
+def tool(request: Request):
+    row = require_active_user_row(request)
+    if isinstance(row, (RedirectResponse, HTMLResponse)):
+        return row
+    return HTMLResponse(tool_html.substitute({}))
 
 @app.get("/tool2", response_class=HTMLResponse)
 def tool2(request: Request):
@@ -965,9 +1002,7 @@ def export_topups_csv(request: Request, start: str, end: str):
     for r in rows:
         writer.writerow([r["created_at"], r["email"], r["credits"], f"{r['amount_gbp']:.2f}"])
     data = output.getvalue().encode("utf-8")
-    headers = {
-        "Content-Disposition": f'attachment; filename="topups_{start}_to_{end}.csv"'
-    }
+    headers = {"Content-Disposition": f'attachment; filename="topups_{start}_to_{end}.csv"'}
     return Response(content=data, media_type="text/csv; charset=utf-8", headers=headers)
 
 @app.get("/admin/export/summary.csv")
@@ -1008,9 +1043,7 @@ def export_summary_csv(request: Request, start: str, end: str):
             f"{r['topup_amount']:.2f}", r["stamp_runs"], r["credits_used"], r["current_credits"]
         ])
     data = output.getvalue().encode("utf-8")
-    headers = {
-        "Content-Disposition": f'attachment; filename="summary_{start}_to_{end}.csv"'
-    }
+    headers = {"Content-Disposition": f'attachment; filename="summary_{start}_to_{end}.csv"'}
     return Response(content=data, media_type="text/csv; charset=utf-8", headers=headers)
 
 # -------------------------
