@@ -347,9 +347,9 @@ document.getElementById('form').addEventListener('submit', async (e) => {
 """)
 
 # =========================
-# /tool2 (visuals you liked)
+# /tool2 — now a Template so we can inject the Admin link when you're the master
 # =========================
-tool2_html = r"""
+tool2_html = Template(r"""
 <!doctype html>
 <html lang="en">
 <head>
@@ -445,6 +445,7 @@ button:active{transform:translateY(1px)}
       </div>
       <div class="nav small">
         <a href="/tool">Classic</a>
+        ${admin_link}
         <a href="/billing">Billing</a>
         <a href="/logout">Logout</a>
       </div>
@@ -601,7 +602,7 @@ document.getElementById('form').addEventListener('submit', async (e) => {
 </script>
 </body>
 </html>
-"""
+""")
 
 # =========================
 # Admin dashboard (MASTER)
@@ -803,7 +804,12 @@ def tool2(request: Request):
     u = current_user(request)
     if not u:
         return RedirectResponse("/login", status_code=302)
-    return HTMLResponse(tool2_html)
+    # Only show Admin link to the master account
+    show_admin = ADMIN_EMAIL and u["email"].lower() == ADMIN_EMAIL
+    admin_link = '<a href="/admin">Admin</a>' if show_admin else ''
+    # Add a little spacer if present
+    admin_link = (admin_link + ' ') if admin_link else ''
+    return HTMLResponse(tool2_html.substitute(admin_link=admin_link))
 
 # ----- Admin dashboard & exports -----
 @app.get("/admin", response_class=HTMLResponse)
