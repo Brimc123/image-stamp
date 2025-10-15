@@ -27,9 +27,15 @@
         
         <!-- Navigation links (visible when logged in) -->
         <div id="navSection" class="row gap" style="display:none">
-          <a href="/admin" class="link" style="text-decoration:none;color:var(--text);padding:8px 12px">Admin</a>
-          <a href="/billing" class="link" style="text-decoration:none;color:var(--text);padding:8px 12px">Billing</a>
+          <!-- Admin link (only for admin users) -->
+          <a id="adminLink" href="/admin" class="link" style="display:none;text-decoration:none;color:var(--text);padding:8px 12px">Admin</a>
+          
+          <!-- Billing link (only for admin users) -->
+          <a id="billingLink" href="/billing" class="link" style="display:none;text-decoration:none;color:var(--text);padding:8px 12px">Billing</a>
+          
+          <!-- Retrofit Design link (all logged-in users) -->
           <a href="https://autodate-retrofit.streamlit.app" target="_blank" class="link" style="text-decoration:none;color:var(--accent);padding:8px 12px;font-weight:600">🏠 Retrofit Design</a>
+          
           <button id="logoutBtn" class="btn danger ghost">Logout</button>
         </div>
       </nav>
@@ -100,34 +106,14 @@
 
   <script src="/static/app.js"></script>
   <script>
-    // Show/hide nav based on login state
+    // Show/hide nav based on login state and user role
     async function updateNav() {
       try {
         const res = await fetch('/auth/status', {credentials:'include'});
-        const isLoggedIn = res.ok;
-        document.getElementById('authSection').style.display = isLoggedIn ? 'none' : 'flex';
-        document.getElementById('navSection').style.display = isLoggedIn ? 'flex' : 'none';
-      } catch(e) {
-        document.getElementById('authSection').style.display = 'flex';
-        document.getElementById('navSection').style.display = 'none';
-      }
-    }
-    
-    // Update nav on page load and after login/logout
-    updateNav();
-    
-    // Override original login/logout to update nav
-    const origLogin = loginBtn.onclick;
-    loginBtn.onclick = async () => {
-      await origLogin();
-      updateNav();
-    };
-    
-    const origLogout = logoutBtn.onclick;
-    logoutBtn.onclick = async () => {
-      await origLogout();
-      updateNav();
-    };
-  </script>
-</body>
-</html>
+        if (!res.ok) throw new Error('Not logged in');
+        
+        const data = await res.json();
+        const isLoggedIn = true;
+        const isAdmin = data.is_admin || data.email === 'brimc123@hotmail.com'; // Check if admin
+        
+        // Show/hide section
