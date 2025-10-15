@@ -827,10 +827,36 @@ def tool(request: Request):
     return HTMLResponse(tool_html.substitute({}))
 
 @app.get("/tool2", response_class=HTMLResponse)
+@app.get("/tool2", response_class=HTMLResponse)
 def tool2(request: Request):
     row = require_active_user_row(request)
     if isinstance(row, (RedirectResponse, HTMLResponse)):
         return row
+    
+    # Check if user is admin
+    show_admin = ADMIN_EMAIL and row["email"].lower() == ADMIN_EMAIL
+    
+    # Build navigation links
+    nav_links = []
+    
+    # Admin link (only for admin)
+    if show_admin:
+        nav_links.append('<a href="/admin">Admin</a>')
+    
+    # Retrofit Design link (for all users who have permission)
+    # Use try/except to safely access the column
+    try:
+        can_retrofit = int(row["can_use_retrofit_tool"]) if "can_use_retrofit_tool" in row.keys() else 1
+    except (TypeError, ValueError, KeyError):
+        can_retrofit = 1
+    
+    if can_retrofit == 1:
+        nav_links.append('<a href="https://autodate-retrofit.streamlit.app" target="_blank" style="color:#22c55e;font-weight:600">🏠 Retrofit Design</a>')
+    
+    # Join all links with spaces
+    admin_link = ' '.join(nav_links) + ' ' if nav_links else ''
+    
+    return HTMLResponse(tool2_html.safe_substitute(admin_link=admin_link))
     
     # Check if user is admin
     show_admin = ADMIN_EMAIL and row["email"].lower() == ADMIN_EMAIL
