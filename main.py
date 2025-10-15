@@ -117,8 +117,9 @@ def db_init():
     if not _column_exists(cur, "users", "suspended_reason"):
         cur.execute("ALTER TABLE users ADD COLUMN suspended_reason TEXT")
     if not _column_exists(cur, "users", "password_hash"):
-        # keep it nullable; older DBs might have it NOT NULL — we handle that in inserts
         cur.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+    if not _column_exists(cur, "users", "can_use_retrofit_tool"):
+        cur.execute("ALTER TABLE users ADD COLUMN can_use_retrofit_tool INTEGER NOT NULL DEFAULT 1")
 
     conn.commit()
     conn.close()
@@ -148,15 +149,14 @@ def ensure_user(email: str):
     conn = db_conn()
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
-    # If password_hash column exists (and may be NOT NULL in some old DBs), include it
     if users_has_col("password_hash"):
         cur.execute(
-            "INSERT INTO users(email, credits, created_at, is_active, password_hash) VALUES (?,?,?,1,?)",
+            "INSERT INTO users(email, credits, created_at, is_active, password_hash, can_use_retrofit_tool) VALUES (?,?,?,1,?,1)",
             (email, 0, now, ""),
         )
     else:
         cur.execute(
-            "INSERT INTO users(email, credits, created_at, is_active) VALUES (?,?,?,1)",
+            "INSERT INTO users(email, credits, created_at, is_active, can_use_retrofit_tool) VALUES (?,?,?,1,1)",
             (email, 0, now),
         )
     conn.commit()
@@ -344,10 +344,8 @@ document.getElementById('topupBtn').addEventListener('click', async () => {
 </html>
 """)
 
-# ----- Minimal classic tool stub to avoid NameError if visited -----
 tool_html = Template(r"<!doctype html><html><body><p>Use <a href='/tool2'>AutoDate</a>.</p></body></html>")
 
-# ======= TOOL2 (Preview UI) with Clear + logo =======
 tool2_html = Template(r"""
 <!doctype html>
 <html lang="en">
@@ -564,7 +562,6 @@ drop.addEventListener('drop', e => { input.files = e.dataTransfer.files; renderP
 input.addEventListener('change', ()=> renderPreviews(input.files));
 clearBtn.addEventListener('click', clearUI);
 
-// Defaults: today & now
 (function setDefaults(){
   const now = new Date();
   document.getElementById('date').value = new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10);
@@ -572,7 +569,6 @@ clearBtn.addEventListener('click', clearUI);
   document.getElementById('start').value = pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
 })();
 
-// Crop presets
 document.querySelectorAll('.pill').forEach(p=>{
   p.addEventListener('click', ()=> { document.getElementById('cropBottom').value = p.dataset.crop; });
 });
@@ -606,17 +602,16 @@ document.getElementById('form').addEventListener('submit', async (e) => {
   URL.revokeObjectURL(url);
 
   const bal = r.headers.get('X-Credits-Balance');
-  document.getElementById('result').textContent = 'Downloaded stamped.zip' + (bal?(' — Credits left: '+bal):'');
+  document.getElementById('result').textContent = 'Downloaded stamped.zip' + (bal?(' – Credits left: '+bal):'');
 
   goBtn.disabled = false; goBtn.textContent = 'Process'; spin.style.display = 'none'; statusEl.textContent='';
-  clearUI(); // auto-clear previews after download
+  clearUI();
 });
 </script>
 </body>
 </html>
 """)
 
-# ======= Admin UI =======
 admin_html = Template(r"""
 <!doctype html>
 <html lang="en">
@@ -626,7 +621,7 @@ admin_html = Template(r"""
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
 body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:22px;background:#0b1220;color:#e8eefc}
-.wrap{max-width:1100px;margin:0 auto}
+.wrap{max-width:1200px;margin:0 auto}
 h1{margin:.2rem 0 1rem}
 .card{background:#0f172a;border:1px solid #1f2a44;border-radius:14px;padding:16px;box-shadow:0 12px 28px rgba(2,6,23,.25)}
 .small{opacity:.85}
@@ -665,7 +660,7 @@ label{font-size:.8rem;color:#9fb2d9}
         <tr>
           <th>Email</th><th>Credits</th><th>Created</th><th>Last login</th>
           <th>Stamp runs</th><th>Top-ups</th><th>Top-up credits</th><th>Top-up £</th>
-          <th>Status</th><th>Action</th>
+          <th>Retrofit</th><th>Status</th><th>Action</th>
         </tr>
         ${users_rows}
       </table>
@@ -743,7 +738,6 @@ def home_head():
 def app_alias():
     return RedirectResponse("/tool2", status_code=302)
 
-# ----- Auth -----
 @app.get("/login", response_class=HTMLResponse)
 def login_get(request: Request):
     return HTMLResponse(login_html.substitute({}))
@@ -752,7 +746,6 @@ def login_get(request: Request):
 async def login_post(request: Request, email: str = Form(...), code: str = Form(...)):
     email = (email or "").strip().lower()
 
-    # Admin must use ADMIN_CODE; everyone else must use USER_CODE
     if email == ADMIN_EMAIL:
         if code != ADMIN_CODE:
             return HTMLResponse("<h3>Wrong code</h3><a href='/login'>Back</a>", status_code=401)
@@ -762,7 +755,6 @@ async def login_post(request: Request, email: str = Form(...), code: str = Form(
 
     row = ensure_user(email)
 
-    # If suspended, don't start a session.
     if int(row["is_active"] or 0) != 1:
         return RedirectResponse("/suspended", status_code=302)
 
@@ -783,7 +775,6 @@ def logout(request: Request):
 def suspended_page():
     return HTMLResponse(suspended_html.substitute({}))
 
-# ----- Billing page -----
 @app.get("/billing", response_class=HTMLResponse)
 def billing(request: Request):
     row = require_active_user_row(request)
@@ -828,7 +819,6 @@ def api_topup(request: Request):
     refreshed = get_user_by_email(row["email"])
     return {"ok": True, "credits": refreshed["credits"]}
 
-# ----- Tool pages -----
 @app.get("/tool", response_class=HTMLResponse)
 def tool(request: Request):
     row = require_active_user_row(request)
@@ -846,7 +836,6 @@ def tool2(request: Request):
     admin_link = (admin_link + ' ') if admin_link else ''
     return HTMLResponse(tool2_html.safe_substitute(admin_link=admin_link))
 
-# ----- Admin dashboard & exports -----
 @app.get("/admin", response_class=HTMLResponse)
 def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional[str] = None):
     u = require_admin(request)
@@ -868,6 +857,7 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
     cur.execute("""
         SELECT
           u.id, u.email, u.credits, u.created_at, u.is_active, u.suspended_at, u.suspended_reason,
+          COALESCE(u.can_use_retrofit_tool, 1) AS can_use_retrofit_tool,
           (SELECT MAX(created_at) FROM usage WHERE user_id=u.id AND action='login') AS last_login,
           (SELECT COUNT(*) FROM usage WHERE user_id=u.id AND action='stamp' AND created_at>=? AND created_at<?) AS stamp_runs,
           (SELECT COUNT(*) FROM topups WHERE user_id=u.id AND created_at>=? AND created_at<?) AS topup_count,
@@ -897,23 +887,48 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
     users_rows = ""
     for r in users:
         status = "Active" if int(r["is_active"] or 0) == 1 else f"Suspended<br><span class='small'>{fmt(r['suspended_at'])}</span><br><span class='small'>{(r['suspended_reason'] or '')}</span>"
+        
+        # Retrofit access status
+        retrofit_status = "✅ Yes" if int(r.get('can_use_retrofit_tool', 1)) == 1 else "❌ No"
+        
         if ADMIN_EMAIL and r["email"].lower() == ADMIN_EMAIL:
             action = "<span class='small'>—</span>"
+            retrofit_action = "<span class='small'>—</span>"
         elif int(r["is_active"] or 0) == 1:
             action = (
                 "<form method='post' action='/admin/user/suspend' class='flex'>"
                 f"<input type='hidden' name='email' value='{r['email']}'>"
                 "<label>Reason</label><input name='reason' class='reason' placeholder='e.g. unpaid invoice'/>"
-                "<button> Suspend </button>"
+                "<button>Suspend</button>"
                 "</form>"
             )
+            # Retrofit toggle
+            if int(r.get('can_use_retrofit_tool', 1)) == 1:
+                retrofit_action = (
+                    "<form method='post' action='/admin/user/toggle-retrofit' style='display:inline;margin-left:8px'>"
+                    f"<input type='hidden' name='email' value='{r['email']}'>"
+                    f"<input type='hidden' name='enable' value='0'>"
+                    "<button style='background:#ef4444;border-color:#dc2626'>Block Retrofit</button>"
+                    "</form>"
+                )
+            else:
+                retrofit_action = (
+                    "<form method='post' action='/admin/user/toggle-retrofit' style='display:inline;margin-left:8px'>"
+                    f"<input type='hidden' name='email' value='{r['email']}'>"
+                    f"<input type='hidden' name='enable' value='1'>"
+                    "<button>Allow Retrofit</button>"
+                    "</form>"
+                )
         else:
             action = (
                 "<form method='post' action='/admin/user/unsuspend' class='flex'>"
                 f"<input type='hidden' name='email' value='{r['email']}'>"
-                "<button> Reinstate </button>"
+                "<button>Reinstate</button>"
                 "</form>"
             )
+            retrofit_action = "<span class='small'>—</span>"
+
+        combined_action = f"{action} {retrofit_action}"
 
         users_rows += (
             f"<tr>"
@@ -925,13 +940,14 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
             f"<td>{r['topup_count']}</td>"
             f"<td>{r['topup_credits']}</td>"
             f"<td>£{r['topup_amount']:.0f}</td>"
+            f"<td>{retrofit_status}</td>"
             f"<td>{status}</td>"
-            f"<td>{action}</td>"
+            f"<td>{combined_action}</td>"
             f"</tr>"
         )
 
     if not users_rows:
-        users_rows = "<tr><td colspan=10>No users yet</td></tr>"
+        users_rows = "<tr><td colspan=11>No users yet</td></tr>"
 
     topups_rows = ""
     for t in tops:
@@ -975,6 +991,47 @@ def admin_unsuspend_user(request: Request, email: str = Form(...)):
     conn.commit()
     conn.close()
     return RedirectResponse("/admin", status_code=302)
+
+@app.post("/admin/user/toggle-retrofit")
+def admin_toggle_retrofit(request: Request, email: str = Form(...), enable: int = Form(...)):
+    u = require_admin(request)
+    if isinstance(u, (RedirectResponse, HTMLResponse)):
+        return u
+    if ADMIN_EMAIL and email.lower() == ADMIN_EMAIL:
+        return HTMLResponse("<h3>Cannot modify admin account.</h3><p><a href='/admin'>Back</a></p>", status_code=400)
+    
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET can_use_retrofit_tool=? WHERE email=?", (enable, email.lower()))
+    conn.commit()
+    conn.close()
+    return RedirectResponse("/admin", status_code=302)
+
+@app.get("/api/check-retrofit-access")
+def api_check_retrofit_access(request: Request):
+    """Check if current user can access Retrofit Design Tool"""
+    u = current_user(request)
+    if not u:
+        return JSONResponse({"allowed": False, "reason": "not_logged_in"}, status_code=401)
+    
+    user_row = get_user_by_email(u["email"])
+    if not user_row:
+        return JSONResponse({"allowed": False, "reason": "user_not_found"}, status_code=404)
+    
+    # Check if account is suspended
+    if int(user_row.get("is_active", 0)) != 1:
+        return JSONResponse({"allowed": False, "reason": "account_suspended"}, status_code=403)
+    
+    # Check if they have Retrofit access
+    can_use = int(user_row.get("can_use_retrofit_tool", 1))
+    if can_use != 1:
+        return JSONResponse({"allowed": False, "reason": "retrofit_access_disabled"}, status_code=403)
+    
+    return JSONResponse({
+        "allowed": True,
+        "email": user_row["email"],
+        "credits": user_row["credits"]
+    })
 
 @app.get("/admin/export/topups.csv")
 def export_topups_csv(request: Request, start: str, end: str):
@@ -1146,7 +1203,6 @@ async def api_stamp(
         zf.writestr(name.replace(".jpeg",".jpg"), buf.getvalue())
 
     zf.close()
-    # deduct 1 credit per run
     add_usage(row["id"], "stamp", -1, f"{n} image(s)")
     new_row = get_user_by_email(row["email"])
 
