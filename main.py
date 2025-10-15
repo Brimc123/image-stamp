@@ -842,14 +842,10 @@ def tool2(request: Request):
     if show_admin:
         nav_links.append('<a href="/admin">Admin</a>')
     
-    # Retrofit Design link - safely check if column exists
+    # Retrofit Design link - safely check if column exists using dict() conversion
     try:
-        # Get list of column names from the row
-        col_names = row.keys()
-        if "can_use_retrofit_tool" in col_names:
-            can_retrofit = int(row["can_use_retrofit_tool"])
-        else:
-            can_retrofit = 1  # Default to allowed if column doesn't exist
+        row_dict = dict(row)
+        can_retrofit = int(row_dict.get("can_use_retrofit_tool", 1))
     except (TypeError, ValueError, KeyError):
         can_retrofit = 1  # Default to allowed on any error
     
@@ -913,8 +909,12 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
     for r in users:
         status = "Active" if int(r["is_active"] or 0) == 1 else f"Suspended<br><span class='small'>{fmt(r['suspended_at'])}</span><br><span class='small'>{(r['suspended_reason'] or '')}</span>"
         
-        # Retrofit access status
-        retrofit_status = "✅ Yes" if int(r.get('can_use_retrofit_tool', 1)) == 1 else "❌ No"
+        # Retrofit access status - safely convert to dict
+        try:
+            r_dict = dict(r)
+            retrofit_status = "✅ Yes" if int(r_dict.get('can_use_retrofit_tool', 1)) == 1 else "❌ No"
+        except (TypeError, ValueError, KeyError):
+            retrofit_status = "✅ Yes"
         
         if ADMIN_EMAIL and r["email"].lower() == ADMIN_EMAIL:
             action = "<span class='small'>—</span>"
@@ -927,8 +927,14 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
                 "<button>Suspend</button>"
                 "</form>"
             )
-            # Retrofit toggle
-            if int(r.get('can_use_retrofit_tool', 1)) == 1:
+            # Retrofit toggle - safely convert to dict
+            try:
+                r_dict2 = dict(r)
+                can_use_retrofit = int(r_dict2.get('can_use_retrofit_tool', 1))
+            except (TypeError, ValueError, KeyError):
+                can_use_retrofit = 1
+            
+            if can_use_retrofit == 1:
                 retrofit_action = (
                     "<form method='post' action='/admin/user/toggle-retrofit' style='display:inline;margin-left:8px'>"
                     f"<input type='hidden' name='email' value='{r['email']}'>"
