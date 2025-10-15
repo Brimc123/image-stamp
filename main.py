@@ -909,12 +909,8 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
     for r in users:
         status = "Active" if int(r["is_active"] or 0) == 1 else f"Suspended<br><span class='small'>{fmt(r['suspended_at'])}</span><br><span class='small'>{(r['suspended_reason'] or '')}</span>"
         
-        # Retrofit access status - safely convert to dict
-        try:
-            r_dict = dict(r)
-            retrofit_status = "✅ Yes" if int(r_dict.get('can_use_retrofit_tool', 1)) == 1 else "❌ No"
-        except (TypeError, ValueError, KeyError):
-            retrofit_status = "✅ Yes"
+        # Retrofit access status
+        retrofit_status = "✅ Yes" if int(r.get('can_use_retrofit_tool', 1)) == 1 else "❌ No"
         
         if ADMIN_EMAIL and r["email"].lower() == ADMIN_EMAIL:
             action = "<span class='small'>—</span>"
@@ -927,14 +923,8 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
                 "<button>Suspend</button>"
                 "</form>"
             )
-            # Retrofit toggle - safely convert to dict
-            try:
-                r_dict2 = dict(r)
-                can_use_retrofit = int(r_dict2.get('can_use_retrofit_tool', 1))
-            except (TypeError, ValueError, KeyError):
-                can_use_retrofit = 1
-            
-            if can_use_retrofit == 1:
+            # Retrofit toggle
+            if int(r.get('can_use_retrofit_tool', 1)) == 1:
                 retrofit_action = (
                     "<form method='post' action='/admin/user/toggle-retrofit' style='display:inline;margin-left:8px'>"
                     f"<input type='hidden' name='email' value='{r['email']}'>"
