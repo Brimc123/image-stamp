@@ -114,6 +114,39 @@
         
         const data = await res.json();
         const isLoggedIn = true;
-        const isAdmin = data.is_admin || data.email === 'brimc123@hotmail.com'; // Check if admin
+        const isAdmin = data.is_admin || data.email === 'brimc123@hotmail.com';
         
-        // Show/hide section
+        // Show/hide sections
+        document.getElementById('authSection').style.display = 'none';
+        document.getElementById('navSection').style.display = 'flex';
+        
+        // Show/hide admin-only links
+        document.getElementById('adminLink').style.display = isAdmin ? 'block' : 'none';
+        document.getElementById('billingLink').style.display = isAdmin ? 'block' : 'none';
+        
+      } catch(e) {
+        // Not logged in - show login/signup
+        document.getElementById('authSection').style.display = 'flex';
+        document.getElementById('navSection').style.display = 'none';
+      }
+    }
+    
+    // Update nav on page load
+    updateNav();
+    
+    // Override original login to update nav
+    const origLogin = loginBtn.onclick;
+    loginBtn.onclick = async () => {
+      await origLogin();
+      setTimeout(updateNav, 100);
+    };
+    
+    // Override original logout to update nav
+    const origLogout = logoutBtn.onclick;
+    logoutBtn.onclick = async () => {
+      await origLogout();
+      updateNav();
+    };
+  </script>
+</body>
+</html>
