@@ -85,7 +85,12 @@ def require_active_user_row(request: Request):
     if status != "active":
         return HTMLResponse("<h1>Subscription Inactive</h1><p>Please subscribe or contact support.</p>")
     
-    end = row.get("subscription_end_date")
+    # Safe access to subscription_end_date
+    try:
+        end = row["subscription_end_date"]
+    except (KeyError, TypeError):
+        end = None
+    
     if end:
         try:
             end_dt = datetime.fromisoformat(end)
