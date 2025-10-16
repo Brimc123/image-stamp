@@ -982,8 +982,12 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
     for r in users:
         status = "Active" if int(r["is_active"] or 0) == 1 else f"Suspended<br><span class='small'>{fmt(r['suspended_at'])}</span><br><span class='small'>{(r['suspended_reason'] or '')}</span>"
         
-        # Retrofit access status
-        retrofit_status = "✅ Yes" if int(r.get('can_use_retrofit_tool', 1)) == 1 else "❌ No"
+        # Safe access to retrofit column
+        try:
+            retrofit_val = int(r['can_use_retrofit_tool'])
+        except (KeyError, TypeError, ValueError):
+            retrofit_val = 1
+        retrofit_status = "✅ Yes" if retrofit_val == 1 else "❌ No"
         
         if ADMIN_EMAIL and r["email"].lower() == ADMIN_EMAIL:
             action = "<span class='small'>—</span>"
@@ -996,8 +1000,13 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
                 "<button>Suspend</button>"
                 "</form>"
             )
-            # Retrofit toggle
-            if int(r.get('can_use_retrofit_tool', 1)) == 1:
+            # Retrofit toggle - safe version
+            try:
+                retrofit_check = int(r['can_use_retrofit_tool'])
+            except (KeyError, TypeError, ValueError):
+                retrofit_check = 1
+                
+            if retrofit_check == 1:
                 retrofit_action = (
                     "<form method='post' action='/admin/user/toggle-retrofit' style='display:inline;margin-left:8px'>"
                     f"<input type='hidden' name='email' value='{r['email']}'>"
@@ -1253,50 +1262,4 @@ async def api_stamp(
                 w, h = img.size
 
             if end_sec > start_sec:
-                t_sec = random.randint(start_sec, end_sec)
-            else:
-                t_sec = start_sec
-
-            hours = t_sec // 3600
-            minutes = (t_sec % 3600) // 60
-            seconds = t_sec % 60
-
-            stamp_dt = date_obj.replace(hour=hours, minute=minutes, second=seconds)
-
-            if date_format == "dd_slash_mm_yyyy":
-                stamp_text = stamp_dt.strftime("%d/%m/%Y, %H:%M:%S")
-            else:
-                stamp_text = stamp_dt.strftime("%d %b %Y, %H:%M:%S")
-
-            bar_height = 48
-            new_h = h + bar_height
-            canvas = Image.new("RGB", (w, new_h), (0, 0, 0))
-            canvas.paste(img, (0, 0))
-
-            draw = ImageDraw.Draw(canvas)
-            try:
-                if FONT_PATH and os.path.exists(FONT_PATH):
-                    font = ImageFont.truetype(FONT_PATH, 28)
-                else:
-                    font = ImageFont.load_default()
-            except:
-                font = ImageFont.load_default()
-
-            text_bbox = draw.textbbox((0, 0), stamp_text, font=font)
-            text_w = text_bbox[2] - text_bbox[0]
-            text_x = (w - text_w) // 2
-            text_y = h + (bar_height - 28) // 2
-
-            draw.text((text_x, text_y), stamp_text, fill=(255, 255, 255), font=font)
-
-            out_buf = io.BytesIO()
-            canvas.save(out_buf, format="JPEG", quality=92)
-            out_buf.seek(0)
-
-            base = os.path.splitext(ufile.filename or f"image_{i+1}")[0]
-            zf.writestr(f"{base}_stamped.jpg", out_buf.read())
-
-    buf.seek(0)
-    refreshed = get_user_by_email(row["email"])
-    headers = {"X-Credits-Balance": str(refreshed["credits"])}
-    return StreamingResponse(buf, media_type="application/zip", headers=headers)
+                t_sec = random.randint
