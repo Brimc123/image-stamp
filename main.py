@@ -995,7 +995,7 @@ timestamp_tool_html = """
                 <div class="form-row">
                     <div class="form-group">
                         <label>Crop from Bottom (pixels)</label>
-                        <input type="number" id="cropBottom" value="0" min="0">
+                        <input type="number" id="cropBottom" value="120" min="0">
                     </div>
                     <div class="form-group">
                         <label>Text Color</label>
@@ -1162,92 +1162,127 @@ async def stamp_batch(
     date_text: str = Form(...),
     start_time: str = Form(...),
     end_time: str = Form(...),
-    crop_bottom: int = Form(0),
+    crop_bottom: int = Form(120),
     text_color: str = Form("255,255,255")
 ):
     """Process multiple images with distributed timestamps"""
     
-    # Parse times
-    start_h, start_m = map(int, start_time.split(':'))
-    end_h, end_m = map(int, end_time.split(':'))
+    try:
+        # Parse times
+        start_h, start_m = map(int, start_time.split(':'))
+        end_h, end_m = map(int, end_time.split(':'))
+        
+        start_minutes = start_h * 60 + start_m
+        end_minutes = end_h * 60 + end_m
+        
+        num_images = len(images)
+        
+        # Calculate time interval
+        if num_images > 1:
+            interval = (end_minutes - start_minutes) / (num_images - 1)
+        else:
+            interval = 0
+        
+        # Parse color
+        r, g, b = map(int, text_color.split(','))
+        
+        results = []
+        
+        for idx, img_file in enumerate(images):
+            try:
+                # Calculate time for this image
+                current_minutes = start_minutes + (interval * idx)
+                current_h = int(current_minutes // 60)
+                current_m = int(current_minutes % 60)
+                time_str = f"{current_h:02d}:{current_m:02d}:{idx*3:02d}"  # Added seconds
+                
+                # Read image - FIXED: Reset file pointer and validate
+                await img_file.seek(0)
+                img_bytes = await img_file.read()
+                
+                if not img_bytes:
+                    continue
+                
+                # Open image with error handling
+                img = Image.open(io.BytesIO(img_bytes))
+                
+                # Convert to RGB if needed
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # Crop from bottom if needed
+                if crop_bottom > 0:
+                    width, height = img.size
+                    new_height = max(height - crop_bottom, 100)  # Don't crop too much
+                    img = img.crop((0, 0, width, new_height))
+                
+                # Add timestamp
+                draw = ImageDraw.Draw(img)
+                
+                # Try multiple font paths (different systems have different locations)
+                font = None
+                font_paths = [
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                    "/System/Library/Fonts/Helvetica.ttc",
+                    "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf"
+                ]
+                
+                for font_path in font_paths:
+                    try:
+                        font = ImageFont.truetype(font_path, 48)  # Larger, bold font
+                        break
+                    except:
+                        continue
+                
+                # Fallback to default if no font found
+                if font is None:
+                    font = ImageFont.load_default()
+                
+                # Create timestamp text - format like your example: "03 Apr 2025, 14:34:15"
+                timestamp_text = f"{date_text}, {time_str}"
+                
+                # Get text size
+                bbox = draw.textbbox((0, 0), timestamp_text, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+                
+                # Position at bottom right with padding (like your examples)
+                width, height = img.size
+                x = width - text_width - 30
+                y = height - text_height - 30
+                
+                # Draw text with black shadow for better visibility (like your examples)
+                shadow_offset = 3
+                draw.text((x+shadow_offset, y+shadow_offset), timestamp_text, font=font, fill=(0, 0, 0, 180))
+                draw.text((x, y), timestamp_text, font=font, fill=(r, g, b))
+                
+                # Save to bytes
+                output = io.BytesIO()
+                img.save(output, format='JPEG', quality=95)
+                output.seek(0)
+                
+                # Base64 encode
+                import base64
+                img_base64 = base64.b64encode(output.read()).decode()
+                
+                results.append({
+                    "filename": f"stamped_{idx+1}.jpg",
+                    "data": img_base64
+                })
+            
+            except Exception as e:
+                print(f"Error processing image {idx}: {str(e)}")
+                continue
+        
+        if not results:
+            return {"error": "No images could be processed"}, 400
+        
+        return {"images": results}
     
-    start_minutes = start_h * 60 + start_m
-    end_minutes = end_h * 60 + end_m
-    
-    num_images = len(images)
-    
-    # Calculate time interval
-    if num_images > 1:
-        interval = (end_minutes - start_minutes) / (num_images - 1)
-    else:
-        interval = 0
-    
-    # Parse color
-    r, g, b = map(int, text_color.split(','))
-    
-    results = []
-    
-    for idx, img_file in enumerate(images):
-        # Calculate time for this image
-        current_minutes = start_minutes + (interval * idx)
-        current_h = int(current_minutes // 60)
-        current_m = int(current_minutes % 60)
-        time_str = f"{current_h:02d}:{current_m:02d}"
-        
-        # Read image
-        img_bytes = await img_file.read()
-        img = Image.open(io.BytesIO(img_bytes))
-        
-        # Convert to RGB if needed
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        
-        # Crop from bottom if needed
-        if crop_bottom > 0:
-            width, height = img.size
-            img = img.crop((0, 0, width, height - crop_bottom))
-        
-        # Add timestamp
-        draw = ImageDraw.Draw(img)
-        
-        # Try to use a nice font, fallback to default
-        try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
-        except:
-            font = ImageFont.load_default()
-        
-        # Create timestamp text
-        timestamp_text = f"{date_text} {time_str}"
-        
-        # Get text size
-        bbox = draw.textbbox((0, 0), timestamp_text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        
-        # Position at bottom right with padding
-        width, height = img.size
-        x = width - text_width - 20
-        y = height - text_height - 20
-        
-        # Draw text with shadow
-        draw.text((x+2, y+2), timestamp_text, font=font, fill=(0, 0, 0))
-        draw.text((x, y), timestamp_text, font=font, fill=(r, g, b))
-        
-        # Save to bytes
-        output = io.BytesIO()
-        img.save(output, format='JPEG', quality=95)
-        output.seek(0)
-        
-        # Base64 encode
-        import base64
-        img_base64 = base64.b64encode(output.read()).decode()
-        
-        results.append({
-            "filename": f"stamped_{idx+1}.jpg",
-            "data": img_base64
-        })
-    
-    return {"images": results}
+    except Exception as e:
+        print(f"Error in stamp_batch: {str(e)}")
+        return {"error": str(e)}, 500
 
 # --- Retrofit Tool (Foundation) ---
 retrofit_tool_html = """
