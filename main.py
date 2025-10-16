@@ -8,823 +8,467 @@ from string import Template
 from typing import List, Optional
 
 from fastapi import FastAPI, Form, UploadFile, File, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, PlainTextResponse, Response
-from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.sessions import SessionMiddleware
-from PIL import Image, ImageDraw, ImageFont
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+import uvicorn
 
-# -------------------------
-# Config via environment
-# -------------------------
-APP_ENV = os.getenv("APP_ENV", "production")
-SESSION_SECRET = os.getenv("SESSION_SECRET", "change-me")
-ADMIN_CODE = os.getenv("ADMIN_CODE", "change-me-admin")
-USER_CODE = os.getenv("USER_CODE", "change-me-user")
-ADMIN_EMAIL = (os.getenv("ADMIN_EMAIL", "admin@example.com") or "").lower().strip()
+# --- Database Setup ---
+DB_PATH = os.environ.get("DB_PATH", "autodate.db")
 
-ALLOWED_ORIGINS_RAW = os.getenv(
-    "ALLOWED_ORIGINS",
-    "https://autodate.co.uk,https://www.autodate.co.uk,https://image-stamp.onrender.com",
-)
-ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
-
-DB_FILE = os.getenv("DB_FILE", "/var/data/app.db")
-DB_PATH = os.getenv("DB_PATH", "dev.db")
-
-CREDIT_COST_GBP = float(os.getenv("CREDIT_COST_GBP", "10"))
-MIN_TOPUP_CREDITS = int(os.getenv("MIN_TOPUP", "5"))
-
-FONT_PATH = os.getenv("FONT_PATH", "")
-SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "imgstamp_session")
-BRAND_NAME = os.getenv("BRAND_NAME", "AutoDate")
-
-# -------------------------
-# App & middleware
-# -------------------------
-app = FastAPI()
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=SESSION_SECRET,
-    same_site="lax",
-    session_cookie=SESSION_COOKIE_NAME,
-)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS or ["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# -------------------------
-# DB helpers
-# -------------------------
-def _db_path():
-    return DB_FILE if DB_FILE.startswith("/") else DB_PATH
-
-def db_conn():
-    path = _db_path()
-    d = os.path.dirname(path)
-    if d:
-        os.makedirs(d, exist_ok=True)
-    conn = sqlite3.connect(path, check_same_thread=False)
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
-def _column_exists(cur, table, col):
-    cur.execute(f"PRAGMA table_info({table})")
-    return any(r["name"] == col for r in cur.fetchall())
-
-def db_init():
-    conn = db_conn()
+def init_db():
+    conn = get_db()
     cur = conn.cursor()
-    # base tables
+    
     cur.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT UNIQUE NOT NULL,
-        credits INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL
-    );
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            subscription_status TEXT DEFAULT 'inactive',
+            subscription_end_date TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
     """)
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS topups (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        credits INTEGER NOT NULL,
-        amount_gbp REAL NOT NULL,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY(user_id) REFERENCES users(id)
-    );
-    """)
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS usage (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        action TEXT NOT NULL,
-        credits_delta INTEGER NOT NULL,
-        meta TEXT,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY(user_id) REFERENCES users(id)
-    );
-    """)
-
-    # schema upgrades (idempotent)
-    if not _column_exists(cur, "users", "is_active"):
-        cur.execute("ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1")
-    if not _column_exists(cur, "users", "suspended_at"):
-        cur.execute("ALTER TABLE users ADD COLUMN suspended_at TEXT")
-    if not _column_exists(cur, "users", "suspended_reason"):
-        cur.execute("ALTER TABLE users ADD COLUMN suspended_reason TEXT")
-    if not _column_exists(cur, "users", "password_hash"):
-        cur.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+    
+    # Add can_use_retrofit_tool column if it doesn't exist
+    def _column_exists(cursor, table, column):
+        cursor.execute(f"PRAGMA table_info({table})")
+        columns = [row[1] for row in cursor.fetchall()]
+        return column in columns
+    
     if not _column_exists(cur, "users", "can_use_retrofit_tool"):
         cur.execute("ALTER TABLE users ADD COLUMN can_use_retrofit_tool INTEGER NOT NULL DEFAULT 1")
-
+    
     conn.commit()
     conn.close()
 
-db_init()
+init_db()
 
-def users_has_col(col: str) -> bool:
-    conn = db_conn()
-    cur = conn.cursor()
-    cur.execute("PRAGMA table_info(users)")
-    ok = any(r["name"] == col for r in cur.fetchall())
-    conn.close()
-    return ok
+app = FastAPI()
 
-def get_user_by_email(email: str):
-    conn = db_conn()
+# Admin email - set via environment variable
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "").lower()
+
+# --- Cookie & Auth Helpers ---
+SECRET = os.environ.get("SECRET", "change-me-in-production")
+
+def set_cookie(resp: RedirectResponse, key: str, val: str):
+    resp.set_cookie(key, val, httponly=True, max_age=30*24*60*60)
+
+def get_cookie(request: Request, key: str) -> str:
+    return request.cookies.get(key, "")
+
+def get_user_row_by_email(email: str):
+    conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE email=?", (email,))
+    cur.execute("SELECT * FROM users WHERE email=?", (email.lower(),))
     row = cur.fetchone()
     conn.close()
     return row
 
-def ensure_user(email: str):
-    u = get_user_by_email(email)
-    if u:
-        return u
-    conn = db_conn()
-    cur = conn.cursor()
-    now = datetime.utcnow().isoformat()
-    if users_has_col("password_hash"):
-        cur.execute(
-            "INSERT INTO users(email, credits, created_at, is_active, password_hash, can_use_retrofit_tool) VALUES (?,?,?,1,?,1)",
-            (email, 0, now, ""),
-        )
-    else:
-        cur.execute(
-            "INSERT INTO users(email, credits, created_at, is_active, can_use_retrofit_tool) VALUES (?,?,?,1,1)",
-            (email, 0, now),
-        )
-    conn.commit()
-    conn.close()
-    return get_user_by_email(email)
-
-def add_topup(user_id: int, credits: int):
-    amount = credits * CREDIT_COST_GBP
-    conn = db_conn()
-    cur = conn.cursor()
-    now = datetime.utcnow().isoformat()
-    cur.execute(
-        "INSERT INTO topups(user_id, credits, amount_gbp, created_at) VALUES (?,?,?,?)",
-        (user_id, credits, amount, now),
-    )
-    cur.execute("UPDATE users SET credits = credits + ? WHERE id=?", (credits, user_id))
-    cur.execute(
-        "INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
-        (user_id, "topup", credits, f"{credits} credits", now),
-    )
-    conn.commit()
-    conn.close()
-
-def add_usage(user_id: int, action: str, credits_delta: int, meta: str = ""):
-    conn = db_conn()
-    cur = conn.cursor()
-    now = datetime.utcnow().isoformat()
-    cur.execute(
-        "INSERT INTO usage(user_id, action, credits_delta, meta, created_at) VALUES (?,?,?,?,?)",
-        (user_id, action, credits_delta, meta, now),
-    )
-    cur.execute("UPDATE users SET credits = credits + ? WHERE id=?", (credits_delta, user_id))
-    conn.commit()
-    conn.close()
-
-def list_topups(user_id: int):
-    conn = db_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM topups WHERE user_id=? ORDER BY id DESC LIMIT 20", (user_id,))
-    rows = cur.fetchall()
-    conn.close()
-    return rows
-
-def list_usage(user_id: int):
-    conn = db_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM usage WHERE user_id=? ORDER BY id DESC LIMIT 20", (user_id,))
-    rows = cur.fetchall()
-    conn.close()
-    return rows
-
-# -------------------------
-# HTML templates
-# -------------------------
-login_html = Template(r"""
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>Log in · Autodate</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<style>
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0f172a}
-.card{max-width:420px;margin:3rem auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(2,6,23,.15)}
-h1{margin:0 0 12px;font-size:1.6rem;color:#0b1220}
-label{display:block;margin:12px 0 6px;color:#0b1220}
-input{width:100%;padding:12px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;color:#0b1220}
-button{margin-top:16px;width:100%;padding:12px 16px;border:0;border-radius:10px;background:linear-gradient(180deg,#22c55e,#16a34a);color:#061016;font-weight:800;cursor:pointer}
-.small{opacity:.8;font-size:.9rem;margin-top:10px;color:#334155}
-a{color:#2563eb}
-</style>
-</head>
-<body>
-  <div class="card">
-    <h1>Sign in</h1>
-    <form method="post" action="/login">
-      <label>Email</label>
-      <input name="email" type="email" placeholder="you@company.com" required />
-      <label>Access Code</label>
-      <input name="code" type="password" placeholder="••••••••" required />
-      <button type="submit">Enter</button>
-      <div class="small">Use your access code. Admin uses the admin code; users use the user code.</div>
-    </form>
-  </div>
-</body>
-</html>
-""")
-
-suspended_html = Template(r"""
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>Account Suspended</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<style>
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0b1220}
-.card{max-width:560px;margin:3rem auto;background:#111827;border:1px solid #1f2937;border-radius:16px;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,.35);color:#e2e8f0}
-h1{margin:0 0 12px;font-size:1.4rem}
-.badge{display:inline-block;background:#7c2d12;color:#fff;padding:.2rem .5rem;border-radius:999px;border:1px solid #9a3412}
-a{color:#93c5fd}
-</style>
-</head>
-<body>
-  <div class="card">
-    <h1>Account Suspended</h1>
-    <p><span class="badge">Access blocked</span></p>
-    <p>Your account is currently suspended. If this is unexpected, please contact the site owner.</p>
-    <p><a href="/login">Back to login</a></p>
-  </div>
-</body>
-</html>
-""")
-
-billing_html = Template(r"""
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>Billing · Autodate</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<style>
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:linear-gradient(180deg,#0e1530,#0f1b3d);color:#0e1726}
-.container{max-width:980px;margin:0 auto}
-h1{font-size:2rem;margin:.3rem 0 1rem;color:#e8eefc}
-.card{background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 12px 40px rgba(2,6,23,.12)}
-.row{display:grid;grid-template-columns:1fr 140px 140px;gap:16px;padding:14px 16px;border-top:1px solid #e5e7eb}
-.row.header{color:#475569;background:#f1f5f9;border-radius:16px 16px 0 0;border-top:0}
-.badge{display:inline-block;padding:.35rem .7rem;border-radius:999px;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe}
-button{padding:10px 14px;border-radius:10px;border:1px solid #16a34a;background:linear-gradient(180deg,#22c55e,#16a34a);color:#062015;font-weight:800;cursor:pointer}
-.small{opacity:.85;color:#dbe2f0}
-a{color:#93c5fd}
-.flex{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-.mt{margin-top:18px}
-.note{margin:0 0 12px 0;padding:12px;border-radius:12px;background:#fffbea;border:1px solid #fde68a;color:#92400e}
-</style>
-</head>
-<body>
-  <div class="container">
-    <a href="/tool2" class="small">← Back to Tool</a>
-    <h1>Billing</h1>
-
-    ${note}
-
-    <div class="flex">
-      <div class="badge">Credits: ${credits}</div>
-      <div class="badge">Price: £${price}/credit</div>
-      <div class="badge">Minimum top-up: ${minc} credits (£${minamount})</div>
-      <button id="topupBtn">Top up ${minc} credits (£${minamount})</button>
-    </div>
-
-    <p class="small mt">
-      Top-ups are recorded instantly in your account. <strong>No card is charged on this site.</strong>
-      We total your top-ups and <strong>invoice weekly</strong> to the email on file. By proceeding you agree to be billed for the selected top-up.
-    </p>
-
-    <h2 class="mt" style="color:#e8eefc">Recent Top-ups</h2>
-    <div class="card">
-      <div class="row header"><div>When</div><div>Credits</div><div>Charged</div></div>
-      ${topups_rows}
-    </div>
-
-    <h2 class="mt" style="color:#e8eefc">Recent Usage</h2>
-    <div class="card">
-      <div class="row header"><div>When</div><div>Action</div><div>Credits Δ</div></div>
-      ${usage_rows}
-    </div>
-  </div>
-
-<script>
-document.getElementById('topupBtn').addEventListener('click', async () => {
-  const ok = confirm(
-    'You are topping up ${minc} credits for £${minamount}.\\n\\n' +
-    'These credits will be invoiced weekly. Do you confirm?'
-  );
-  if(!ok) return;
-
-  const r = await fetch('/api/topup', {method:'POST'});
-  const j = await r.json();
-  if(j.ok){ alert('Top-up added. New balance: ' + j.credits); location.reload(); }
-  else { alert('Top-up failed: ' + (j.error||'unknown')); }
-});
-</script>
-</body>
-</html>
-""")
-
-tool_html = Template(r"<!doctype html><html><body><p>Use <a href='/tool2'>AutoDate</a>.</p></body></html>")
-
-tool2_html = Template(r"""
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>AutoDate · Timestamp Tool</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<style>
-:root{
-  --bg1:#0f1c3e; --bg2:#0d1834; --grid:#132044;
-  --card:#ffffff; --card-soft:#f7f9fc; --text:#0b1220; --muted:#5b6b86;
-  --primary:#22c55e; --primary2:#16a34a; --accent:#2563eb; --stroke:#e6eaf2;
-}
-*{box-sizing:border-box}
-body{
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-  margin:0;
-  background:
-    radial-gradient(1200px 640px at 10% -10%, rgba(37,99,235,.35), transparent 60%),
-    radial-gradient(900px 520px at 100% 0%, rgba(34,197,94,.18), transparent 65%),
-    linear-gradient(180deg,var(--bg1),var(--bg2));
-  min-height:100svh;
-  color:var(--text);
-}
-body::before{
-  content:""; position:fixed; inset:0; pointer-events:none;
-  background:
-    linear-gradient(transparent 31px, rgba(255,255,255,.05) 32px),
-    linear-gradient(90deg, transparent 31px, rgba(255,255,255,.05) 32px);
-  background-size:32px 32px; opacity:.4;
-  mask-image: radial-gradient(1100px 700px at 30% 0%, #000, rgba(0,0,0,.3) 60%, transparent 80%);
-}
-.container{max-width:1150px;margin:0 auto;padding:28px}
-.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}
-.brand{display:flex;align-items:center;gap:12px;font-weight:900;color:#eaf1ff}
-.brand svg{width:28px;height:28px}
-.nav{display:flex;gap:16px}
-.nav a{color:#e7efff;text-underline-offset:3px}
-.card{
-  position:relative; border-radius:22px; padding:22px; background:var(--card);
-  border:1px solid var(--stroke); box-shadow:0 18px 50px rgba(6,11,22,.22);
-}
-.card.gfx::before{
-  content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1px;
-  background:linear-gradient(120deg, rgba(37,99,235,.55), rgba(34,197,94,.55));
-  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none;
-}
-.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:20px}
-.right .card{position:sticky; top:24px; background:rgba(255,255,255,.95)}
-label{display:block;margin:12px 0 6px;color:#364254;font-weight:800;letter-spacing:.2px}
-input,select{
-  width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);
-  background:#fff;color:var(--text);outline:none;transition:.15s;
-}
-input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
-button{
-  padding:12px 16px; border:1px solid var(--primary2);
-  background:linear-gradient(180deg,var(--primary),var(--primary2));
-  color:#062015;font-weight:900;border-radius:12px;cursor:pointer;
-  transition:transform .06s ease, filter .2s ease, box-shadow .2s ease; min-width:138px
-}
-button:hover{filter:brightness(1.06); box-shadow:0 10px 26px rgba(22,163,74,.36)}
-button:active{transform:translateY(1px)}
-.small{opacity:.9;color:#64748b}
-.drop{
-  border:1.5px dashed #c8d3e5;border-radius:14px;padding:22px;background:var(--card-soft);
-  display:flex;align-items:center;justify-content:center;min-height:150px;text-align:center;color:#42506a
-}
-.drop.drag{outline:2px solid #93c5fd}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.hint{font-size:.92rem;color:#6b7a93;margin-top:6px}
-.pills{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
-.pill{padding:6px 10px;border:1px solid var(--stroke);background:#fff;border-radius:999px;cursor:pointer;color:#41506b}
-.preview{display:grid;grid-template-columns:repeat(auto-fill, minmax(88px,1fr));gap:10px;margin-top:12px}
-.thumb{position:relative;border-radius:12px;overflow:hidden;border:1px solid #dde5f1;background:#f8fbff}
-.thumb img{display:block;width:100%;height:88px;object-fit:cover}
-.count{margin-left:auto;color:#74829d}
-.result-title{margin:0 0 6px 0;color:#1f2937}
-.spinner{width:18px;height:18px;border:2px solid #a7f3d0;border-top-color:#065f46;border-radius:50%;display:none; animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-@media (max-width: 960px){ .grid{grid-template-columns:1fr} }
-</style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <div class="brand">
-        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <rect x="6" y="10" width="36" height="28" rx="4" stroke="white" opacity=".9"/>
-          <path d="M12 18h24M16 14v4M32 14v4" stroke="white" opacity=".9"/>
-          <circle cx="28" cy="28" r="7" stroke="white" opacity=".9"/>
-          <path d="M28 24v4l3 3" stroke="white" opacity=".9"/>
-        </svg>
-        <div>AutoDate</div>
-      </div>
-      <div class="nav small">
-        ${admin_link}
-        <a href="/billing">Billing</a>
-        <a href="/logout">Logout</a>
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="card gfx">
-        <h2 style="margin:0 0 6px 0;color:#0b1220">Timestamp Images</h2>
-        <div class="small" style="margin-top:-2px">Randomises time per image if an end time is provided.</div>
-
-        <form id="form" style="margin-top:8px">
-          <label>Images <span id="fileCount" class="count">(none)</span></label>
-          <input id="fileInput" type="file" name="files" multiple required accept="image/*" hidden />
-          <div id="drop" class="drop">
-            <div>
-              <div style="font-size:28px;line-height:1.1;opacity:.6">⬆️</div>
-              Drag & drop images here, or click to choose
-            </div>
-          </div>
-          <div id="previews" class="preview" aria-hidden="true"></div>
-
-          <div class="row2" style="margin-top:12px">
-            <div>
-              <label>Target date</label>
-              <input id="date" type="date" name="date" required />
-            </div>
-            <div>
-              <label>Date format</label>
-              <select name="date_format">
-                <option value="d_mmm_yyyy">26 Mar 2025, 12:07:36</option>
-                <option value="dd_slash_mm_yyyy">01/01/2025, 13:23:30</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="row2">
-            <div>
-              <label>Start time</label>
-              <input id="start" type="time" name="start" step="1" required />
-            </div>
-            <div>
-              <label>End time <span class="small">(optional)</span></label>
-              <input id="end" type="time" name="end" step="1" />
-            </div>
-          </div>
-
-          <label style="margin-top:10px">Crop (px)</label>
-          <div class="row2">
-            <input name="crop_top" type="number" min="0" step="1" placeholder="top 0" />
-            <input id="cropBottom" name="crop_bottom" type="number" min="0" step="1" value="120" />
-          </div>
-          <div class="pills small">
-            Presets:
-            <span class="pill" data-crop="0">0</span>
-            <span class="pill" data-crop="120">120</span>
-            <span class="pill" data-crop="160">160</span>
-          </div>
-          <div class="hint">Tip: bottom default 120px removes many phone GPS bars. Set to 0 if not needed.</div>
-
-          <div style="display:flex;gap:12px;align-items:center;margin-top:16px;flex-wrap:wrap">
-            <button id="goBtn" type="submit">Process</button>
-            <button id="clearBtn" type="button" title="Clear selected images">Clear</button>
-            <div id="spin" class="spinner" aria-hidden="true"></div>
-            <span class="small" id="status" aria-live="polite"></span>
-          </div>
-        </form>
-      </div>
-
-      <div class="right">
-        <div class="card">
-          <h3 class="result-title">Result</h3>
-          <div id="result" class="small">You will get a zip download.</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-<script>
-const $ = sel => document.querySelector(sel);
-const drop = $('#drop');
-const input = $('#fileInput');
-const previews = $('#previews');
-const fileCount = $('#fileCount');
-const goBtn = $('#goBtn');
-const clearBtn = $('#clearBtn');
-const statusEl = $('#status');
-const spin = $('#spin');
-
-function renderPreviews(files){
-  previews.innerHTML = '';
-  if(!files || !files.length){ fileCount.textContent='(none)'; return; }
-  fileCount.textContent = '(' + files.length + (files.length===1?' file':' files') + ')';
-  [...files].slice(0,60).forEach(f=>{
-    if(!f.type.startsWith('image/')) return;
-    const url = URL.createObjectURL(f);
-    const card = document.createElement('div');
-    card.className='thumb';
-    card.innerHTML = '<img src="'+url+'" alt="'+(f.name||"image")+'" />';
-    previews.appendChild(card);
-    card.querySelector('img').onload = () => URL.revokeObjectURL(url);
-  });
-}
-
-function clearUI(){
-  input.value = '';
-  previews.innerHTML = '';
-  fileCount.textContent = '(none)';
-  statusEl.textContent = '';
-  $('#result').textContent = 'You will get a zip download.';
-}
-
-drop.addEventListener('click', ()=> input.click());
-['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.add('drag')}))
-;['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {e.preventDefault(); drop.classList.remove('drag')}))
-drop.addEventListener('drop', e => { input.files = e.dataTransfer.files; renderPreviews(input.files); });
-input.addEventListener('change', ()=> renderPreviews(input.files));
-clearBtn.addEventListener('click', clearUI);
-
-(function setDefaults(){
-  const now = new Date();
-  document.getElementById('date').value = new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10);
-  const pad = n=>String(n).padStart(2,'0');
-  document.getElementById('start').value = pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
-})();
-
-document.querySelectorAll('.pill').forEach(p=>{
-  p.addEventListener('click', ()=> { document.getElementById('cropBottom').value = p.dataset.crop; });
-});
-
-document.getElementById('form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  if(!input.files || !input.files.length){ alert('Please add at least one image.'); return; }
-
-  const fd = new FormData(e.target);
-  [...(input.files||[])].forEach(f => fd.append('files', f));
-
-  goBtn.disabled = true;
-  goBtn.textContent = 'Processing…';
-  spin.style.display = 'inline-block';
-  statusEl.textContent = 'Working on your images…';
-
-  const r = await fetch('/api/stamp', { method:'POST', body: fd });
-
-  if(!r.ok){
-    goBtn.disabled = false; goBtn.textContent = 'Process'; spin.style.display = 'none'; statusEl.textContent='';
-    if(r.status === 402) { window.location.href = '/billing?nocredits=1'; return; }
-    const txt = await r.text().catch(()=> '');
-    alert('Failed: ' + r.status + (txt ? ('\n'+txt) : ''));
-    return;
-  }
-
-  const blob = await r.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'stamped.zip'; a.click();
-  URL.revokeObjectURL(url);
-
-  const bal = r.headers.get('X-Credits-Balance');
-  document.getElementById('result').textContent = 'Downloaded stamped.zip' + (bal?(' — Credits left: '+bal):'');
-
-  goBtn.disabled = false; goBtn.textContent = 'Process'; spin.style.display = 'none'; statusEl.textContent='';
-  clearUI();
-});
-</script>
-</body>
-</html>
-""")
-
-admin_html = Template(r"""
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>Admin · ${brand}</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<style>
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:22px;background:#0b1220;color:#e8eefc}
-.wrap{max-width:1200px;margin:0 auto}
-h1{margin:.2rem 0 1rem}
-.card{background:#0f172a;border:1px solid #1f2a44;border-radius:14px;padding:16px;box-shadow:0 12px 28px rgba(2,6,23,.25)}
-.small{opacity:.85}
-a{color:#93c5fd}
-input{background:#0b1220;border:1px solid #1f2a44;color:#e8eefc;border-radius:10px;padding:8px 10px}
-button{padding:8px 12px;border-radius:10px;border:1px solid #16a34a;background:#22c55e;color:#062015;font-weight:800;cursor:pointer}
-table{width:100%;border-collapse:collapse}
-th,td{padding:8px 10px;border-bottom:1px solid #1f2a44;text-align:left}
-th{color:#9fb2d9}
-.badge{display:inline-block;padding:.2rem .5rem;border-radius:999px;background:#1f2a44}
-.flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.reason{width:180px}
-label{font-size:.8rem;color:#9fb2d9}
-</style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="flex" style="justify-content:space-between">
-      <h1>${brand} · Admin</h1>
-      <div><a href="/tool2">Tool</a> · <a href="/billing">Billing</a> · <a href="/logout">Logout</a></div>
-    </div>
-
-    <form method="get" class="card" style="margin-bottom:16px;display:flex;gap:10px;align-items:end;flex-wrap:wrap">
-      <div><div class="small">Start</div><input type="date" name="start" value="${start}"></div>
-      <div><div class="small">End</div><input type="date" name="end" value="${end}"></div>
-      <div><button type="submit">Apply</button></div>
-      <div class="small">Exports: <a href="/admin/export/topups.csv?start=${start}&end=${end}">Top-ups CSV</a> · <a href="/admin/export/summary.csv?start=${start}&end=${end}">Summary CSV</a></div>
-    </form>
-
-    <div class="card" style="margin-bottom:16px">
-      <div class="flex" style="justify-content:space-between">
-        <h3 style="margin:0">Users</h3>
-        <div class="small">Range: <span class="badge">${start} → ${end}</span></div>
-      </div>
-      <table style="margin-top:8px">
-        <tr>
-          <th>Email</th><th>Credits</th><th>Created</th><th>Last login</th>
-          <th>Stamp runs</th><th>Top-ups</th><th>Top-up credits</th><th>Top-up £</th>
-          <th>Retrofit</th><th>Status</th><th>Action</th>
-        </tr>
-        ${users_rows}
-      </table>
-    </div>
-
-    <div class="card">
-      <h3 style="margin:0 0 8px 0">Recent Top-ups in range</h3>
-      <table>
-        <tr><th>When</th><th>User</th><th>Credits</th><th>£</th></tr>
-        ${topups_rows}
-      </table>
-    </div>
-  </div>
-</body>
-</html>
-""")
-
-# -------------------------
-# Utility: auth helpers
-# -------------------------
-def current_user(request: Request):
-    u = request.session.get("user")
-    if not u:
-        return None
-    return u
-
-def require_user(request: Request):
-    u = current_user(request)
-    if not u:
-        return RedirectResponse("/login", status_code=302)
-    return u
-
-def require_admin(request: Request):
-    u = require_user(request)
-    if isinstance(u, RedirectResponse):
-        return u
-    if not ADMIN_EMAIL or u["email"].lower() != ADMIN_EMAIL:
-        return HTMLResponse("<h3>Forbidden</h3><p>Admin only.</p>", status_code=403)
-    return u
-
 def require_active_user_row(request: Request):
-    u = current_user(request)
-    if not u:
+    email = get_cookie(request, "user_email")
+    if not email:
         return RedirectResponse("/login", status_code=302)
-    row = get_user_by_email(u["email"])
-    if not row or int(row["is_active"] or 0) != 1:
-        request.session.clear()
-        return RedirectResponse("/suspended", status_code=302)
+    
+    row = get_user_row_by_email(email)
+    if not row:
+        return RedirectResponse("/login", status_code=302)
+    
+    # Check subscription
+    status = row["subscription_status"]
+    if status != "active":
+        return HTMLResponse("<h1>Subscription Inactive</h1><p>Please subscribe or contact support.</p>")
+    
+    end = row.get("subscription_end_date")
+    if end:
+        try:
+            end_dt = datetime.fromisoformat(end)
+            if datetime.now() > end_dt:
+                return HTMLResponse("<h1>Subscription Expired</h1><p>Please renew your subscription.</p>")
+        except:
+            pass
+    
     return row
 
-# -------------------------
-# Routes
-# -------------------------
-@app.get("/health")
-def health():
-    return {"ok": True, "db": _db_path(), "env": APP_ENV}
+def require_admin(request: Request):
+    row = require_active_user_row(request)
+    if isinstance(row, (RedirectResponse, HTMLResponse)):
+        return row
+    
+    if not ADMIN_EMAIL or row["email"].lower() != ADMIN_EMAIL:
+        return HTMLResponse("<h1>Unauthorized</h1><p>Admin access only</p>", status_code=403)
+    
+    return row
 
-@app.get("/api/ping")
-def api_ping():
-    return {"ok": True, "time": datetime.utcnow().isoformat()}
+# --- HTML Templates ---
+login_html = Template("""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - AutoDate</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 90%;
+            max-width: 400px;
+        }
+        h1 { color: #667eea; margin-bottom: 1.5rem; text-align: center; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.5rem; color: #333; font-weight: 500; }
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+        }
+        input:focus { outline: none; border-color: #667eea; }
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+        button:hover { opacity: 0.9; }
+        .error { color: #e53e3e; margin-bottom: 1rem; padding: 0.75rem; background: #fff5f5; border-radius: 0.5rem; }
+        .link { text-align: center; margin-top: 1rem; }
+        .link a { color: #667eea; text-decoration: none; }
+        .link a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 AutoDate Login</h1>
+        $error_msg
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" name="email" required>
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" required>
+            </div>
+            <button type="submit">Login</button>
+        </form>
+        <div class="link">
+            <a href="/signup">Don't have an account? Sign up</a>
+        </div>
+    </div>
+</body>
+</html>
+""")
 
-@app.get("/__whoami", response_class=PlainTextResponse)
+signup_html = Template("""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - AutoDate</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 90%;
+            max-width: 400px;
+        }
+        h1 { color: #667eea; margin-bottom: 1.5rem; text-align: center; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.5rem; color: #333; font-weight: 500; }
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+        }
+        input:focus { outline: none; border-color: #667eea; }
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+        button:hover { opacity: 0.9; }
+        .error { color: #e53e3e; margin-bottom: 1rem; padding: 0.75rem; background: #fff5f5; border-radius: 0.5rem; }
+        .link { text-align: center; margin-top: 1rem; }
+        .link a { color: #667eea; text-decoration: none; }
+        .link a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Create Account</h1>
+        $error_msg
+        <form method="POST" action="/signup">
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" name="email" required>
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" required>
+            </div>
+            <button type="submit">Sign Up</button>
+        </form>
+        <div class="link">
+            <a href="/login">Already have an account? Login</a>
+        </div>
+    </div>
+</body>
+</html>
+""")
+
+tool2_html = Template("""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timestamp Tool - AutoDate</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 2rem;
+        }
+        .header h1 { margin-bottom: 0.5rem; }
+        .nav {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 1rem;
+            font-weight: 500;
+        }
+        .nav a:hover { text-decoration: underline; }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; margin-bottom: 0.5rem; color: #333; font-weight: 500; }
+        input, select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+        }
+        input:focus, select:focus { outline: none; border-color: #667eea; }
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button:hover { opacity: 0.9; }
+        .result {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: #f7fafc;
+            border-radius: 0.5rem;
+            border: 2px solid #667eea;
+        }
+        .result img { max-width: 100%; height: auto; border-radius: 0.5rem; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>⏰ Timestamp Tool</h1>
+    </div>
+    <div class="nav">
+        $admin_link
+        <a href="/billing">Billing</a>
+        <a href="/logout">Logout</a>
+    </div>
+    <div class="container">
+        <form id="stampForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label>Upload Image</label>
+                <input type="file" name="image" accept="image/*" required>
+            </div>
+            <div class="form-group">
+                <label>Date Format</label>
+                <select name="date_format">
+                    <option value="dd_slash_mm_yyyy">DD/MM/YYYY</option>
+                    <option value="mm_slash_dd_yyyy">MM/DD/YYYY</option>
+                    <option value="yyyy_dash_mm_dd">YYYY-MM-DD</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Time Format</label>
+                <select name="time_format">
+                    <option value="24h">24 Hour (HH:MM:SS)</option>
+                    <option value="12h">12 Hour (HH:MM:SS AM/PM)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Font Size</label>
+                <input type="number" name="font_size" value="40" min="10" max="200">
+            </div>
+            <div class="form-group">
+                <label>Text Color (Hex)</label>
+                <input type="text" name="color" value="#FFFFFF" pattern="^#[0-9A-Fa-f]{6}$">
+            </div>
+            <button type="submit">Generate Timestamp</button>
+        </form>
+        <div id="result" class="result" style="display:none;">
+            <h3>Result:</h3>
+            <img id="resultImg" src="" alt="Timestamped Image">
+            <br><br>
+            <a id="downloadLink" href="" download="timestamped.jpg">
+                <button type="button">Download Image</button>
+            </a>
+        </div>
+    </div>
+    <script>
+        document.getElementById('stampForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            
+            try {
+                const response = await fetch('/api/stamp', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    
+                    document.getElementById('resultImg').src = url;
+                    document.getElementById('downloadLink').href = url;
+                    document.getElementById('result').style.display = 'block';
+                } else {
+                    alert('Error generating timestamp');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html>
+""")
+
+# --- Routes ---
+@app.get("/")
+def root():
+    return RedirectResponse("/tool2")
+
+@app.get("/__whoami")
 def whoami():
-    return "main.py active"
-
-@app.get("/", response_class=HTMLResponse)
-def home():
-    return RedirectResponse("/tool2", status_code=302)
-
-@app.head("/")
-def home_head():
-    return PlainTextResponse("", status_code=200)
-
-@app.get("/app")
-def app_alias():
-    return RedirectResponse("/tool2", status_code=302)
+    return {"status": "main.py active", "timestamp": datetime.now().isoformat()}
 
 @app.get("/login", response_class=HTMLResponse)
-def login_get(request: Request):
-    return HTMLResponse(login_html.substitute({}))
+def login_page(error: str = ""):
+    error_msg = f'<div class="error">{error}</div>' if error else ""
+    return HTMLResponse(login_html.safe_substitute(error_msg=error_msg))
 
 @app.post("/login")
-async def login_post(request: Request, email: str = Form(...), code: str = Form(...)):
-    email = (email or "").strip().lower()
+def login_post(email: str = Form(...), password: str = Form(...)):
+    row = get_user_row_by_email(email)
+    if not row or row["password"] != password:
+        return RedirectResponse("/login?error=Invalid credentials", status_code=302)
+    
+    resp = RedirectResponse("/tool2", status_code=302)
+    set_cookie(resp, "user_email", email.lower())
+    return resp
 
-    if email == ADMIN_EMAIL:
-        if code != ADMIN_CODE:
-            return HTMLResponse("<h3>Wrong code</h3><a href='/login'>Back</a>", status_code=401)
-    else:
-        if code != USER_CODE:
-            return HTMLResponse("<h3>Wrong code</h3><a href='/login'>Back</a>", status_code=401)
+@app.get("/signup", response_class=HTMLResponse)
+def signup_page(error: str = ""):
+    error_msg = f'<div class="error">{error}</div>' if error else ""
+    return HTMLResponse(signup_html.safe_substitute(error_msg=error_msg))
 
-    row = ensure_user(email)
-
-    if int(row["is_active"] or 0) != 1:
-        return RedirectResponse("/suspended", status_code=302)
-
+@app.post("/signup")
+def signup_post(email: str = Form(...), password: str = Form(...)):
+    conn = get_db()
+    cur = conn.cursor()
+    
     try:
-        add_usage(row["id"], "login", 0, "signin")
-    except Exception as e:
-        print("login log failed:", e)
-
-    request.session["user"] = {"email": email}
-    return RedirectResponse("/tool2", status_code=302)
+        cur.execute(
+            "INSERT INTO users (email, password, subscription_status) VALUES (?, ?, ?)",
+            (email.lower(), password, "active")
+        )
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        return RedirectResponse("/signup?error=Email already exists", status_code=302)
+    finally:
+        conn.close()
+    
+    resp = RedirectResponse("/tool2", status_code=302)
+    set_cookie(resp, "user_email", email.lower())
+    return resp
 
 @app.get("/logout")
-def logout(request: Request):
-    request.session.clear()
-    return RedirectResponse("/login", status_code=302)
-
-@app.get("/suspended", response_class=HTMLResponse)
-def suspended_page():
-    return HTMLResponse(suspended_html.substitute({}))
-
-@app.get("/billing", response_class=HTMLResponse)
-def billing(request: Request):
-    row = require_active_user_row(request)
-    if isinstance(row, (RedirectResponse, HTMLResponse)):
-        return row
-
-    credits = row["credits"]
-    tops = list_topups(row["id"])
-    use = list_usage(row["id"])
-
-    def fmt_rows(rows, kind):
-        if not rows:
-            return '<div class="row"><div>No entries yet</div><div>—</div><div>—</div></div>'
-        out = []
-        for r in rows:
-            when = r["created_at"].replace("T"," ").split(".")[0]
-            if kind == "topups":
-                out.append(f'<div class="row"><div>{when}</div><div>{r["credits"]}</div><div>£{r["amount_gbp"]:.0f}</div></div>')
-            else:
-                out.append(f'<div class="row"><div>{when}</div><div>{r["action"]}</div><div>{r["credits_delta"]}</div></div>')
-        return "\n".join(out)
-
-    note = '<div class="note">You\'re out of credits. Please top up to continue.</div>' if request.query_params.get("nocredits") == "1" else ""
-
-    html = billing_html.substitute(
-        note = note,
-        credits = credits,
-        price = int(CREDIT_COST_GBP),
-        minc = MIN_TOPUP_CREDITS,
-        minamount = int(MIN_TOPUP_CREDITS*CREDIT_COST_GBP),
-        topups_rows = fmt_rows(tops, "topups"),
-        usage_rows = fmt_rows(use, "usage")
-    )
-    return HTMLResponse(html)
-
-@app.post("/api/topup")
-def api_topup(request: Request):
-    row = require_active_user_row(request)
-    if isinstance(row, (RedirectResponse, HTMLResponse)):
-        return JSONResponse({"ok": False, "error": "not_active"}, status_code=403)
-    add_topup(row["id"], MIN_TOPUP_CREDITS)
-    refreshed = get_user_by_email(row["email"])
-    return {"ok": True, "credits": refreshed["credits"]}
-
-@app.get("/tool", response_class=HTMLResponse)
-def tool(request: Request):
-    row = require_active_user_row(request)
-    if isinstance(row, (RedirectResponse, HTMLResponse)):
-        return row
-    return HTMLResponse(tool_html.substitute({}))
+def logout():
+    resp = RedirectResponse("/login", status_code=302)
+    resp.delete_cookie("user_email")
+    return resp
 
 @app.get("/tool2", response_class=HTMLResponse)
 def tool2(request: Request):
@@ -834,520 +478,753 @@ def tool2(request: Request):
     
     show_admin = ADMIN_EMAIL and row["email"].lower() == ADMIN_EMAIL
     
-    # Simple navigation that won't crash
+    # Simple version - show to everyone
     admin_link = ""
-    
     if show_admin:
         admin_link = '<a href="/admin">Admin</a> '
     
-    # Link to native Retrofit Tool instead of broken Streamlit
+    # Always show Retrofit Design link for now
     admin_link += '<a href="/retrofit-tool" style="color:#22c55e;font-weight:600">🏠 Retrofit Design</a> '
     
     return HTMLResponse(tool2_html.safe_substitute(admin_link=admin_link))
 
-@app.get("/retrofit-design", response_class=HTMLResponse)
-def retrofit_design(request: Request):
-    row = require_active_user_row(request)
-    if isinstance(row, (RedirectResponse, HTMLResponse)):
-        return row
-    
-    # User has access - show the iframe (keeping this for backwards compatibility)
-    show_admin = ADMIN_EMAIL and row["email"].lower() == ADMIN_EMAIL
-    admin_link_html = '<a href="/admin">Admin</a>' if show_admin else ''
-    
-    return HTMLResponse(f"""
-    <!doctype html>
-    <html lang="en">
-    <head>
-    <meta charset="utf-8" />
-    <title>Retrofit Design Tool - AutoDate</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>
-    body{{
-      margin:0;
-      padding:0;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-      background:#0f1c3e;
-      overflow:hidden;
-    }}
-    .topbar{{
-      background:#0d1834;
-      border-bottom:1px solid #1f2a44;
-      padding:12px 24px;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-    }}
-    .brand{{
-      display:flex;
-      align-items:center;
-      gap:12px;
-      font-weight:900;
-      color:#eaf1ff;
-    }}
-    .nav{{
-      display:flex;
-      gap:16px;
-      align-items:center;
-    }}
-    .nav a{{
-      color:#e7efff;
-      text-decoration:none;
-      padding:8px 12px;
-    }}
-    .nav a:hover{{
-      background:#1f2a44;
-      border-radius:8px;
-    }}
-    iframe{{
-      width:100%;
-      height:calc(100vh - 60px);
-      border:none;
-      display:block;
-    }}
-    </style>
-    </head>
-    <body>
-      <div class="topbar">
-        <div class="brand">
-          <svg style="width:24px;height:24px;vertical-align:middle" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="6" y="10" width="36" height="28" rx="4" stroke="white" opacity=".9"/>
-            <path d="M12 18h24M16 14v4M32 14v4" stroke="white" opacity=".9"/>
-            <circle cx="28" cy="28" r="7" stroke="white" opacity=".9"/>
-            <path d="M28 24v4l3 3" stroke="white" opacity=".9"/>
-          </svg>
-          AutoDate - Retrofit Design Tool
-        </div>
-        <div class="nav">
-          {admin_link_html}
-          <a href="/tool2">Timestamp Tool</a>
-          <a href="/billing">Billing</a>
-          <a href="/logout">Logout</a>
-        </div>
-      </div>
-      <iframe src="https://autodate-retrofit.streamlit.app" allow="clipboard-write" allowfullscreen></iframe>
-    </body>
-    </html>
-    """)
-
+# --- NEW: Native Retrofit Design Tool ---
 @app.get("/retrofit-tool", response_class=HTMLResponse)
 def retrofit_tool(request: Request):
     row = require_active_user_row(request)
     if isinstance(row, (RedirectResponse, HTMLResponse)):
         return row
     
-    # Check if user has Retrofit access (safe version)
-    can_use = 1  # Default to allowed
-    try:
-        can_use = int(row["can_use_retrofit_tool"])
-    except (KeyError, TypeError, ValueError):
-        can_use = 1
-    
-    if can_use != 1:
-        return HTMLResponse("""
-        <!doctype html>
-        <html lang="en">
-        <head>
-        <meta charset="utf-8" />
-        <title>Access Denied - AutoDate</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <style>
-        body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0b1220;color:#e8eefc}
-        .card{max-width:560px;margin:3rem auto;background:#111827;border:1px solid #1f2937;border-radius:16px;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,.35)}
-        h1{margin:0 0 12px;font-size:1.4rem}
-        .badge{display:inline-block;background:#7c2d12;color:#fff;padding:.2rem .5rem;border-radius:999px;border:1px solid #9a3412}
-        a{color:#93c5fd}
-        </style>
-        </head>
-        <body>
-          <div class="card">
-            <h1>Access Denied</h1>
-            <p><span class="badge">Retrofit Design Tool - Access Blocked</span></p>
-            <p>Your account doesn't have access to the Retrofit Design Tool. Please contact your administrator to request access.</p>
-            <p><a href="/tool2">Back to AutoDate</a></p>
-          </div>
-        </body>
-        </html>
-        """)
-    
-    # User has access - show the native tool
-    show_admin = ADMIN_EMAIL and row["email"].lower() == ADMIN_EMAIL
-    admin_link = '<a href="/admin">Admin</a>' if show_admin else ''
-    
-    return HTMLResponse(f"""
-    <!doctype html>
-    <html lang="en">
-    <head>
-    <meta charset="utf-8" />
+    html = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Retrofit Design Tool - AutoDate</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
-    :root{{
-      --bg1:#0f1c3e; --bg2:#0d1834; --grid:#132044;
-      --card:#ffffff; --card-soft:#f7f9fc; --text:#0b1220; --muted:#5b6b86;
-      --primary:#22c55e; --primary2:#16a34a; --accent:#2563eb; --stroke:#e6eaf2;
-    }}
-    *{{box-sizing:border-box}}
-    body{{
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-      margin:0;
-      background:
-        radial-gradient(1200px 640px at 10% -10%, rgba(37,99,235,.35), transparent 60%),
-        radial-gradient(900px 520px at 100% 0%, rgba(34,197,94,.18), transparent 65%),
-        linear-gradient(180deg,var(--bg1),var(--bg2));
-      min-height:100svh;
-      color:var(--text);
-    }}
-    body::before{{
-      content:""; position:fixed; inset:0; pointer-events:none;
-      background:
-        linear-gradient(transparent 31px, rgba(255,255,255,.05) 32px),
-        linear-gradient(90deg, transparent 31px, rgba(255,255,255,.05) 32px);
-      background-size:32px 32px; opacity:.4;
-      mask-image: radial-gradient(1100px 700px at 30% 0%, #000, rgba(0,0,0,.3) 60%, transparent 80%);
-    }}
-    .container{{max-width:1150px;margin:0 auto;padding:28px}}
-    .header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}}
-    .brand{{display:flex;align-items:center;gap:12px;font-weight:900;color:#eaf1ff}}
-    .brand svg{{width:28px;height:28px}}
-    .nav{{display:flex;gap:16px}}
-    .nav a{{color:#e7efff;text-underline-offset:3px}}
-    .card{{
-      position:relative; border-radius:22px; padding:22px; background:var(--card);
-      border:1px solid var(--stroke); box-shadow:0 18px 50px rgba(6,11,22,.22);
-    }}
-    .card.gfx::before{{
-      content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1px;
-      background:linear-gradient(120deg, rgba(37,99,235,.55), rgba(34,197,94,.55));
-      -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-      -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none;
-    }}
-    .progress{{
-      background:#1f2937; border-radius:999px; height:8px; margin:20px 0;
-      overflow:hidden; position:relative;
-    }}
-    .progress-bar{{
-      background:linear-gradient(90deg,var(--primary),var(--accent));
-      height:100%; transition:width 0.3s ease; border-radius:999px;
-    }}
-    .step-nav{{
-      display:flex; justify-content:space-between; align-items:center;
-      margin:24px 0; padding:0 4px;
-    }}
-    .step{{
-      display:flex; align-items:center; gap:8px; color:var(--muted); font-size:0.9rem;
-    }}
-    .step.active{{color:var(--primary); font-weight:600;}}
-    .step.completed{{color:var(--accent);}}
-    .step-num{{
-      width:24px; height:24px; border-radius:50%; border:2px solid currentColor;
-      display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:800;
-    }}
-    .step.active .step-num{{background:var(--primary); color:white; border-color:var(--primary);}}
-    .step.completed .step-num{{background:var(--accent); color:white; border-color:var(--accent);}}
-    .drop-zone{{
-      border:2px dashed #c8d3e5; border-radius:16px; padding:40px;
-      background:var(--card-soft); text-align:center; cursor:pointer;
-      transition:all 0.2s ease; min-height:200px; display:flex;
-      align-items:center; justify-content:center; flex-direction:column;
-    }}
-    .drop-zone:hover{{border-color:var(--accent); background:#f0f4ff;}}
-    .drop-zone.dragover{{border-color:var(--primary); background:#f0fff4; transform:scale(1.02);}}
-    .upload-icon{{
-      width:48px; height:48px; margin:0 auto 16px; opacity:0.6;
-      background:var(--accent); border-radius:50%; display:flex;
-      align-items:center; justify-content:center; color:white; font-size:24px;
-    }}
-    .format-tabs{{
-      display:flex; gap:12px; margin:20px 0;
-    }}
-    .tab{{
-      flex:1; padding:16px; border:2px solid var(--stroke); border-radius:12px;
-      background:white; cursor:pointer; transition:all 0.2s ease; text-align:center;
-    }}
-    .tab.active{{border-color:var(--primary); background:#f0fff4;}}
-    .tab h4{{margin:0 0 8px; color:var(--text);}}
-    .tab p{{margin:0; color:var(--muted); font-size:0.9rem;}}
-    button{{
-      padding:12px 24px; border:1px solid var(--primary2);
-      background:linear-gradient(180deg,var(--primary),var(--primary2));
-      color:#062015; font-weight:900; border-radius:12px; cursor:pointer;
-      transition:all 0.2s ease; min-width:120px;
-    }}
-    button:hover{{filter:brightness(1.06); box-shadow:0 10px 26px rgba(22,163,74,.36);}}
-    button:disabled{{opacity:0.5; cursor:not-allowed;}}
-    .btn-secondary{{
-      background:white; color:var(--text); border-color:var(--stroke);
-    }}
-    .btn-secondary:hover{{background:#f8fafc; box-shadow:0 4px 12px rgba(0,0,0,.1);}}
-    .file-list{{
-      margin:20px 0; padding:0; list-style:none;
-    }}
-    .file-item{{
-      display:flex; align-items:center; gap:12px; padding:12px;
-      background:white; border:1px solid var(--stroke); border-radius:8px; margin:8px 0;
-    }}
-    .file-icon{{
-      width:32px; height:32px; background:var(--accent); border-radius:4px;
-      display:flex; align-items:center; justify-content:center; color:white; font-size:14px;
-    }}
-    .file-info{{flex:1;}}
-    .file-name{{font-weight:600; color:var(--text);}}
-    .file-size{{font-size:0.8rem; color:var(--muted);}}
-    .file-remove{{
-      color:#ef4444; cursor:pointer; padding:4px; border-radius:4px;
-    }}
-    .file-remove:hover{{background:#fee2e2;}}
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 2rem;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .nav {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 1rem;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .nav a:hover {
+            text-decoration: underline;
+            color: #22c55e;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 1.5rem;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.4);
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            display: flex;
+            background: #f8fafc;
+            padding: 1.5rem 2rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .progress-step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+        }
+        
+        .progress-step::after {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            width: 100%;
+            height: 3px;
+            background: #e2e8f0;
+            z-index: 0;
+        }
+        
+        .progress-step:last-child::after {
+            display: none;
+        }
+        
+        .progress-circle {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border: 3px solid #e2e8f0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 0.5rem;
+            font-weight: bold;
+            color: #94a3b8;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .progress-step.active .progress-circle {
+            background: #22c55e;
+            border-color: #22c55e;
+            color: white;
+        }
+        
+        .progress-step.completed .progress-circle {
+            background: #3b82f6;
+            border-color: #3b82f6;
+            color: white;
+        }
+        
+        .progress-label {
+            font-size: 0.85rem;
+            color: #64748b;
+            font-weight: 500;
+        }
+        
+        .content {
+            padding: 3rem;
+        }
+        
+        .step-title {
+            font-size: 2rem;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+        
+        .step-subtitle {
+            color: #64748b;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+        
+        .format-tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .format-tab {
+            flex: 1;
+            padding: 1.5rem;
+            background: #f8fafc;
+            border: 3px solid #e2e8f0;
+            border-radius: 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .format-tab:hover {
+            border-color: #22c55e;
+            background: #f0fdf4;
+        }
+        
+        .format-tab.active {
+            border-color: #22c55e;
+            background: #f0fdf4;
+        }
+        
+        .format-tab h3 {
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+            font-size: 1.3rem;
+        }
+        
+        .format-tab p {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        
+        .upload-section {
+            margin-bottom: 2rem;
+        }
+        
+        .upload-label {
+            display: block;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+        }
+        
+        .upload-zone {
+            border: 3px dashed #cbd5e1;
+            border-radius: 1rem;
+            padding: 3rem;
+            text-align: center;
+            background: #f8fafc;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+        
+        .upload-zone:hover {
+            border-color: #22c55e;
+            background: #f0fdf4;
+        }
+        
+        .upload-zone.dragover {
+            border-color: #22c55e;
+            background: #dcfce7;
+        }
+        
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #3b82f6;
+        }
+        
+        .upload-text {
+            font-size: 1.1rem;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        
+        .upload-hint {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .file-display {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            background: #f0fdf4;
+            border: 2px solid #22c55e;
+            border-radius: 0.75rem;
+            margin-top: 1rem;
+        }
+        
+        .file-icon {
+            width: 40px;
+            height: 40px;
+            background: #22c55e;
+            color: white;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 1rem;
+        }
+        
+        .file-info {
+            flex: 1;
+        }
+        
+        .file-name {
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 0.25rem;
+        }
+        
+        .file-size {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        
+        .file-remove {
+            color: #ef4444;
+            cursor: pointer;
+            font-size: 1.5rem;
+            padding: 0.5rem;
+        }
+        
+        .file-remove:hover {
+            color: #dc2626;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 1rem;
+            border: none;
+            border-radius: 0.75rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-back {
+            background: #f1f5f9;
+            color: #475569;
+        }
+        
+        .btn-back:hover {
+            background: #e2e8f0;
+        }
+        
+        .btn-continue {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            color: white;
+        }
+        
+        .btn-continue:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(34, 197, 94, 0.3);
+        }
+        
+        .btn-continue:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .processing {
+            display: none;
+            padding: 2rem;
+            background: #f8fafc;
+            border-radius: 1rem;
+            text-align: center;
+            margin-top: 2rem;
+        }
+        
+        .processing.active {
+            display: block;
+        }
+        
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 5px solid #e2e8f0;
+            border-top-color: #22c55e;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .processing-text {
+            font-size: 1.1rem;
+            color: #1e293b;
+            font-weight: 600;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
     </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <div class="brand">
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="6" y="10" width="36" height="28" rx="4" stroke="white" opacity=".9"/>
-              <path d="M12 18h24M16 14v4M32 14v4" stroke="white" opacity=".9"/>
-              <circle cx="28" cy="28" r="7" stroke="white" opacity=".9"/>
-              <path d="M28 24v4l3 3" stroke="white" opacity=".9"/>
-              <path d="M20 24h8M20 28h6" stroke="white" opacity=".6"/>
-            </svg>
-            <div>AutoDate - Retrofit Design</div>
-          </div>
-          <div class="nav">
-            {admin_link}
-            <a href="/tool2">Timestamp Tool</a>
-            <a href="/billing">Billing</a>
-            <a href="/logout">Logout</a>
-          </div>
-        </div>
-
-        <div class="progress">
-          <div class="progress-bar" style="width: 20%"></div>
-        </div>
-
-        <div class="step-nav">
-          <div class="step active">
-            <div class="step-num">1</div>
-            <span>Upload Documents</span>
-          </div>
-          <div class="step">
-            <div class="step-num">2</div>
-            <span>Select Measures</span>
-          </div>
-          <div class="step">
-            <div class="step-num">3</div>
-            <span>Answer Questions</span>
-          </div>
-          <div class="step">
-            <div class="step-num">4</div>
-            <span>Review & Upload Calcs</span>
-          </div>
-          <div class="step">
-            <div class="step-num">5</div>
-            <span>Generate Design</span>
-          </div>
-        </div>
-
-        <div class="card gfx">
-          <h2 style="margin:0 0 12px; color:var(--text);">Step 1: Upload Site Notes</h2>
-          <p style="margin:0 0 20px; color:var(--muted);">Choose your format and upload the required documents</p>
-
-          <div class="format-tabs">
-            <div class="tab active" id="pashub-tab">
-              <h4>PAS Hub Format</h4>
-              <p>Upload single site notes file</p>
+</head>
+<body>
+    <div class="header">
+        <h1>🏠 AutoDate - Retrofit Design</h1>
+    </div>
+    
+    <div class="nav">
+        <a href="/admin">Admin</a>
+        <a href="/tool2">Timestamp Tool</a>
+        <a href="/billing">Billing</a>
+        <a href="/logout">Logout</a>
+    </div>
+    
+    <div class="container">
+        <div class="progress-bar">
+            <div class="progress-step active">
+                <div class="progress-circle">1</div>
+                <div class="progress-label">Upload Documents</div>
             </div>
-            <div class="tab" id="elmhurst-tab">
-              <h4>Elmhurst Format</h4>
-              <p>Upload site notes + condition report</p>
+            <div class="progress-step">
+                <div class="progress-circle">2</div>
+                <div class="progress-label">Select Measures</div>
             </div>
-          </div>
-
-          <div id="pashub-content">
-            <div class="drop-zone" id="pashub-drop">
-              <div class="upload-icon">📄</div>
-              <h3 style="margin:0 0 8px; color:var(--text);">Drop PAS Hub Site Notes Here</h3>
-              <p style="margin:0; color:var(--muted);">or click to browse for PDF file</p>
+            <div class="progress-step">
+                <div class="progress-circle">3</div>
+                <div class="progress-label">Answer Questions</div>
             </div>
-            <input type="file" id="pashub-input" accept=".pdf" style="display:none;">
-            <ul class="file-list" id="pashub-files"></ul>
-          </div>
-
-          <div id="elmhurst-content" style="display:none;">
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
-              <div>
-                <h4 style="margin:0 0 12px; color:var(--text);">Site Notes</h4>
-                <div class="drop-zone" id="elmhurst-site-drop">
-                  <div class="upload-icon">📋</div>
-                  <h4 style="margin:0 0 8px;">Site Notes PDF</h4>
-                  <p style="margin:0; color:var(--muted); font-size:0.8rem;">Elmhurst site survey</p>
+            <div class="progress-step">
+                <div class="progress-circle">4</div>
+                <div class="progress-label">Upload Calcs</div>
+            </div>
+            <div class="progress-step">
+                <div class="progress-circle">5</div>
+                <div class="progress-label">Generate Design</div>
+            </div>
+        </div>
+        
+        <div class="content">
+            <h2 class="step-title">Step 1: Upload Site Notes</h2>
+            <p class="step-subtitle">Choose your format and upload the required documents</p>
+            
+            <div class="format-tabs">
+                <div class="format-tab active" id="pashub-tab" onclick="selectFormat('pashub')">
+                    <h3>📋 PAS Hub Format</h3>
+                    <p>Upload site notes + condition report</p>
                 </div>
-                <input type="file" id="elmhurst-site-input" accept=".pdf" style="display:none;">
-                <ul class="file-list" id="elmhurst-site-files"></ul>
-              </div>
-              <div>
-                <h4 style="margin:0 0 12px; color:var(--text);">Condition Report</h4>
-                <div class="drop-zone" id="elmhurst-condition-drop">
-                  <div class="upload-icon">🔍</div>
-                  <h4 style="margin:0 0 8px;">Condition Report PDF</h4>
-                  <p style="margin:0; color:var(--muted); font-size:0.8rem;">Building condition assessment</p>
+                <div class="format-tab" id="elmhurst-tab" onclick="selectFormat('elmhurst')">
+                    <h3>📊 Elmhurst Format</h3>
+                    <p>Upload site notes + condition report</p>
                 </div>
-                <input type="file" id="elmhurst-condition-input" accept=".pdf" style="display:none;">
-                <ul class="file-list" id="elmhurst-condition-files"></ul>
-              </div>
             </div>
-          </div>
-
-          <div style="display:flex; justify-content:space-between; margin-top:30px;">
-            <button class="btn-secondary" disabled>Back</button>
-            <button id="continue-btn" disabled>Continue to Measure Selection</button>
-          </div>
+            
+            <!-- PAS Hub Uploads -->
+            <div id="pashub-uploads">
+                <div class="upload-section">
+                    <label class="upload-label">1. PAS Hub Site Notes PDF</label>
+                    <div class="upload-zone" id="pashub-sitenotes-zone" onclick="document.getElementById('pashub-sitenotes-input').click()">
+                        <div class="upload-icon">📄</div>
+                        <div class="upload-text">Drop PAS Hub Site Notes Here</div>
+                        <div class="upload-hint">or click to browse for PDF file</div>
+                    </div>
+                    <input type="file" id="pashub-sitenotes-input" class="file-input" accept=".pdf" onchange="handleFileSelect(event, 'pashub-sitenotes')">
+                    <div id="pashub-sitenotes-display" class="hidden"></div>
+                </div>
+                
+                <div class="upload-section">
+                    <label class="upload-label">2. PAS Hub Condition Report PDF (with photos)</label>
+                    <div class="upload-zone" id="pashub-condition-zone" onclick="document.getElementById('pashub-condition-input').click()">
+                        <div class="upload-icon">📷</div>
+                        <div class="upload-text">Drop Condition Report Here</div>
+                        <div class="upload-hint">or click to browse for PDF file</div>
+                    </div>
+                    <input type="file" id="pashub-condition-input" class="file-input" accept=".pdf" onchange="handleFileSelect(event, 'pashub-condition')">
+                    <div id="pashub-condition-display" class="hidden"></div>
+                </div>
+            </div>
+            
+            <!-- Elmhurst Uploads -->
+            <div id="elmhurst-uploads" class="hidden">
+                <div class="upload-section">
+                    <label class="upload-label">1. Elmhurst Site Notes PDF (RdSAP Assessment)</label>
+                    <div class="upload-zone" id="elmhurst-sitenotes-zone" onclick="document.getElementById('elmhurst-sitenotes-input').click()">
+                        <div class="upload-icon">📄</div>
+                        <div class="upload-text">Drop Elmhurst Site Notes Here</div>
+                        <div class="upload-hint">or click to browse for PDF file</div>
+                    </div>
+                    <input type="file" id="elmhurst-sitenotes-input" class="file-input" accept=".pdf" onchange="handleFileSelect(event, 'elmhurst-sitenotes')">
+                    <div id="elmhurst-sitenotes-display" class="hidden"></div>
+                </div>
+                
+                <div class="upload-section">
+                    <label class="upload-label">2. Elmhurst Condition Report PDF (with photos)</label>
+                    <div class="upload-zone" id="elmhurst-condition-zone" onclick="document.getElementById('elmhurst-condition-input').click()">
+                        <div class="upload-icon">📷</div>
+                        <div class="upload-text">Drop Condition Report Here</div>
+                        <div class="upload-hint">or click to browse for PDF file</div>
+                    </div>
+                    <input type="file" id="elmhurst-condition-input" class="file-input" accept=".pdf" onchange="handleFileSelect(event, 'elmhurst-condition')">
+                    <div id="elmhurst-condition-display" class="hidden"></div>
+                </div>
+            </div>
+            
+            <div class="processing" id="processing">
+                <div class="spinner"></div>
+                <div class="processing-text">Processing documents and moving to Step 2... (Full processing coming next!)</div>
+            </div>
+            
+            <div class="button-group">
+                <button class="btn btn-back" onclick="window.location.href='/tool2'">Back</button>
+                <button class="btn btn-continue" id="continue-btn" onclick="continueToStep2()" disabled>Continue to Measure Selection</button>
+            </div>
         </div>
-      </div>
-
-      <script>
-        // Format tab switching
-        document.getElementById('pashub-tab').addEventListener('click', () => {{
-          document.getElementById('pashub-tab').classList.add('active');
-          document.getElementById('elmhurst-tab').classList.remove('active');
-          document.getElementById('pashub-content').style.display = 'block';
-          document.getElementById('elmhurst-content').style.display = 'none';
-          checkContinueButton();
-        }});
-
-        document.getElementById('elmhurst-tab').addEventListener('click', () => {{
-          document.getElementById('elmhurst-tab').classList.add('active');
-          document.getElementById('pashub-tab').classList.remove('active');
-          document.getElementById('elmhurst-content').style.display = 'block';
-          document.getElementById('pashub-content').style.display = 'none';
-          checkContinueButton();
-        }});
-
-        // File upload handlers
-        function setupDropZone(dropId, inputId, filesListId) {{
-          const drop = document.getElementById(dropId);
-          const input = document.getElementById(inputId);
-          const filesList = document.getElementById(filesListId);
-
-          drop.addEventListener('click', () => input.click());
-          
-          drop.addEventListener('dragover', (e) => {{
-            e.preventDefault();
-            drop.classList.add('dragover');
-          }});
-          
-          drop.addEventListener('dragleave', () => {{
-            drop.classList.remove('dragover');
-          }});
-          
-          drop.addEventListener('drop', (e) => {{
-            e.preventDefault();
-            drop.classList.remove('dragover');
-            input.files = e.dataTransfer.files;
-            displayFiles(input.files, filesList);
-            checkContinueButton();
-          }});
-          
-          input.addEventListener('change', () => {{
-            displayFiles(input.files, filesList);
-            checkContinueButton();
-          }});
-        }}
-
-        function displayFiles(files, container) {{
-          container.innerHTML = '';
-          for (let file of files) {{
-            const li = document.createElement('li');
-            li.className = 'file-item';
-            li.innerHTML = `
-              <div class="file-icon">PDF</div>
-              <div class="file-info">
-                <div class="file-name">${{file.name}}</div>
-                <div class="file-size">${{(file.size / 1024 / 1024).toFixed(2)}} MB</div>
-              </div>
-              <div class="file-remove" onclick="this.parentElement.remove(); checkContinueButton();">×</div>
+    </div>
+    
+    <script>
+        let currentFormat = 'pashub';
+        let uploadedFiles = {
+            'pashub-sitenotes': null,
+            'pashub-condition': null,
+            'elmhurst-sitenotes': null,
+            'elmhurst-condition': null
+        };
+        
+        function selectFormat(format) {
+            currentFormat = format;
+            
+            // Update tabs
+            document.getElementById('pashub-tab').classList.toggle('active', format === 'pashub');
+            document.getElementById('elmhurst-tab').classList.toggle('active', format === 'elmhurst');
+            
+            // Show/hide upload sections
+            document.getElementById('pashub-uploads').classList.toggle('hidden', format !== 'pashub');
+            document.getElementById('elmhurst-uploads').classList.toggle('hidden', format !== 'elmhurst');
+            
+            updateContinueButton();
+        }
+        
+        function handleFileSelect(event, uploadType) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            uploadedFiles[uploadType] = file;
+            
+            // Create file display
+            const displayDiv = document.getElementById(uploadType + '-display');
+            displayDiv.className = 'file-display';
+            displayDiv.innerHTML = `
+                <div class="file-icon">PDF</div>
+                <div class="file-info">
+                    <div class="file-name">${file.name}</div>
+                    <div class="file-size">${(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                </div>
+                <div class="file-remove" onclick="removeFile('${uploadType}')">×</div>
             `;
-            container.appendChild(li);
-          }}
-        }}
+            
+            updateContinueButton();
+        }
+        
+        function removeFile(uploadType) {
+            uploadedFiles[uploadType] = null;
+            document.getElementById(uploadType + '-display').className = 'hidden';
+            document.getElementById(uploadType + '-input').value = '';
+            updateContinueButton();
+        }
+        
+        function updateContinueButton() {
+            const btn = document.getElementById('continue-btn');
+            
+            if (currentFormat === 'pashub') {
+                btn.disabled = !(uploadedFiles['pashub-sitenotes'] && uploadedFiles['pashub-condition']);
+            } else {
+                btn.disabled = !(uploadedFiles['elmhurst-sitenotes'] && uploadedFiles['elmhurst-condition']);
+            }
+        }
+        
+        async function continueToStep2() {
+            // Show processing
+            document.getElementById('processing').classList.add('active');
+            document.getElementById('continue-btn').disabled = true;
+            
+            // Prepare FormData
+            const formData = new FormData();
+            formData.append('format', currentFormat);
+            
+            if (currentFormat === 'pashub') {
+                formData.append('sitenotes', uploadedFiles['pashub-sitenotes']);
+                formData.append('condition', uploadedFiles['pashub-condition']);
+            } else {
+                formData.append('sitenotes', uploadedFiles['elmhurst-sitenotes']);
+                formData.append('condition', uploadedFiles['elmhurst-condition']);
+            }
+            
+            try {
+                const response = await fetch('/api/retrofit/process-upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    
+                    // Simulate processing delay (remove this later when real processing is added)
+                    setTimeout(() => {
+                        alert('Upload successful! Moving to Step 2: Measure Selection (Coming next!)');
+                        // TODO: Navigate to Step 2
+                    }, 2000);
+                } else {
+                    alert('Error processing documents');
+                    document.getElementById('processing').classList.remove('active');
+                    updateContinueButton();
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+                document.getElementById('processing').classList.remove('active');
+                updateContinueButton();
+            }
+        }
+        
+        // Drag and drop handlers
+        ['pashub-sitenotes', 'pashub-condition', 'elmhurst-sitenotes', 'elmhurst-condition'].forEach(type => {
+            const zone = document.getElementById(type + '-zone');
+            
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                zone.classList.add('dragover');
+            });
+            
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('dragover');
+            });
+            
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                
+                const file = e.dataTransfer.files[0];
+                if (file && file.type === 'application/pdf') {
+                    const input = document.getElementById(type + '-input');
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    input.files = dataTransfer.files;
+                    
+                    input.dispatchEvent(new Event('change'));
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+    """
+    
+    return HTMLResponse(html)
 
-        function checkContinueButton() {{
-          const pashubActive = document.getElementById('pashub-tab').classList.contains('active');
-          const pashubFiles = document.getElementById('pashub-input').files.length > 0;
-          const elmhurstSiteFiles = document.getElementById('elmhurst-site-input').files.length > 0;
-          const elmhurstConditionFiles = document.getElementById('elmhurst-condition-input').files.length > 0;
-          
-          const canContinue = pashubActive ? pashubFiles : (elmhurstSiteFiles && elmhurstConditionFiles);
-          document.getElementById('continue-btn').disabled = !canContinue;
-        }}
+# --- NEW: Retrofit Upload Processing API ---
+@app.post("/api/retrofit/process-upload")
+async def process_retrofit_upload(
+    format: str = Form(...),
+    sitenotes: UploadFile = File(...),
+    condition: UploadFile = File(...)
+):
+    """
+    Process uploaded site notes and condition report.
+    This is a placeholder - full PDF processing will be added next.
+    """
+    
+    # TODO: Add PDF processing here using PyPDF2
+    # TODO: Extract data from site notes based on format
+    # TODO: Store extracted data for Step 2
+    
+    return JSONResponse({
+        "success": True,
+        "format": format,
+        "sitenotes_filename": sitenotes.filename,
+        "condition_filename": condition.filename,
+        "message": "Documents uploaded successfully. Ready for Step 2!"
+    })
 
-        // Setup all drop zones
-        setupDropZone('pashub-drop', 'pashub-input', 'pashub-files');
-        setupDropZone('elmhurst-site-drop', 'elmhurst-site-input', 'elmhurst-site-files');
-        setupDropZone('elmhurst-condition-drop', 'elmhurst-condition-input', 'elmhurst-condition-files');
+# --- Image Stamping API ---
+from PIL import Image, ImageDraw, ImageFont
+from io import BytesIO
 
-        // Continue button
-        document.getElementById('continue-btn').addEventListener('click', () => {{
-          alert('Processing documents and moving to Step 2... (Full processing coming next!)');
-          // TODO: Process files and move to next step
-        }});
-      </script>
-    </body>
-    </html>
-    """)
+@app.post("/api/stamp")
+async def stamp_image(
+    image: UploadFile = File(...),
+    date_format: str = Form("dd_slash_mm_yyyy"),
+    time_format: str = Form("24h"),
+    font_size: int = Form(40),
+    color: str = Form("#FFFFFF")
+):
+    # Read image
+    img_bytes = await image.read()
+    img = Image.open(BytesIO(img_bytes))
+    
+    # Get EXIF data for timestamp
+    exif = img._getexif() if hasattr(img, '_getexif') else {}
+    
+    # Try to get date from EXIF, fallback to now
+    date_taken = None
+    if exif and 36867 in exif:  # DateTimeOriginal
+        date_str = exif[36867]
+        try:
+            date_taken = datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
+        except:
+            pass
+    
+    if not date_taken:
+        date_taken = datetime.now()
+    
+    # Format date
+    if date_format == "dd_slash_mm_yyyy":
+        date_text = date_taken.strftime("%d/%m/%Y")
+    elif date_format == "mm_slash_dd_yyyy":
+        date_text = date_taken.strftime("%m/%d/%Y")
+    else:  # yyyy_dash_mm_dd
+        date_text = date_taken.strftime("%Y-%m-%d")
+    
+    # Format time
+    if time_format == "24h":
+        time_text = date_taken.strftime("%H:%M:%S")
+    else:  # 12h
+        time_text = date_taken.strftime("%I:%M:%S %p")
+    
+    full_text = f"{date_text} {time_text}"
+    
+    # Draw on image
+    draw = ImageDraw.Draw(img)
+    
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+    except:
+        font = ImageFont.load_default()
+    
+    # Position at bottom right with padding
+    bbox = draw.textbbox((0, 0), full_text, font=font)
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+    
+    x = img.width - text_width - 20
+    y = img.height - text_height - 20
+    
+    # Parse color
+    rgb_color = tuple(int(color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+    
+    draw.text((x, y), full_text, fill=rgb_color, font=font)
+    
+    # Save to bytes
+    output = BytesIO()
+    img.save(output, format='JPEG', quality=95)
+    output.seek(0)
+    
+    return FileResponse(
+        output,
+        media_type="image/jpeg",
+        headers={"Content-Disposition": "attachment; filename=timestamped.jpg"}
+    )
 
+# --- Admin Dashboard ---
 @app.get("/admin", response_class=HTMLResponse)
 def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional[str] = None):
     u = require_admin(request)
     if isinstance(u, (RedirectResponse, HTMLResponse)):
         return u
-
-    today = datetime.utcnow().date()
-    if not start:
-        start = (today - timedelta(days=6)).isoformat()
-    if not end:
-        end = today.isoformat()
-
-    start_dt = datetime.fromisoformat(start)
-    end_dt = datetime.fromisoformat(end) + timedelta(days=1)
-
-    conn = db_conn()
+    
+    conn = get_db()
     cur = conn.cursor()
-
-    cur.execute("""
-        SELECT
-          u.id, u.email, u.credits, u.created_at, u.is_active, u.suspended_at, u.suspended_reason,
-          COALESCE(u.can_use_retrofit_tool, 1) AS can_use_retrofit_tool,
-          (SELECT MAX(created_at) FROM usage WHERE user_id=u.id AND action='login') AS last_login,
-          (SELECT COUNT(*) FROM usage WHERE user_id=u.id AND action='stamp' AND created_at>=? AND created_at<?) AS stamp_runs,
-          (SELECT COUNT(*) FROM topups WHERE user_id=u.id AND created_at>=? AND created_at<?) AS topup_count,
-          (SELECT COALESCE(SUM(credits),0) FROM topups WHERE user_id=u.id AND created_at>=? AND created_at<?) AS topup_credits,
-          (SELECT COALESCE(SUM(amount_gbp),0) FROM topups WHERE user_id=u.id AND created_at>=? AND created_at<?) AS topup_amount
-        FROM users u
-        ORDER BY u.id DESC
-    """, (start_dt.isoformat(), end_dt.isoformat(),
-          start_dt.isoformat(), end_dt.isoformat(),
-          start_dt.isoformat(), end_dt.isoformat(),
-          start_dt.isoformat(), end_dt.isoformat()))
+    
+    # Get all users
+    cur.execute("SELECT * FROM users ORDER BY created_at DESC")
     users = cur.fetchall()
-
-    cur.execute("""
-        SELECT t.created_at, u.email, t.credits, t.amount_gbp
-        FROM topups t JOIN users u ON u.id=t.user_id
-        WHERE t.created_at>=? AND t.created_at<?
-        ORDER BY t.created_at DESC
-        LIMIT 200
-    """, (start_dt.isoformat(), end_dt.isoformat()))
-    tops = cur.fetchall()
-    conn.close()
-
-    def fmt(dt):
-        return (dt or "").replace("T"," ").split(".")[0] if dt else "—"
-
-    users_rows = ""
+    
+    # Build table rows
+    rows = []
     for r in users:
-        status = "Active" if int(r["is_active"] or 0) == 1 else f"Suspended<br><span class='small'>{fmt(r['suspended_at'])}</span><br><span class='small'>{(r['suspended_reason'] or '')}</span>"
-        
         # Safe access to retrofit column
         try:
             retrofit_val = int(r['can_use_retrofit_tool'])
@@ -1355,323 +1232,261 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
             retrofit_val = 1
         retrofit_status = "✅ Yes" if retrofit_val == 1 else "❌ No"
         
-        if ADMIN_EMAIL and r["email"].lower() == ADMIN_EMAIL:
-            action = "<span class='small'>—</span>"
-            retrofit_action = "<span class='small'>—</span>"
-        elif int(r["is_active"] or 0) == 1:
-            action = (
-                "<form method='post' action='/admin/user/suspend' class='flex'>"
-                f"<input type='hidden' name='email' value='{r['email']}'>"
-                "<label>Reason</label><input name='reason' class='reason' placeholder='e.g. unpaid invoice'/>"
-                "<button>Suspend</button>"
-                "</form>"
-            )
-            # Retrofit toggle - safe version
-            try:
-                retrofit_check = int(r['can_use_retrofit_tool'])
-            except (KeyError, TypeError, ValueError):
-                retrofit_check = 1
-                
-            if retrofit_check == 1:
-                retrofit_action = (
-                    "<form method='post' action='/admin/user/toggle-retrofit' style='display:inline;margin-left:8px'>"
-                    f"<input type='hidden' name='email' value='{r['email']}'>"
-                    f"<input type='hidden' name='enable' value='0'>"
-                    "<button style='background:#ef4444;border-color:#dc2626'>Block Retrofit</button>"
-                    "</form>"
-                )
-            else:
-                retrofit_action = (
-                    "<form method='post' action='/admin/user/toggle-retrofit' style='display:inline;margin-left:8px'>"
-                    f"<input type='hidden' name='email' value='{r['email']}'>"
-                    f"<input type='hidden' name='enable' value='1'>"
-                    "<button>Allow Retrofit</button>"
-                    "</form>"
-                )
+        # Safe retrofit button
+        try:
+            retrofit_val = int(r['can_use_retrofit_tool'])
+        except (KeyError, TypeError, ValueError):
+            retrofit_val = 1
+            
+        if retrofit_val == 1:
+            retrofit_btn = f'<button onclick="toggleRetrofit({r["id"]}, 0)">Block Retrofit</button>'
         else:
-            action = (
-                "<form method='post' action='/admin/user/unsuspend' class='flex'>"
-                f"<input type='hidden' name='email' value='{r['email']}'>"
-                "<button>Reinstate</button>"
-                "</form>"
-            )
-            retrofit_action = "<span class='small'>—</span>"
-
-        combined_action = f"{action} {retrofit_action}"
-
-        users_rows += (
-            f"<tr>"
-            f"<td>{r['email']}</td>"
-            f"<td>{r['credits']}</td>"
-            f"<td>{fmt(r['created_at'])}</td>"
-            f"<td>{fmt(r['last_login'])}</td>"
-            f"<td>{r['stamp_runs']}</td>"
-            f"<td>{r['topup_count']}</td>"
-            f"<td>{r['topup_credits']}</td>"
-            f"<td>£{r['topup_amount']:.0f}</td>"
-            f"<td>{retrofit_status}</td>"
-            f"<td>{status}</td>"
-            f"<td>{combined_action}</td>"
-            f"</tr>"
-        )
-
-    if not users_rows:
-        users_rows = "<tr><td colspan=11>No users yet</td></tr>"
-
-    topups_rows = ""
-    for t in tops:
-        topups_rows += f"<tr><td>{fmt(t['created_at'])}</td><td>{t['email']}</td><td>{t['credits']}</td><td>£{t['amount_gbp']:.0f}</td></tr>"
-    if not topups_rows:
-        topups_rows = "<tr><td colspan=4>No top-ups in range</td></tr>"
-
-    html = admin_html.substitute(
-        brand=BRAND_NAME,
-        start=start,
-        end=end,
-        users_rows=users_rows,
-        topups_rows=topups_rows
-    )
+            retrofit_btn = f'<button onclick="toggleRetrofit({r["id"]}, 1)">Allow Retrofit</button>'
+        
+        status = r["subscription_status"]
+        if status == "active":
+            btn = f'<button onclick="updateStatus({r["id"]}, \'inactive\')">Deactivate</button>'
+        else:
+            btn = f'<button onclick="updateStatus({r["id"]}, \'active\')">Activate</button>'
+        
+        rows.append(f"""
+            <tr>
+                <td>{r["id"]}</td>
+                <td>{r["email"]}</td>
+                <td>{r["subscription_status"]}</td>
+                <td>{r.get("subscription_end_date", "N/A")}</td>
+                <td>{retrofit_status}</td>
+                <td>{btn}</td>
+                <td>{retrofit_btn}</td>
+            </tr>
+        """)
+    
+    conn.close()
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Admin Dashboard</title>
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{
+                font-family: system-ui, -apple-system, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                padding: 2rem;
+            }}
+            .container {{
+                max-width: 1200px;
+                margin: 0 auto;
+                background: white;
+                padding: 2rem;
+                border-radius: 1rem;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            }}
+            h1 {{ color: #667eea; margin-bottom: 2rem; }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 1rem;
+            }}
+            th, td {{
+                padding: 1rem;
+                text-align: left;
+                border-bottom: 1px solid #e0e0e0;
+            }}
+            th {{
+                background: #f7fafc;
+                font-weight: 600;
+                color: #2d3748;
+            }}
+            button {{
+                padding: 0.5rem 1rem;
+                background: #667eea;
+                color: white;
+                border: none;
+                border-radius: 0.5rem;
+                cursor: pointer;
+                margin-right: 0.5rem;
+            }}
+            button:hover {{ opacity: 0.9; }}
+            .nav {{ margin-bottom: 2rem; }}
+            .nav a {{
+                color: #667eea;
+                text-decoration: none;
+                margin-right: 1rem;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="nav">
+                <a href="/tool2">← Back to Tools</a>
+            </div>
+            <h1>Admin Dashboard</h1>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>End Date</th>
+                        <th>Retrofit</th>
+                        <th>Actions</th>
+                        <th>Retrofit Access</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(rows)}
+                </tbody>
+            </table>
+        </div>
+        <script>
+            async function updateStatus(userId, newStatus) {{
+                const response = await fetch('/admin/update-status', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ user_id: userId, status: newStatus }})
+                }});
+                if (response.ok) {{
+                    location.reload();
+                }}
+            }}
+            
+            async function toggleRetrofit(userId, newValue) {{
+                const response = await fetch('/admin/toggle-retrofit', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ user_id: userId, value: newValue }})
+                }});
+                if (response.ok) {{
+                    location.reload();
+                }}
+            }}
+        </script>
+    </body>
+    </html>
+    """
+    
     return HTMLResponse(html)
 
-@app.post("/admin/user/suspend")
-def admin_suspend_user(request: Request, email: str = Form(...), reason: str = Form("")):
+@app.post("/admin/update-status")
+async def admin_update_status(request: Request):
     u = require_admin(request)
     if isinstance(u, (RedirectResponse, HTMLResponse)):
         return u
-    if ADMIN_EMAIL and email.lower() == ADMIN_EMAIL:
-        return HTMLResponse("<h3>Cannot suspend admin account.</h3><p><a href='/admin'>Back</a></p>", status_code=400)
-
-    conn = db_conn()
-    cur = conn.cursor()
-    now = datetime.utcnow().isoformat()
-    cur.execute("UPDATE users SET is_active=0, suspended_at=?, suspended_reason=? WHERE email=?", (now, reason.strip(), email.lower()))
-    conn.commit()
-    conn.close()
-    return RedirectResponse("/admin", status_code=302)
-
-@app.post("/admin/user/unsuspend")
-def admin_unsuspend_user(request: Request, email: str = Form(...)):
-    u = require_admin(request)
-    if isinstance(u, (RedirectResponse, HTMLResponse)):
-        return u
-    conn = db_conn()
-    cur = conn.cursor()
-    cur.execute("UPDATE users SET is_active=1, suspended_at=NULL, suspended_reason=NULL WHERE email=?", (email.lower(),))
-    conn.commit()
-    conn.close()
-    return RedirectResponse("/admin", status_code=302)
-
-@app.post("/admin/user/toggle-retrofit")
-def admin_toggle_retrofit(request: Request, email: str = Form(...), enable: int = Form(...)):
-    u = require_admin(request)
-    if isinstance(u, (RedirectResponse, HTMLResponse)):
-        return u
-    if ADMIN_EMAIL and email.lower() == ADMIN_EMAIL:
-        return HTMLResponse("<h3>Cannot modify admin account.</h3><p><a href='/admin'>Back</a></p>", status_code=400)
     
-    conn = db_conn()
+    data = await request.json()
+    user_id = data.get("user_id")
+    status = data.get("status")
+    
+    conn = get_db()
     cur = conn.cursor()
-    cur.execute("UPDATE users SET can_use_retrofit_tool=? WHERE email=?", (enable, email.lower()))
+    cur.execute("UPDATE users SET subscription_status=? WHERE id=?", (status, user_id))
     conn.commit()
     conn.close()
-    return RedirectResponse("/admin", status_code=302)
+    
+    return JSONResponse({"success": True})
 
+@app.post("/admin/toggle-retrofit")
+async def admin_toggle_retrofit(request: Request):
+    u = require_admin(request)
+    if isinstance(u, (RedirectResponse, HTMLResponse)):
+        return u
+    
+    data = await request.json()
+    user_id = data.get("user_id")
+    value = data.get("value")
+    
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET can_use_retrofit_tool=? WHERE id=?", (value, user_id))
+    conn.commit()
+    conn.close()
+    
+    return JSONResponse({"success": True})
+
+# --- API Endpoints ---
 @app.get("/api/check-retrofit-access")
 def api_check_retrofit_access(request: Request):
-    """Check if current user can access Retrofit Design Tool"""
-    u = current_user(request)
-    if not u:
-        return JSONResponse({"allowed": False, "reason": "not_logged_in"}, status_code=401)
+    """API endpoint to check if user has retrofit tool access"""
+    email = get_cookie(request, "user_email")
+    if not email:
+        return JSONResponse({"error": "Not authenticated"}, status_code=401)
     
-    user_row = get_user_by_email(u["email"])
-    if not user_row:
-        return JSONResponse({"allowed": False, "reason": "user_not_found"}, status_code=404)
+    row = get_user_row_by_email(email)
+    if not row:
+        return JSONResponse({"error": "User not found"}, status_code=404)
     
-    # Check if account is suspended
-    if int(user_row.get("is_active", 0)) != 1:
-        return JSONResponse({"allowed": False, "reason": "account_suspended"}, status_code=403)
-    
-    # Check if they have Retrofit access - safe version
-    can_use = 1  # Default to allowed
+    # Safe access to retrofit column
     try:
-        can_use = int(user_row["can_use_retrofit_tool"])
-    except (KeyError, TypeError, ValueError):
-        can_use = 1  # Default to allowed if column doesn't exist
-    
-    if can_use != 1:
-        return JSONResponse({"allowed": False, "reason": "retrofit_access_disabled"}, status_code=403)
+        can_use = bool(row['can_use_retrofit_tool'])
+    except (KeyError, TypeError):
+        can_use = True  # Default to allowing access
     
     return JSONResponse({
-        "allowed": True,
-        "email": user_row["email"],
-        "credits": user_row["credits"]
+        "email": email,
+        "can_use_retrofit_tool": can_use
     })
 
-@app.get("/admin/export/topups.csv")
-def export_topups_csv(request: Request, start: str, end: str):
-    u = require_admin(request)
-    if isinstance(u, (RedirectResponse, HTMLResponse)):
-        return u
+@app.get("/api/ping")
+def ping():
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
-    start_dt = datetime.fromisoformat(start)
-    end_dt = datetime.fromisoformat(end) + timedelta(days=1)
-
-    conn = db_conn()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT t.created_at, u.email, t.credits, t.amount_gbp
-        FROM topups t JOIN users u ON u.id=t.user_id
-        WHERE t.created_at>=? AND t.created_at<?
-        ORDER BY t.created_at ASC
-    """, (start_dt.isoformat(), end_dt.isoformat()))
-    rows = cur.fetchall()
-    conn.close()
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["when_utc", "email", "credits", "amount_gbp"])
-    for r in rows:
-        writer.writerow([r["created_at"], r["email"], r["credits"], f"{r['amount_gbp']:.2f}"])
-    data = output.getvalue().encode("utf-8")
-    headers = {"Content-Disposition": f'attachment; filename="topups_{start}_to_{end}.csv"'}
-    return Response(content=data, media_type="text/csv; charset=utf-8", headers=headers)
-
-@app.get("/admin/export/summary.csv")
-def export_summary_csv(request: Request, start: str, end: str):
-    u = require_admin(request)
-    if isinstance(u, (RedirectResponse, HTMLResponse)):
-        return u
-
-    start_dt = datetime.fromisoformat(start)
-    end_dt = datetime.fromisoformat(end) + timedelta(days=1)
-
-    conn = db_conn()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT
-          u.email, u.credits AS current_credits,
-          (SELECT COUNT(*) FROM topups WHERE user_id=u.id AND created_at>=? AND created_at<?) AS topup_count,
-          (SELECT COALESCE(SUM(credits),0) FROM topups WHERE user_id=u.id AND created_at>=? AND created_at<?) AS topup_credits,
-          (SELECT COALESCE(SUM(amount_gbp),0) FROM topups WHERE user_id=u.id AND created_at>=? AND created_at<?) AS topup_amount,
-          (SELECT COUNT(*) FROM usage WHERE user_id=u.id AND action='stamp' AND created_at>=? AND created_at<?) AS stamp_runs,
-          (SELECT COALESCE(SUM(-credits_delta),0) FROM usage WHERE user_id=u.id AND action='stamp' AND created_at>=? AND created_at<?) AS credits_used
-        FROM users u
-        ORDER BY u.email ASC
-    """, (start_dt.isoformat(), end_dt.isoformat(),
-          start_dt.isoformat(), end_dt.isoformat(),
-          start_dt.isoformat(), end_dt.isoformat(),
-          start_dt.isoformat(), end_dt.isoformat(),
-          start_dt.isoformat(), end_dt.isoformat()))
-    rows = cur.fetchall()
-    conn.close()
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["email","topup_count","topup_credits","topup_amount_gbp","stamp_runs","credits_used","current_credits"])
-    for r in rows:
-        writer.writerow([
-            r["email"], r["topup_count"], r["topup_credits"],
-            f"{r['topup_amount']:.2f}", r["stamp_runs"], r["credits_used"], r["current_credits"]
-        ])
-    data = output.getvalue().encode("utf-8")
-    headers = {"Content-Disposition": f'attachment; filename="summary_{start}_to_{end}.csv"'}
-    return Response(content=data, media_type="text/csv; charset=utf-8", headers=headers)
-
-
-# -------------------------
-# Image stamping (the main feature)
-# -------------------------
-@app.post("/api/stamp")
-async def api_stamp(
-    request: Request,
-    files: List[UploadFile] = File(...),
-    date: str = Form(...),
-    date_format: str = Form("d_mmm_yyyy"),
-    start: str = Form(...),
-    end: str = Form(""),
-    crop_top: int = Form(0),
-    crop_bottom: int = Form(120)
-):
+@app.get("/billing", response_class=HTMLResponse)
+def billing_page(request: Request):
     row = require_active_user_row(request)
     if isinstance(row, (RedirectResponse, HTMLResponse)):
         return row
+    
+    return HTMLResponse("""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Billing - AutoDate</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: system-ui, -apple-system, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 2rem;
+            }
+            .container {
+                background: white;
+                padding: 3rem;
+                border-radius: 1rem;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                max-width: 600px;
+                text-align: center;
+            }
+            h1 { color: #667eea; margin-bottom: 1rem; }
+            p { color: #666; margin-bottom: 2rem; line-height: 1.6; }
+            a {
+                display: inline-block;
+                padding: 1rem 2rem;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                text-decoration: none;
+                border-radius: 0.5rem;
+                font-weight: 600;
+            }
+            a:hover { opacity: 0.9; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>💳 Billing Information</h1>
+            <p>Your subscription is currently active. For billing inquiries or to manage your subscription, please contact support.</p>
+            <a href="/tool2">← Back to Tools</a>
+        </div>
+    </body>
+    </html>
+    """)
 
-    n = len(files)
-    if n < 1:
-        return JSONResponse({"error":"no files"}, status_code=400)
-
-    cost = n
-    if row["credits"] < cost:
-        return JSONResponse({"error":"not_enough_credits"}, status_code=402)
-
-    add_usage(row["id"], "stamp", -cost, f"{n} images")
-
-    def parse_time(s):
-        h, m, sec = map(int, s.split(":"))
-        return h * 3600 + m * 60 + sec
-
-    date_obj = datetime.strptime(date, "%Y-%m-%d")
-    start_sec = parse_time(start)
-    end_sec = parse_time(end) if end else start_sec
-
-    import zipfile
-    import tempfile
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for i, ufile in enumerate(files):
-            img_data = await ufile.read()
-            img = Image.open(io.BytesIO(img_data))
-            w, h = img.size
-
-            if crop_top > 0 or crop_bottom > 0:
-                img = img.crop((0, crop_top, w, h - crop_bottom))
-                w, h = img.size
-
-            if end_sec > start_sec:
-                t_sec = random.randint(start_sec, end_sec)
-            else:
-                t_sec = start_sec
-
-            hours = t_sec // 3600
-            minutes = (t_sec % 3600) // 60
-            seconds = t_sec % 60
-
-            stamp_dt = date_obj.replace(hour=hours, minute=minutes, second=seconds)
-
-            if date_format == "dd_slash_mm_yyyy":
-                stamp_text = stamp_dt.strftime("%d/%m/%Y, %H:%M:%S")
-            else:
-                stamp_text = stamp_dt.strftime("%d %b %Y, %H:%M:%S")
-
-            bar_height = 48
-            new_h = h + bar_height
-            canvas = Image.new("RGB", (w, new_h), (0, 0, 0))
-            canvas.paste(img, (0, 0))
-
-            draw = ImageDraw.Draw(canvas)
-            try:
-                if FONT_PATH and os.path.exists(FONT_PATH):
-                    font = ImageFont.truetype(FONT_PATH, 28)
-                else:
-                    font = ImageFont.load_default()
-            except:
-                font = ImageFont.load_default()
-
-            text_bbox = draw.textbbox((0, 0), stamp_text, font=font)
-            text_w = text_bbox[2] - text_bbox[0]
-            text_x = (w - text_w) // 2
-            text_y = h + (bar_height - 28) // 2
-
-            draw.text((text_x, text_y), stamp_text, fill=(255, 255, 255), font=font)
-
-            out_buf = io.BytesIO()
-            canvas.save(out_buf, format="JPEG", quality=92)
-            out_buf.seek(0)
-
-            base = os.path.splitext(ufile.filename or f"image_{i+1}")[0]
-            zf.writestr(f"{base}_stamped.jpg", out_buf.read())
-
-    buf.seek(0)
-    refreshed = get_user_by_email(row["email"])
-    headers = {"X-Credits-Balance": str(refreshed["credits"])}
-    return StreamingResponse(buf, media_type="application/zip", headers=headers)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
