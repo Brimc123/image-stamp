@@ -832,7 +832,6 @@ def tool2(request: Request):
     if isinstance(row, (RedirectResponse, HTMLResponse)):
         return row
     
-    # Check if user is admin
     show_admin = ADMIN_EMAIL and row["email"].lower() == ADMIN_EMAIL
     
     # Build navigation links
@@ -842,20 +841,138 @@ def tool2(request: Request):
     if show_admin:
         nav_links.append('<a href="/admin">Admin</a>')
     
-    # Retrofit Design link - safely check if column exists using dict() conversion
+    # Retrofit Design link (for all users who have permission)
     try:
-        row_dict = dict(row)
-        can_retrofit = int(row_dict.get("can_use_retrofit_tool", 1))
+        can_retrofit = int(row["can_use_retrofit_tool"]) if "can_use_retrofit_tool" in row.keys() else 1
     except (TypeError, ValueError, KeyError):
-        can_retrofit = 1  # Default to allowed on any error
+        can_retrofit = 1
     
     if can_retrofit == 1:
-        nav_links.append('<a href="https://autodate-retrofit.streamlit.app" target="_blank" style="color:#22c55e;font-weight:600">🏠 Retrofit Design</a>')
+        nav_links.append('<a href="/retrofit-design" style="color:#22c55e;font-weight:600">🏠 Retrofit Design</a>')
     
     # Join all links with spaces
     admin_link = ' '.join(nav_links) + ' ' if nav_links else ''
     
     return HTMLResponse(tool2_html.safe_substitute(admin_link=admin_link))
+
+@app.get("/retrofit-design", response_class=HTMLResponse)
+def retrofit_design(request: Request):
+    row = require_active_user_row(request)
+    if isinstance(row, (RedirectResponse, HTMLResponse)):
+        return row
+    
+    # Check if user has Retrofit access
+    try:
+        can_retrofit = int(row["can_use_retrofit_tool"]) if "can_use_retrofit_tool" in row.keys() else 1
+    except (TypeError, ValueError, KeyError):
+        can_retrofit = 1
+    
+    if can_retrofit != 1:
+        # User doesn't have access
+        return HTMLResponse("""
+        <!doctype html>
+        <html lang="en">
+        <head>
+        <meta charset="utf-8" />
+        <title>Access Denied - AutoDate</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <style>
+        body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0b1220;color:#e8eefc}
+        .card{max-width:560px;margin:3rem auto;background:#111827;border:1px solid #1f2937;border-radius:16px;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+        h1{margin:0 0 12px;font-size:1.4rem}
+        .badge{display:inline-block;background:#7c2d12;color:#fff;padding:.2rem .5rem;border-radius:999px;border:1px solid #9a3412}
+        a{color:#93c5fd}
+        </style>
+        </head>
+        <body>
+          <div class="card">
+            <h1>Access Denied</h1>
+            <p><span class="badge">Retrofit Design Tool - Access Blocked</span></p>
+            <p>Your account doesn't have access to the Retrofit Design Tool. Please contact your administrator to request access.</p>
+            <p><a href="/tool2">← Back to AutoDate</a></p>
+          </div>
+        </body>
+        </html>
+        """)
+    
+    # User has access - show the iframe
+    show_admin = ADMIN_EMAIL and row["email"].lower() == ADMIN_EMAIL
+    admin_link_html = '<a href="/admin">Admin</a>' if show_admin else ''
+    
+    return HTMLResponse(f"""
+    <!doctype html>
+    <html lang="en">
+    <head>
+    <meta charset="utf-8" />
+    <title>Retrofit Design Tool - AutoDate</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+    body{{
+      margin:0;
+      padding:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      background:#0f1c3e;
+      overflow:hidden;
+    }}
+    .topbar{{
+      background:#0d1834;
+      border-bottom:1px solid #1f2a44;
+      padding:12px 24px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }}
+    .brand{{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      font-weight:900;
+      color:#eaf1ff;
+    }}
+    .nav{{
+      display:flex;
+      gap:16px;
+      align-items:center;
+    }}
+    .nav a{{
+      color:#e7efff;
+      text-decoration:none;
+      padding:8px 12px;
+    }}
+    .nav a:hover{{
+      background:#1f2a44;
+      border-radius:8px;
+    }}
+    iframe{{
+      width:100%;
+      height:calc(100vh - 60px);
+      border:none;
+      display:block;
+    }}
+    </style>
+    </head>
+    <body>
+      <div class="topbar">
+        <div class="brand">
+          <svg style="width:24px;height:24px;vertical-align:middle" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="6" y="10" width="36" height="28" rx="4" stroke="white" opacity=".9"/>
+            <path d="M12 18h24M16 14v4M32 14v4" stroke="white" opacity=".9"/>
+            <circle cx="28" cy="28" r="7" stroke="white" opacity=".9"/>
+            <path d="M28 24v4l3 3" stroke="white" opacity=".9"/>
+          </svg>
+          AutoDate - Retrofit Design Tool
+        </div>
+        <div class="nav">
+          {admin_link_html}
+          <a href="/tool2">Timestamp Tool</a>
+          <a href="/billing">Billing</a>
+          <a href="/logout">Logout</a>
+        </div>
+      </div>
+      <iframe src="https://autodate-retrofit.streamlit.app" allow="clipboard-write" allowfullscreen></iframe>
+    </body>
+    </html>
+    """)
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional[str] = None):
@@ -1044,7 +1161,11 @@ def api_check_retrofit_access(request: Request):
         return JSONResponse({"allowed": False, "reason": "account_suspended"}, status_code=403)
     
     # Check if they have Retrofit access
-    can_use = int(user_row.get("can_use_retrofit_tool", 1))
+    try:
+        can_use = int(user_row["can_use_retrofit_tool"]) if "can_use_retrofit_tool" in user_row.keys() else 1
+    except (TypeError, ValueError, KeyError):
+        can_use = 1
+    
     if can_use != 1:
         return JSONResponse({"allowed": False, "reason": "retrofit_access_disabled"}, status_code=403)
     
@@ -1121,119 +1242,4 @@ def export_summary_csv(request: Request, start: str, end: str):
             f"{r['topup_amount']:.2f}", r["stamp_runs"], r["credits_used"], r["current_credits"]
         ])
     data = output.getvalue().encode("utf-8")
-    headers = {"Content-Disposition": f'attachment; filename="summary_{start}_to_{end}.csv"'}
-    return Response(content=data, media_type="text/csv; charset=utf-8", headers=headers)
-
-# -------------------------
-# Image stamping
-# -------------------------
-def load_font(size: int):
-    candidates = []
-    if FONT_PATH:
-        candidates.append(FONT_PATH)
-    candidates += [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed.ttf"
-    ]
-    for p in candidates:
-        try:
-            return ImageFont.truetype(p, size=size)
-        except Exception:
-            continue
-    return ImageFont.load_default()
-
-def draw_timestamp(img: Image.Image, text: str) -> Image.Image:
-    im = img.convert("RGBA")
-    draw = ImageDraw.Draw(im)
-    w, h = im.size
-    font_size = max(18, int(w * 0.032))
-    font = load_font(font_size)
-    tw, th = draw.textbbox((0,0), text, font=font)[2:]
-    pad = int(font_size * 0.4)
-    x = w - tw - pad
-    y = h - th - pad
-    for ox in (-1,0,1):
-        for oy in (-1,0,1):
-            if ox==0 and oy==0: continue
-            draw.text((x+ox, y+oy), text, font=font, fill=(0,0,0,255))
-    draw.text((x, y), text, font=font, fill=(255,255,255,255))
-    return im.convert("RGB")
-
-def fmt_datetime(dt: datetime, fmt_key: str) -> str:
-    if fmt_key == "dd_slash_mm_yyyy":
-        return dt.strftime("%d/%m/%Y, %H:%M:%S")
-    return dt.strftime("%d %b %Y, %H:%M:%S")
-
-@app.post("/api/stamp")
-async def api_stamp(
-    request: Request,
-    files: List[UploadFile] = File(...),
-    date: str = Form(...),
-    start: str = Form(...),
-    end: Optional[str] = Form(None),
-    crop_top: Optional[int] = Form(0),
-    crop_bottom: Optional[int] = Form(0),
-    date_format: Optional[str] = Form("d_mmm_yyyy"),
-):
-    row = require_active_user_row(request)
-    if isinstance(row, (RedirectResponse, HTMLResponse)):
-        return JSONResponse({"ok": False, "error": "not_active"}, status_code=403)
-
-    if row["credits"] <= 0:
-        return JSONResponse({"ok": False, "error": "no_credits"}, status_code=402)
-
-    base_date = datetime.strptime(date, "%Y-%m-%d").date()
-    start_t = datetime.strptime(start, "%H:%M:%S").time()
-    end_t = datetime.strptime(end, "%H:%M:%S").time() if end else start_t
-    start_dt = datetime.combine(base_date, start_t)
-    end_dt = datetime.combine(base_date, end_t)
-    if end_dt < start_dt:
-        end_dt = start_dt
-
-    import zipfile, tempfile, os as _os
-    tmp = tempfile.TemporaryDirectory()
-    zip_path = _os.path.join(tmp.name, "stamped.zip")
-    zf = zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED)
-
-    n = len(files)
-    for i, f in enumerate(files):
-        raw = await f.read()
-        img = Image.open(io.BytesIO(raw)).convert("RGB")
-
-        ct = int(crop_top or 0)
-        cb = int(crop_bottom or 0)
-        w, h = img.size
-        top = max(0, ct)
-        bottom = max(0, cb)
-        if top or bottom:
-            img = img.crop((0, top, w, max(top, h-bottom)))
-
-        if n == 1 or start_dt == end_dt:
-            dt = start_dt
-        else:
-            delta = (end_dt - start_dt).total_seconds()
-            r = random.random()
-            dt = start_dt + timedelta(seconds=int(r * delta))
-
-        text = fmt_datetime(dt, date_format)
-        stamped = draw_timestamp(img, text)
-
-        name = f.filename or f"image_{i+1}.jpg"
-        buf = io.BytesIO()
-        stamped.save(buf, format="JPEG", quality=92)
-        zf.writestr(name.replace(".jpeg",".jpg"), buf.getvalue())
-
-    zf.close()
-    add_usage(row["id"], "stamp", -1, f"{n} image(s)")
-    new_row = get_user_by_email(row["email"])
-
-    def iterfile():
-        with open(zip_path, "rb") as f:
-            yield from f
-        tmp.cleanup()
-
-    headers = {
-        "Content-Disposition": 'attachment; filename="stamped.zip"',
-        "X-Credits-Balance": str(new_row["credits"])
-    }
-    return StreamingResponse(iterfile(), media_type="application/zip", headers=headers)
+    headers = {"
