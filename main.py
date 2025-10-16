@@ -38,7 +38,19 @@ def init_db():
             password TEXT NOT NULL,
             subscription_status TEXT DEFAULT 'active',
             subscription_end_date TEXT,
+            credits REAL DEFAULT 0.0,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            type TEXT NOT NULL,
+            amount REAL NOT NULL,
+            description TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
     conn.commit()
@@ -618,6 +630,12 @@ async def root(request: Request):
             </div>
             
             <div class="tool-card">
+                <h2>💳 Billing & Credits</h2>
+                <p>View your credits, top-up your account, and see usage history.</p>
+                <a href="/billing" class="tool-btn">View Billing</a>
+            </div>
+            
+            <div class="tool-card">
                 <h2>🏠 Retrofit Design Tool</h2>
                 <p>Create PAS 2035 compliant retrofit design documents automatically.</p>
                 <a href="/tool/retrofit" class="tool-btn">Open Tool</a>
@@ -1112,6 +1130,11 @@ timestamp_tool_html = """
             
             if (selectedFiles.length === 0) return;
             
+            // Warning popup
+            if (!confirm('⚠️ WARNING: This will cost £5.00 per processing.\n\nClick OK to continue.')) {
+                return;
+            }
+            
             const formData = new FormData();
             selectedFiles.forEach(file => formData.append('images', file));
             formData.append('date_text', document.getElementById('dateText').value);
@@ -1132,6 +1155,13 @@ timestamp_tool_html = """
                 
                 const data = await response.json();
                 
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    loading.classList.remove('show');
+                    submitBtn.disabled = false;
+                    return;
+                }
+                
                 loading.classList.remove('show');
                 results.classList.add('show');
                 
@@ -1150,6 +1180,13 @@ timestamp_tool_html = """
                     resultGrid.appendChild(div);
                 });
                 
+                // Show success and remaining credits
+                if (data.remaining_credits !== undefined) {
+                    alert(`✅ Success! £5.00 charged.\n\nRemaining credits: £${data.remaining_credits.toFixed(2)}`);
+                    // Update credits display
+                    location.reload();
+                }
+                
                 submitBtn.disabled = false;
             } catch (error) {
                 alert('Error processing images. Please try again.');
@@ -1167,18 +1204,487 @@ def get_timestamp_tool(request: Request):
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
-    return HTMLResponse(timestamp_tool_html)
+    
+    # Get user credits
+    credits = user_row["credits"] if "credits" in user_row.keys() else 0.0
+    
+    # Inject credits into HTML
+    html_with_credits = timestamp_tool_html.replace(
+        '<h1>📸 Timestamp Tool</h1>',
+        f'<h1>📸 Timestamp Tool</h1><p style="color: #667eea; font-weight: 600; margin-top: 10px;">Your Credits: £{credits:.2f}</p>'
+    )
+    
+    return HTMLResponse(html_with_credits)
 
 # Backward compatibility - redirect old URL to new
 @app.get("/tool2")
 def redirect_tool2(request: Request):
     return RedirectResponse("/tool/timestamp", status_code=301)
 
+# --- Billing & Credits ---
+@app.get("/billing")
+def get_billing(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
+    
+    email = user_row["email"]
+    user_id = user_row["id"]
+    credits = user_row["credits"] if "credits" in user_row.keys() else 0.0
+    
+    # Get transaction history
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM transactions WHERE user_id=? ORDER BY created_at DESC LIMIT 50", (user_id,))
+    transactions = cur.fetchall()
+    conn.close()
+    
+    transaction_rows = ""
+    for t in transactions:
+        color = "#4caf50" if t["amount"] > 0 else "#f44336"
+        transaction_rows += f"""
+            <tr>
+                <td>{t["created_at"]}</td>
+                <td>{t["type"].upper()}</td>
+                <td style="color: {color}; font-weight: 600;">£{t["amount"]:.2f}</td>
+                <td>{t["description"]}</td>
+            </tr>
+        """
+    
+    if not transaction_rows:
+        transaction_rows = '<tr><td colspan="4" style="text-align: center; color: #999;">No transactions yet</td></tr>'
+    
+    return HTMLResponse(f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billing - AutoDate</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }}
+        
+        .container {{
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }}
+        
+        .header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }}
+        
+        .header h1 {{
+            font-size: 32px;
+            color: #333;
+        }}
+        
+        .header-buttons {{
+            display: flex;
+            gap: 10px;
+        }}
+        
+        .back-btn {{
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+        }}
+        
+        .back-btn:hover {{
+            background: #764ba2;
+        }}
+        
+        .billing-btn {{
+            background: #4caf50;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+        }}
+        
+        .billing-btn:hover {{
+            background: #45a049;
+        }}
+        
+        .credits-card {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            margin-bottom: 30px;
+            text-align: center;
+        }}
+        
+        .credits-card h2 {{
+            font-size: 48px;
+            margin-bottom: 10px;
+        }}
+        
+        .credits-card p {{
+            font-size: 18px;
+            opacity: 0.9;
+        }}
+        
+        .topup-btn {{
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 16px 32px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 20px;
+            transition: all 0.2s;
+        }}
+        
+        .topup-btn:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }}
+        
+        .info-box {{
+            background: #f8f9ff;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }}
+        
+        .info-box h3 {{
+            color: #667eea;
+            margin-bottom: 10px;
+        }}
+        
+        .info-box ul {{
+            list-style-position: inside;
+            color: #666;
+            line-height: 1.8;
+        }}
+        
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }}
+        
+        th {{
+            background: #f5f5f5;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e0e0e0;
+        }}
+        
+        td {{
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+            color: #666;
+        }}
+        
+        tr:hover {{
+            background: #f9f9f9;
+        }}
+        
+        h2 {{
+            color: #333;
+            margin-top: 40px;
+            margin-bottom: 20px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💳 Billing & Credits</h1>
+            <a href="/" class="back-btn">← Back to Dashboard</a>
+        </div>
+        
+        <div class="credits-card">
+            <p>Current Balance</p>
+            <h2>£{credits:.2f}</h2>
+            <a href="/topup" class="topup-btn">💰 Top-Up Account</a>
+        </div>
+        
+        <div class="info-box">
+            <h3>ℹ️ How Billing Works</h3>
+            <ul>
+                <li><strong>£5.00 per processing</strong> - Each time you process images (regardless of quantity)</li>
+                <li><strong>Minimum top-up: £50.00</strong></li>
+                <li><strong>Weekly Invoice</strong> - You will receive an invoice every week for your usage</li>
+                <li><strong>No automatic charges</strong> - We invoice you based on your usage</li>
+            </ul>
+        </div>
+        
+        <h2>📊 Transaction History</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                {transaction_rows}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
+    """)
+
+@app.get("/topup")
+def get_topup(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
+    
+    credits = user_row["credits"] if "credits" in user_row.keys() else 0.0
+    
+    return HTMLResponse(f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top-Up - AutoDate</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }}
+        
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }}
+        
+        .header {{
+            text-align: center;
+            margin-bottom: 40px;
+        }}
+        
+        .header h1 {{
+            font-size: 32px;
+            color: #333;
+            margin-bottom: 10px;
+        }}
+        
+        .current-balance {{
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 30px;
+        }}
+        
+        .current-balance p {{
+            color: #666;
+            margin-bottom: 5px;
+        }}
+        
+        .current-balance h2 {{
+            color: #667eea;
+            font-size: 36px;
+        }}
+        
+        .warning-box {{
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }}
+        
+        .warning-box h3 {{
+            color: #856404;
+            margin-bottom: 10px;
+        }}
+        
+        .warning-box ul {{
+            list-style-position: inside;
+            color: #856404;
+            line-height: 1.8;
+        }}
+        
+        .form-group {{
+            margin-bottom: 20px;
+        }}
+        
+        .form-group label {{
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }}
+        
+        .form-group input {{
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+        }}
+        
+        .form-group input:focus {{
+            outline: none;
+            border-color: #667eea;
+        }}
+        
+        .submit-btn {{
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }}
+        
+        .submit-btn:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }}
+        
+        .back-link {{
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }}
+        
+        .back-link:hover {{
+            color: #764ba2;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💰 Top-Up Your Account</h1>
+        </div>
+        
+        <div class="current-balance">
+            <p>Current Balance</p>
+            <h2>£{credits:.2f}</h2>
+        </div>
+        
+        <div class="warning-box">
+            <h3>⚠️ Important Information</h3>
+            <ul>
+                <li><strong>Minimum top-up: £50.00</strong></li>
+                <li><strong>Weekly Invoice Billing</strong> - You will be invoiced every week for your usage</li>
+                <li><strong>No automatic payment</strong> - This is a credit system with invoice payment</li>
+                <li>The amount you enter will be added to your account balance</li>
+                <li>You will receive an invoice for this top-up at the end of the week</li>
+            </ul>
+        </div>
+        
+        <form method="POST" action="/topup" onsubmit="return confirmTopup()">
+            <div class="form-group">
+                <label for="amount">Top-Up Amount (£)</label>
+                <input type="number" id="amount" name="amount" min="50" step="0.01" required placeholder="Minimum £50.00">
+            </div>
+            
+            <button type="submit" class="submit-btn">Confirm Top-Up</button>
+        </form>
+        
+        <a href="/billing" class="back-link">← Back to Billing</a>
+    </div>
+    
+    <script>
+        function confirmTopup() {{
+            const amount = document.getElementById('amount').value;
+            if (parseFloat(amount) < 50) {{
+                alert('Minimum top-up amount is £50.00');
+                return false;
+            }}
+            return confirm(
+                '📋 Top-Up Confirmation\\n\\n' +
+                'Amount: £' + parseFloat(amount).toFixed(2) + '\\n\\n' +
+                'This will be added to your account balance.\\n' +
+                'You will receive a weekly invoice for payment.\\n\\n' +
+                'Continue?'
+            );
+        }}
+    </script>
+</body>
+</html>
+    """)
+
+@app.post("/topup")
+def post_topup(request: Request, amount: float = Form(...)):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
+    
+    if amount < 50:
+        return HTMLResponse('<script>alert("Minimum top-up is £50.00"); window.location="/topup";</script>')
+    
+    email = user_row["email"]
+    user_id = user_row["id"]
+    current_credits = user_row["credits"] if "credits" in user_row.keys() else 0.0
+    
+    # Add credits and record transaction
+    conn = get_db()
+    cur = conn.cursor()
+    new_credits = current_credits + amount
+    cur.execute("UPDATE users SET credits=? WHERE email=?", (new_credits, email))
+    cur.execute(
+        "INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'topup', ?, 'Account top-up')",
+        (user_id, amount)
+    )
+    conn.commit()
+    conn.close()
+    
+    return HTMLResponse(f'<script>alert("✅ Success!\\n\\n£{amount:.2f} added to your account.\\n\\nNew balance: £{new_credits:.2f}"); window.location="/billing";</script>')
+
 # --- Timestamp API with Pillow ---
 from PIL import Image, ImageDraw, ImageFont
 
 @app.post("/api/stamp-batch")
 async def stamp_batch(
+    request: Request,
     images: List[UploadFile] = File(...),
     date_text: str = Form(...),
     start_time: str = Form(...),
@@ -1186,7 +1692,21 @@ async def stamp_batch(
     crop_bottom: int = Form(120),
     text_color: str = Form("255,255,255")
 ):
-    """Process multiple images with distributed timestamps"""
+    """Process multiple images with distributed timestamps - £5 per processing"""
+    
+    # Get user and check credits
+    email = get_cookie(request, "user_email")
+    if not email:
+        return {"error": "Not logged in"}, 401
+    
+    user_row = get_user_row_by_email(email)
+    if not user_row:
+        return {"error": "User not found"}, 401
+    
+    # Check if user has enough credits
+    current_credits = user_row["credits"] if "credits" in user_row.keys() else 0.0
+    if current_credits < 5.0:
+        return {"error": f"Insufficient credits. You have £{current_credits:.2f}. Please top-up minimum £50."}, 400
     
     try:
         # Parse times
@@ -1251,7 +1771,7 @@ async def stamp_batch(
                 
                 for font_path in font_paths:
                     try:
-                        font = ImageFont.truetype(font_path, 38)  # Slightly smaller to match original exactly
+                        font = ImageFont.truetype(font_path, 36)  # Exact match to original
                         break
                     except:
                         continue
@@ -1299,7 +1819,19 @@ async def stamp_batch(
         if not results:
             return {"error": "No images could be processed"}, 400
         
-        return {"images": results}
+        # Deduct £5 and record transaction
+        conn = get_db()
+        cur = conn.cursor()
+        new_credits = current_credits - 5.0
+        cur.execute("UPDATE users SET credits=? WHERE email=?", (new_credits, email))
+        cur.execute(
+            "INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'usage', -5.0, ?)",
+            (user_row["id"], f"Processed {len(results)} images")
+        )
+        conn.commit()
+        conn.close()
+        
+        return {"images": results, "remaining_credits": new_credits}
     
     except Exception as e:
         print(f"Error in stamp_batch: {str(e)}")
@@ -1726,6 +2258,7 @@ def admin_panel(request: Request):
     table_rows = ""
     for r in rows:
         end_date = r["subscription_end_date"] if r["subscription_end_date"] else "N/A"
+        credits = r["credits"] if "credits" in r.keys() else 0.0
         status_color = "#4caf50" if r["subscription_status"] == "active" else "#f44336"
         action_btn = f'''
             <form method="POST" action="/admin/toggle-status" style="display:inline;">
@@ -1740,6 +2273,7 @@ def admin_panel(request: Request):
             <tr>
                 <td>{r["id"]}</td>
                 <td>{r["email"]}</td>
+                <td style="font-weight: 600; color: #667eea;">£{credits:.2f}</td>
                 <td><span style="color: {status_color}; font-weight: 600;">{r["subscription_status"]}</span></td>
                 <td>{end_date}</td>
                 <td>{r["created_at"]}</td>
@@ -1831,7 +2365,10 @@ def admin_panel(request: Request):
     <div class="container">
         <div class="header">
             <h1>⚙️ Admin Panel</h1>
-            <a href="/" class="back-btn">← Back to Dashboard</a>
+            <div class="header-buttons">
+                <a href="/admin/billing" class="billing-btn">💳 View Billing</a>
+                <a href="/" class="back-btn">← Back to Dashboard</a>
+            </div>
         </div>
         
         <h2 style="margin-bottom: 20px; color: #333;">Users</h2>
@@ -1841,6 +2378,7 @@ def admin_panel(request: Request):
                 <tr>
                     <th>ID</th>
                     <th>Email</th>
+                    <th>Credits</th>
                     <th>Status</th>
                     <th>Subscription End</th>
                     <th>Created</th>
@@ -1849,6 +2387,200 @@ def admin_panel(request: Request):
             </thead>
             <tbody>
                 {table_rows}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
+    """)
+
+@app.get("/admin/billing")
+def admin_billing(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
+    
+    # Get all transactions for all users
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT t.*, u.email 
+        FROM transactions t 
+        JOIN users u ON t.user_id = u.id 
+        ORDER BY t.created_at DESC
+    """)
+    transactions = cur.fetchall()
+    conn.close()
+    
+    transaction_rows = ""
+    total_topups = 0
+    total_usage = 0
+    
+    for t in transactions:
+        color = "#4caf50" if t["amount"] > 0 else "#f44336"
+        transaction_rows += f"""
+            <tr>
+                <td>{t["created_at"]}</td>
+                <td>{t["email"]}</td>
+                <td>{t["type"].upper()}</td>
+                <td style="color: {color}; font-weight: 600;">£{t["amount"]:.2f}</td>
+                <td>{t["description"]}</td>
+            </tr>
+        """
+        if t["type"] == "topup":
+            total_topups += t["amount"]
+        elif t["type"] == "usage":
+            total_usage += abs(t["amount"])
+    
+    if not transaction_rows:
+        transaction_rows = '<tr><td colspan="5" style="text-align: center; color: #999;">No transactions yet</td></tr>'
+    
+    return HTMLResponse(f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Billing - AutoDate</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }}
+        
+        .container {{
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }}
+        
+        .header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }}
+        
+        .header h1 {{
+            font-size: 32px;
+            color: #333;
+        }}
+        
+        .back-btn {{
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+        }}
+        
+        .back-btn:hover {{
+            background: #764ba2;
+        }}
+        
+        .stats {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }}
+        
+        .stat-card {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 24px;
+            border-radius: 12px;
+            text-align: center;
+        }}
+        
+        .stat-card h3 {{
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }}
+        
+        .stat-card p {{
+            font-size: 36px;
+            font-weight: 700;
+        }}
+        
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+        }}
+        
+        th {{
+            background: #f5f5f5;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e0e0e0;
+        }}
+        
+        td {{
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+            color: #666;
+        }}
+        
+        tr:hover {{
+            background: #f9f9f9;
+        }}
+        
+        h2 {{
+            color: #333;
+            margin-bottom: 20px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💳 Admin Billing Dashboard</h1>
+            <a href="/admin" class="back-btn">← Back to Admin</a>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <h3>Total Top-Ups</h3>
+                <p>£{total_topups:.2f}</p>
+            </div>
+            <div class="stat-card">
+                <h3>Total Usage</h3>
+                <p>£{total_usage:.2f}</p>
+            </div>
+            <div class="stat-card">
+                <h3>Net Outstanding</h3>
+                <p>£{(total_topups - total_usage):.2f}</p>
+            </div>
+        </div>
+        
+        <h2>📊 All Transactions</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>User</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                {transaction_rows}
             </tbody>
         </table>
     </div>
