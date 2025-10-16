@@ -602,7 +602,7 @@ document.getElementById('form').addEventListener('submit', async (e) => {
   URL.revokeObjectURL(url);
 
   const bal = r.headers.get('X-Credits-Balance');
-  document.getElementById('result').textContent = 'Downloaded stamped.zip' + (bal?(' – Credits left: '+bal):'');
+  document.getElementById('result').textContent = 'Downloaded stamped.zip' + (bal?(' — Credits left: '+bal):'');
 
   goBtn.disabled = false; goBtn.textContent = 'Process'; spin.style.display = 'none'; statusEl.textContent='';
   clearUI();
@@ -834,24 +834,14 @@ def tool2(request: Request):
     
     show_admin = ADMIN_EMAIL and row["email"].lower() == ADMIN_EMAIL
     
-    # Build navigation links
-    nav_links = []
+    # Simple navigation that won't crash
+    admin_link = ""
     
-    # Admin link (only for admin)
     if show_admin:
-        nav_links.append('<a href="/admin">Admin</a>')
+        admin_link = '<a href="/admin">Admin</a> '
     
-    # Retrofit Design link (for all users who have permission)
-    try:
-        can_retrofit = int(row["can_use_retrofit_tool"]) if "can_use_retrofit_tool" in row.keys() else 1
-    except (TypeError, ValueError, KeyError):
-        can_retrofit = 1
-    
-    if can_retrofit == 1:
-        nav_links.append('<a href="/retrofit-design" style="color:#22c55e;font-weight:600">🏠 Retrofit Design</a>')
-    
-    # Join all links with spaces
-    admin_link = ' '.join(nav_links) + ' ' if nav_links else ''
+    # Always show Retrofit Design link for now
+    admin_link += '<a href="/retrofit-design" style="color:#22c55e;font-weight:600">🏠 Retrofit Design</a> '
     
     return HTMLResponse(tool2_html.safe_substitute(admin_link=admin_link))
 
@@ -860,40 +850,6 @@ def retrofit_design(request: Request):
     row = require_active_user_row(request)
     if isinstance(row, (RedirectResponse, HTMLResponse)):
         return row
-    
-    # Check if user has Retrofit access
-    try:
-        can_retrofit = int(row["can_use_retrofit_tool"]) if "can_use_retrofit_tool" in row.keys() else 1
-    except (TypeError, ValueError, KeyError):
-        can_retrofit = 1
-    
-    if can_retrofit != 1:
-        # User doesn't have access
-        return HTMLResponse("""
-        <!doctype html>
-        <html lang="en">
-        <head>
-        <meta charset="utf-8" />
-        <title>Access Denied - AutoDate</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <style>
-        body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0b1220;color:#e8eefc}
-        .card{max-width:560px;margin:3rem auto;background:#111827;border:1px solid #1f2937;border-radius:16px;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,.35)}
-        h1{margin:0 0 12px;font-size:1.4rem}
-        .badge{display:inline-block;background:#7c2d12;color:#fff;padding:.2rem .5rem;border-radius:999px;border:1px solid #9a3412}
-        a{color:#93c5fd}
-        </style>
-        </head>
-        <body>
-          <div class="card">
-            <h1>Access Denied</h1>
-            <p><span class="badge">Retrofit Design Tool - Access Blocked</span></p>
-            <p>Your account doesn't have access to the Retrofit Design Tool. Please contact your administrator to request access.</p>
-            <p><a href="/tool2">← Back to AutoDate</a></p>
-          </div>
-        </body>
-        </html>
-        """)
     
     # User has access - show the iframe
     show_admin = ADMIN_EMAIL and row["email"].lower() == ADMIN_EMAIL
@@ -1160,11 +1116,12 @@ def api_check_retrofit_access(request: Request):
     if int(user_row.get("is_active", 0)) != 1:
         return JSONResponse({"allowed": False, "reason": "account_suspended"}, status_code=403)
     
-    # Check if they have Retrofit access
+    # Check if they have Retrofit access - safe version
+    can_use = 1  # Default to allowed
     try:
-        can_use = int(user_row["can_use_retrofit_tool"]) if "can_use_retrofit_tool" in user_row.keys() else 1
-    except (TypeError, ValueError, KeyError):
-        can_use = 1
+        can_use = int(user_row["can_use_retrofit_tool"])
+    except (KeyError, TypeError, ValueError):
+        can_use = 1  # Default to allowed if column doesn't exist
     
     if can_use != 1:
         return JSONResponse({"allowed": False, "reason": "retrofit_access_disabled"}, status_code=403)
@@ -1242,4 +1199,104 @@ def export_summary_csv(request: Request, start: str, end: str):
             f"{r['topup_amount']:.2f}", r["stamp_runs"], r["credits_used"], r["current_credits"]
         ])
     data = output.getvalue().encode("utf-8")
-    headers = {"
+    headers = {"Content-Disposition": f'attachment; filename="summary_{start}_to_{end}.csv"'}
+    return Response(content=data, media_type="text/csv; charset=utf-8", headers=headers)
+
+
+# -------------------------
+# Image stamping (the main feature)
+# -------------------------
+@app.post("/api/stamp")
+async def api_stamp(
+    request: Request,
+    files: List[UploadFile] = File(...),
+    date: str = Form(...),
+    date_format: str = Form("d_mmm_yyyy"),
+    start: str = Form(...),
+    end: str = Form(""),
+    crop_top: int = Form(0),
+    crop_bottom: int = Form(120)
+):
+    row = require_active_user_row(request)
+    if isinstance(row, (RedirectResponse, HTMLResponse)):
+        return row
+
+    n = len(files)
+    if n < 1:
+        return JSONResponse({"error":"no files"}, status_code=400)
+
+    cost = n
+    if row["credits"] < cost:
+        return JSONResponse({"error":"not_enough_credits"}, status_code=402)
+
+    add_usage(row["id"], "stamp", -cost, f"{n} images")
+
+    def parse_time(s):
+        h, m, sec = map(int, s.split(":"))
+        return h * 3600 + m * 60 + sec
+
+    date_obj = datetime.strptime(date, "%Y-%m-%d")
+    start_sec = parse_time(start)
+    end_sec = parse_time(end) if end else start_sec
+
+    import zipfile
+    import tempfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for i, ufile in enumerate(files):
+            img_data = await ufile.read()
+            img = Image.open(io.BytesIO(img_data))
+            w, h = img.size
+
+            if crop_top > 0 or crop_bottom > 0:
+                img = img.crop((0, crop_top, w, h - crop_bottom))
+                w, h = img.size
+
+            if end_sec > start_sec:
+                t_sec = random.randint(start_sec, end_sec)
+            else:
+                t_sec = start_sec
+
+            hours = t_sec // 3600
+            minutes = (t_sec % 3600) // 60
+            seconds = t_sec % 60
+
+            stamp_dt = date_obj.replace(hour=hours, minute=minutes, second=seconds)
+
+            if date_format == "dd_slash_mm_yyyy":
+                stamp_text = stamp_dt.strftime("%d/%m/%Y, %H:%M:%S")
+            else:
+                stamp_text = stamp_dt.strftime("%d %b %Y, %H:%M:%S")
+
+            bar_height = 48
+            new_h = h + bar_height
+            canvas = Image.new("RGB", (w, new_h), (0, 0, 0))
+            canvas.paste(img, (0, 0))
+
+            draw = ImageDraw.Draw(canvas)
+            try:
+                if FONT_PATH and os.path.exists(FONT_PATH):
+                    font = ImageFont.truetype(FONT_PATH, 28)
+                else:
+                    font = ImageFont.load_default()
+            except:
+                font = ImageFont.load_default()
+
+            text_bbox = draw.textbbox((0, 0), stamp_text, font=font)
+            text_w = text_bbox[2] - text_bbox[0]
+            text_x = (w - text_w) // 2
+            text_y = h + (bar_height - 28) // 2
+
+            draw.text((text_x, text_y), stamp_text, fill=(255, 255, 255), font=font)
+
+            out_buf = io.BytesIO()
+            canvas.save(out_buf, format="JPEG", quality=92)
+            out_buf.seek(0)
+
+            base = os.path.splitext(ufile.filename or f"image_{i+1}")[0]
+            zf.writestr(f"{base}_stamped.jpg", out_buf.read())
+
+    buf.seek(0)
+    refreshed = get_user_by_email(row["email"])
+    headers = {"X-Credits-Balance": str(refreshed["credits"])}
+    return StreamingResponse(buf, media_type="application/zip", headers=headers)
