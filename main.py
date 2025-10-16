@@ -7,62 +7,64 @@ from datetime import datetime, timedelta
 from string import Template
 from typing import List, Optional
 
-from fastapi import FastAPI, Form, UploadFile, File, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
-import uvicorn
+from fastapi import FastAPI, Form, UploadFile, File, Request, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- Database Setup ---
-DB_PATH = os.environ.get("DB_PATH", "autodate.db")
-
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect("autodate.db")
     conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
     conn = get_db()
     cur = conn.cursor()
-    
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
-            subscription_status TEXT DEFAULT 'inactive',
+            subscription_status TEXT DEFAULT 'active',
             subscription_end_date TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
-    # Add can_use_retrofit_tool column if it doesn't exist
-    def _column_exists(cursor, table, column):
-        cursor.execute(f"PRAGMA table_info({table})")
-        columns = [row[1] for row in cursor.fetchall()]
-        return column in columns
-    
-    if not _column_exists(cur, "users", "can_use_retrofit_tool"):
-        cur.execute("ALTER TABLE users ADD COLUMN can_use_retrofit_tool INTEGER NOT NULL DEFAULT 1")
-    
     conn.commit()
     conn.close()
 
 init_db()
 
-app = FastAPI()
+# --- Cookie Helpers ---
+def set_cookie(response: Response, key: str, value: str, max_age: int = 86400*30):
+    """Set a cookie with 30 day expiry by default"""
+    response.set_cookie(
+        key=key,
+        value=value,
+        max_age=max_age,
+        httponly=True,
+        samesite="lax",
+        secure=False  # Set to True in production with HTTPS
+    )
 
-# Admin email - set via environment variable
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "").lower()
+def get_cookie(request: Request, key: str) -> Optional[str]:
+    return request.cookies.get(key)
 
-# --- Cookie & Auth Helpers ---
-SECRET = os.environ.get("SECRET", "change-me-in-production")
+def delete_cookie(response: Response, key: str):
+    response.delete_cookie(key=key)
 
-def set_cookie(resp: RedirectResponse, key: str, val: str):
-    resp.set_cookie(key, val, httponly=True, max_age=30*24*60*60)
-
-def get_cookie(request: Request, key: str) -> str:
-    return request.cookies.get(key, "")
-
+# --- User Helpers ---
 def get_user_row_by_email(email: str):
     conn = get_db()
     cur = conn.cursor()
@@ -101,18 +103,8 @@ def require_active_user_row(request: Request):
     
     return row
 
-def require_admin(request: Request):
-    row = require_active_user_row(request)
-    if isinstance(row, (RedirectResponse, HTMLResponse)):
-        return row
-    
-    if not ADMIN_EMAIL or row["email"].lower() != ADMIN_EMAIL:
-        return HTMLResponse("<h1>Unauthorized</h1><p>Admin access only</p>", status_code=403)
-    
-    return row
-
-# --- HTML Templates ---
-login_html = Template("""
+# --- Modern Login/Signup HTML ---
+login_html = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -120,77 +112,196 @@ login_html = Template("""
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - AutoDate</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: system-ui, -apple-system, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 20px;
         }
+        
         .container {
             background: white;
-            padding: 2rem;
-            border-radius: 1rem;
+            border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            width: 90%;
+            overflow: hidden;
             max-width: 400px;
-        }
-        h1 { color: #667eea; margin-bottom: 1.5rem; text-align: center; }
-        .form-group { margin-bottom: 1rem; }
-        label { display: block; margin-bottom: 0.5rem; color: #333; font-weight: 500; }
-        input {
             width: 100%;
-            padding: 0.75rem;
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 30px;
+            text-align: center;
+            color: white;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .form-container {
+            padding: 40px 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 24px;
+        }
+        
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        input[type="email"],
+        input[type="password"] {
+            width: 100%;
+            padding: 14px 16px;
             border: 2px solid #e0e0e0;
-            border-radius: 0.5rem;
-            font-size: 1rem;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
         }
-        input:focus { outline: none; border-color: #667eea; }
-        button {
+        
+        input[type="email"]:focus,
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .btn {
             width: 100%;
-            padding: 0.75rem;
+            padding: 16px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 0.5rem;
-            font-size: 1rem;
+            border-radius: 10px;
+            font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            margin-top: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
-        button:hover { opacity: 0.9; }
-        .error { color: #e53e3e; margin-bottom: 1rem; padding: 0.75rem; background: #fff5f5; border-radius: 0.5rem; }
-        .link { text-align: center; margin-top: 1rem; }
-        .link a { color: #667eea; text-decoration: none; }
-        .link a:hover { text-decoration: underline; }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .divider {
+            text-align: center;
+            margin: 24px 0;
+            position: relative;
+        }
+        
+        .divider::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            width: 100%;
+            height: 1px;
+            background: #e0e0e0;
+        }
+        
+        .divider span {
+            background: white;
+            padding: 0 16px;
+            position: relative;
+            color: #999;
+            font-size: 14px;
+        }
+        
+        .link {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s;
+        }
+        
+        .link a:hover {
+            color: #764ba2;
+        }
+        
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            border-left: 4px solid #c33;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🚀 AutoDate Login</h1>
-        $error_msg
-        <form method="POST" action="/login">
-            <div class="form-group">
-                <label>Email</label>
-                <input type="email" name="email" required>
+        <div class="header">
+            <h1>AutoDate</h1>
+            <p>Welcome back! Please login to continue</p>
+        </div>
+        <div class="form-container">
+            $error_msg
+            <form method="POST" action="/login">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" required placeholder="you@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn">Sign In</button>
+            </form>
+            <div class="link">
+                <p>Don't have an account? <a href="/signup">Sign up</a></p>
             </div>
-            <div class="form-group">
-                <label>Password</label>
-                <input type="password" name="password" required>
-            </div>
-            <button type="submit">Login</button>
-        </form>
-        <div class="link">
-            <a href="/signup">Don't have an account? Sign up</a>
         </div>
     </div>
 </body>
 </html>
-""")
+"""
 
-signup_html = Template("""
+signup_html = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -198,77 +309,384 @@ signup_html = Template("""
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up - AutoDate</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: system-ui, -apple-system, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 20px;
         }
+        
         .container {
             background: white;
-            padding: 2rem;
-            border-radius: 1rem;
+            border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            width: 90%;
+            overflow: hidden;
             max-width: 400px;
-        }
-        h1 { color: #667eea; margin-bottom: 1.5rem; text-align: center; }
-        .form-group { margin-bottom: 1rem; }
-        label { display: block; margin-bottom: 0.5rem; color: #333; font-weight: 500; }
-        input {
             width: 100%;
-            padding: 0.75rem;
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 30px;
+            text-align: center;
+            color: white;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .form-container {
+            padding: 40px 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 24px;
+        }
+        
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        input[type="email"],
+        input[type="password"] {
+            width: 100%;
+            padding: 14px 16px;
             border: 2px solid #e0e0e0;
-            border-radius: 0.5rem;
-            font-size: 1rem;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
         }
-        input:focus { outline: none; border-color: #667eea; }
-        button {
+        
+        input[type="email"]:focus,
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .btn {
             width: 100%;
-            padding: 0.75rem;
+            padding: 16px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 0.5rem;
-            font-size: 1rem;
+            border-radius: 10px;
+            font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            margin-top: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
-        button:hover { opacity: 0.9; }
-        .error { color: #e53e3e; margin-bottom: 1rem; padding: 0.75rem; background: #fff5f5; border-radius: 0.5rem; }
-        .link { text-align: center; margin-top: 1rem; }
-        .link a { color: #667eea; text-decoration: none; }
-        .link a:hover { text-decoration: underline; }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .link {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s;
+        }
+        
+        .link a:hover {
+            color: #764ba2;
+        }
+        
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            border-left: 4px solid #c33;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🚀 Create Account</h1>
-        $error_msg
-        <form method="POST" action="/signup">
-            <div class="form-group">
-                <label>Email</label>
-                <input type="email" name="email" required>
+        <div class="header">
+            <h1>Create Account</h1>
+            <p>Join AutoDate today</p>
+        </div>
+        <div class="form-container">
+            $error_msg
+            <form method="POST" action="/signup">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" required placeholder="you@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn">Create Account</button>
+            </form>
+            <div class="link">
+                <p>Already have an account? <a href="/login">Sign in</a></p>
             </div>
-            <div class="form-group">
-                <label>Password</label>
-                <input type="password" name="password" required>
-            </div>
-            <button type="submit">Sign Up</button>
-        </form>
-        <div class="link">
-            <a href="/login">Already have an account? Login</a>
         </div>
     </div>
 </body>
 </html>
-""")
+"""
 
-tool2_html = Template("""
+# --- Routes ---
+@app.get("/")
+def root(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
+    
+    email = user_row["email"]
+    return HTMLResponse(f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoDate - Dashboard</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }}
+        
+        .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+        }}
+        
+        .header {{
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+        
+        .header h1 {{
+            font-size: 32px;
+            color: #333;
+        }}
+        
+        .user-info {{
+            text-align: right;
+        }}
+        
+        .user-info p {{
+            color: #666;
+            margin-bottom: 10px;
+        }}
+        
+        .logout-btn {{
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }}
+        
+        .logout-btn:hover {{
+            background: #764ba2;
+            transform: translateY(-2px);
+        }}
+        
+        .tools-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+        }}
+        
+        .tool-card {{
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }}
+        
+        .tool-card:hover {{
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }}
+        
+        .tool-card h2 {{
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 12px;
+        }}
+        
+        .tool-card p {{
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }}
+        
+        .tool-btn {{
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
+        }}
+        
+        .tool-btn:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>AutoDate Dashboard</h1>
+            <div class="user-info">
+                <p>Logged in as: <strong>{email}</strong></p>
+                <form method="POST" action="/logout" style="display:inline;">
+                    <button type="submit" class="logout-btn">Logout</button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="tools-grid">
+            <div class="tool-card">
+                <h2>📸 Timestamp Tool</h2>
+                <p>Add timestamps to multiple images with custom date ranges and cropping options.</p>
+                <a href="/tool/timestamp" class="tool-btn">Open Tool</a>
+            </div>
+            
+            <div class="tool-card">
+                <h2>🏠 Retrofit Design Tool</h2>
+                <p>Create PAS 2035 compliant retrofit design documents automatically.</p>
+                <a href="/tool/retrofit" class="tool-btn">Open Tool</a>
+            </div>
+            
+            <div class="tool-card">
+                <h2>⚙️ Admin Panel</h2>
+                <p>Manage users and subscriptions.</p>
+                <a href="/admin" class="tool-btn">Open Admin</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+    """)
+
+@app.get("/login")
+def get_login():
+    t = Template(login_html)
+    return HTMLResponse(t.substitute(error_msg=""))
+
+@app.post("/login")
+def post_login(email: str = Form(...), password: str = Form(...)):
+    row = get_user_row_by_email(email)
+    
+    if not row or row["password"] != password:
+        t = Template(login_html)
+        return HTMLResponse(t.substitute(error_msg='<div class="error">Invalid email or password</div>'))
+    
+    response = RedirectResponse("/", status_code=302)
+    set_cookie(response, "user_email", email.lower())
+    return response
+
+@app.get("/signup")
+def get_signup():
+    t = Template(signup_html)
+    return HTMLResponse(t.substitute(error_msg=""))
+
+@app.post("/signup")
+def post_signup(email: str = Form(...), password: str = Form(...)):
+    conn = get_db()
+    cur = conn.cursor()
+    
+    try:
+        end_date = (datetime.now() + timedelta(days=365)).isoformat()
+        cur.execute(
+            "INSERT INTO users (email, password, subscription_status, subscription_end_date) VALUES (?, ?, 'active', ?)",
+            (email.lower(), password, end_date)
+        )
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        t = Template(signup_html)
+        return HTMLResponse(t.substitute(error_msg='<div class="error">Email already registered</div>'))
+    
+    conn.close()
+    
+    response = RedirectResponse("/", status_code=302)
+    set_cookie(response, "user_email", email.lower())
+    return response
+
+@app.post("/logout")
+def logout():
+    response = RedirectResponse("/login", status_code=302)
+    delete_cookie(response, "user_email")
+    return response
+
+# --- Timestamp Tool ---
+timestamp_tool_html = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -276,128 +694,259 @@ tool2_html = Template("""
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Timestamp Tool - AutoDate</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: system-ui, -apple-system, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 2rem;
+            padding: 40px 20px;
         }
-        .header {
-            text-align: center;
-            color: white;
-            margin-bottom: 2rem;
-        }
-        .header h1 { margin-bottom: 0.5rem; }
-        .nav {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-        .nav a {
-            color: white;
-            text-decoration: none;
-            margin: 0 1rem;
-            font-weight: 500;
-        }
-        .nav a:hover { text-decoration: underline; }
+        
         .container {
             max-width: 900px;
             margin: 0 auto;
             background: white;
-            padding: 2rem;
-            border-radius: 1rem;
+            border-radius: 20px;
+            padding: 40px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }
-        .form-group { margin-bottom: 1.5rem; }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 36px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 16px;
+        }
+        
+        .back-btn {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        
+        .back-btn:hover {
+            color: #764ba2;
+        }
+        
+        .form-section {
+            margin-bottom: 30px;
+        }
+        
+        .form-section h3 {
+            color: #333;
+            margin-bottom: 16px;
+            font-size: 18px;
+        }
+        
+        .drop-zone {
+            border: 3px dashed #667eea;
+            border-radius: 12px;
+            padding: 60px 20px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+        
+        .drop-zone:hover {
+            background: #f0f2ff;
+            border-color: #764ba2;
+        }
+        
+        .drop-zone.dragover {
+            background: #e8ebff;
+            border-color: #764ba2;
+            transform: scale(1.02);
+        }
+        
+        .drop-zone p {
+            color: #667eea;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .drop-zone span {
+            color: #999;
+            font-size: 14px;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+        
+        .preview-item {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .preview-item img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+        }
+        
+        .preview-item .remove {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(255,0,0,0.8);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 28px;
+        }
+        
+        .preview-item .remove:hover {
+            background: red;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 1rem;
+            gap: 16px;
         }
-        label { display: block; margin-bottom: 0.5rem; color: #333; font-weight: 500; }
-        input, select {
+        
+        .submit-btn {
             width: 100%;
-            padding: 0.75rem;
-            border: 2px solid #e0e0e0;
-            border-radius: 0.5rem;
-            font-size: 1rem;
-        }
-        input:focus, select:focus { outline: none; border-color: #667eea; }
-        button {
-            width: 100%;
-            padding: 0.75rem;
+            padding: 16px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 0.5rem;
-            font-size: 1rem;
+            border-radius: 12px;
+            font-size: 18px;
             font-weight: 600;
             cursor: pointer;
+            transition: all 0.3s;
         }
-        button:hover { opacity: 0.9; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-        .help-text {
-            font-size: 0.85rem;
-            color: #666;
-            margin-top: 0.25rem;
+        
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
         }
+        
+        .submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
         .results {
-            margin-top: 2rem;
-            padding: 1.5rem;
-            background: #f7fafc;
-            border-radius: 0.5rem;
-            border: 2px solid #667eea;
+            margin-top: 40px;
+            display: none;
         }
-        .results h3 { margin-bottom: 1rem; }
-        .image-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-        .image-item {
-            position: relative;
-            border-radius: 0.5rem;
-            overflow: hidden;
-            border: 2px solid #e0e0e0;
-        }
-        .image-item img {
-            width: 100%;
-            height: auto;
+        
+        .results.show {
             display: block;
         }
-        .image-label {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(0,0,0,0.7);
+        
+        .results h3 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .result-item {
+            text-align: center;
+        }
+        
+        .result-item img {
+            width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 12px;
+        }
+        
+        .download-btn {
+            display: inline-block;
+            background: #667eea;
             color: white;
-            padding: 0.5rem;
-            font-size: 0.85rem;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        
+        .download-btn:hover {
+            background: #764ba2;
+        }
+        
+        .loading {
             text-align: center;
-        }
-        .download-all {
-            margin-top: 1rem;
-        }
-        #processing {
+            padding: 40px;
             display: none;
-            text-align: center;
-            padding: 2rem;
-            background: #f0f9ff;
-            border-radius: 0.5rem;
-            margin-top: 1rem;
         }
-        #processing.active { display: block; }
+        
+        .loading.show {
+            display: block;
+        }
+        
         .spinner {
-            border: 4px solid #e0e0e0;
+            border: 4px solid #f3f3f3;
             border-top: 4px solid #667eea;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
+            width: 50px;
+            height: 50px;
             animation: spin 1s linear infinite;
-            margin: 0 auto 1rem;
+            margin: 0 auto 20px;
         }
+        
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -405,99 +954,156 @@ tool2_html = Template("""
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>⏰ Crop & Timestamp Tool</h1>
-    </div>
-    <div class="nav">
-        $admin_link
-        <a href="/billing">Billing</a>
-        <a href="/logout">Logout</a>
-    </div>
     <div class="container">
-        <form id="stampForm" enctype="multipart/form-data">
-            <div class="form-group">
-                <label>Upload Images (Multiple)</label>
-                <input type="file" name="images" accept="image/*" multiple required>
-                <div class="help-text">Select 2 or more images for time distribution</div>
-            </div>
-            
-            <div class="form-group">
-                <label>Date to Use</label>
-                <input type="text" name="date_text" placeholder="e.g., 30 May 2025" required>
-                <div class="help-text">Enter the date in any format</div>
-            </div>
-            
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Start Time (HH:MM:SS)</label>
-                    <input type="text" name="start_time" placeholder="13:00:00" pattern="[0-9]{2}:[0-9]{2}:[0-9]{2}" required>
-                </div>
-                <div class="form-group">
-                    <label>End Time (HH:MM:SS)</label>
-                    <input type="text" name="end_time" placeholder="15:00:00" pattern="[0-9]{2}:[0-9]{2}:[0-9]{2}" required>
-                </div>
-            </div>
-            
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Crop Bottom (pixels)</label>
-                    <input type="number" name="crop_height" value="0" min="0" max="500">
-                    <div class="help-text">Pixels to remove from bottom</div>
-                </div>
-                <div class="form-group">
-                    <label>Font Size</label>
-                    <input type="number" name="font_size" value="30" min="10" max="100">
-                </div>
-            </div>
-            
-            <div class="form-group">
-                <label>Text Color</label>
-                <select name="text_color">
-                    <option value="white">White</option>
-                    <option value="black">Black</option>
-                    <option value="yellow">Yellow</option>
-                    <option value="red">Red</option>
-                </select>
-            </div>
-            
-            <button type="submit" id="submitBtn">Process Images</button>
-        </form>
+        <a href="/" class="back-btn">← Back to Dashboard</a>
         
-        <div id="processing">
-            <div class="spinner"></div>
-            <p>Processing images...</p>
+        <div class="header">
+            <h1>📸 Timestamp Tool</h1>
+            <p>Add timestamps to multiple images with time range distribution</p>
         </div>
         
-        <div id="results" class="results" style="display:none;">
-            <h3>✅ Processing Complete</h3>
-            <div id="imageGrid" class="image-grid"></div>
-            <div class="download-all">
-                <button type="button" onclick="downloadAll()">Download All as ZIP</button>
+        <form id="timestampForm">
+            <div class="form-section">
+                <h3>Upload Images</h3>
+                <div class="drop-zone" id="dropZone">
+                    <p>📁 Drag & Drop Images Here</p>
+                    <span>or click to browse (supports multiple images)</span>
+                    <input type="file" id="fileInput" class="file-input" accept="image/*" multiple>
+                </div>
+                <div class="preview-grid" id="previewGrid"></div>
             </div>
+            
+            <div class="form-section">
+                <h3>Timestamp Settings</h3>
+                
+                <div class="form-group">
+                    <label>Date Text</label>
+                    <input type="text" id="dateText" value="16/10/2025" required>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Start Time</label>
+                        <input type="time" id="startTime" value="09:00" required>
+                    </div>
+                    <div class="form-group">
+                        <label>End Time</label>
+                        <input type="time" id="endTime" value="17:00" required>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Crop from Bottom (pixels)</label>
+                        <input type="number" id="cropBottom" value="0" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Text Color</label>
+                        <select id="textColor">
+                            <option value="255,255,255">White</option>
+                            <option value="0,0,0">Black</option>
+                            <option value="255,0,0">Red</option>
+                            <option value="0,255,0">Green</option>
+                            <option value="0,0,255">Blue</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <button type="submit" class="submit-btn" id="submitBtn" disabled>Process Images</button>
+        </form>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Processing your images...</p>
+        </div>
+        
+        <div class="results" id="results">
+            <h3>✅ Processed Images</h3>
+            <div class="result-grid" id="resultGrid"></div>
         </div>
     </div>
     
     <script>
-        let processedImages = [];
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const previewGrid = document.getElementById('previewGrid');
+        const submitBtn = document.getElementById('submitBtn');
+        const form = document.getElementById('timestampForm');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const resultGrid = document.getElementById('resultGrid');
         
-        document.getElementById('stampForm').addEventListener('submit', async (e) => {
+        let selectedFiles = [];
+        
+        // Click to browse
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        // Drag and drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+        
+        function handleFiles(files) {
+            selectedFiles = Array.from(files);
+            displayPreviews();
+            submitBtn.disabled = selectedFiles.length === 0;
+        }
+        
+        function displayPreviews() {
+            previewGrid.innerHTML = '';
+            selectedFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const div = document.createElement('div');
+                    div.className = 'preview-item';
+                    div.innerHTML = `
+                        <img src="${e.target.result}" alt="Preview">
+                        <button class="remove" onclick="removeFile(${index})" type="button">×</button>
+                    `;
+                    previewGrid.appendChild(div);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        window.removeFile = function(index) {
+            selectedFiles.splice(index, 1);
+            displayPreviews();
+            submitBtn.disabled = selectedFiles.length === 0;
+        };
+        
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const formData = new FormData(e.target);
-            const submitBtn = document.getElementById('submitBtn');
-            const processing = document.getElementById('processing');
-            const results = document.getElementById('results');
+            if (selectedFiles.length === 0) return;
             
-            // Validate at least 2 images
-            const files = formData.getAll('images');
-            if (files.length < 2) {
-                alert('Please select at least 2 images');
-                return;
-            }
+            const formData = new FormData();
+            selectedFiles.forEach(file => formData.append('images', file));
+            formData.append('date_text', document.getElementById('dateText').value);
+            formData.append('start_time', document.getElementById('startTime').value);
+            formData.append('end_time', document.getElementById('endTime').value);
+            formData.append('crop_bottom', document.getElementById('cropBottom').value);
+            formData.append('text_color', document.getElementById('textColor').value);
             
             submitBtn.disabled = true;
-            processing.classList.add('active');
-            results.style.display = 'none';
+            loading.classList.add('show');
+            results.classList.remove('show');
             
             try {
                 const response = await fetch('/api/stamp-batch', {
@@ -505,771 +1111,45 @@ tool2_html = Template("""
                     body: formData
                 });
                 
-                if (response.ok) {
-                    const data = await response.json();
-                    processedImages = data.images;
-                    displayResults(data.images);
-                } else {
-                    const error = await response.text();
-                    alert('Error: ' + error);
-                }
-            } catch (error) {
-                alert('Error: ' + error.message);
-            } finally {
-                submitBtn.disabled = false;
-                processing.classList.remove('active');
-            }
-        });
-        
-        function displayResults(images) {
-            const grid = document.getElementById('imageGrid');
-            grid.innerHTML = '';
-            
-            images.forEach((img, idx) => {
-                const item = document.createElement('div');
-                item.className = 'image-item';
-                item.innerHTML = `
-                    <img src="data:image/jpeg;base64,\${img.data}" alt="Image \${idx + 1}">
-                    <div class="image-label">\${img.filename}</div>
-                `;
-                grid.appendChild(item);
-            });
-            
-            document.getElementById('results').style.display = 'block';
-        }
-        
-        function downloadAll() {
-            processedImages.forEach((img, idx) => {
-                const link = document.createElement('a');
-                link.href = 'data:image/jpeg;base64,' + img.data;
-                link.download = img.filename;
-                link.click();
-            });
-        }
-    </script>
-</body>
-</html>
-""")
-
-# --- Routes ---
-@app.get("/")
-def root():
-    return RedirectResponse("/tool2")
-
-@app.get("/__whoami")
-def whoami():
-    return {"status": "main.py active", "timestamp": datetime.now().isoformat()}
-
-@app.get("/login", response_class=HTMLResponse)
-def login_page(error: str = ""):
-    error_msg = f'<div class="error">{error}</div>' if error else ""
-    return HTMLResponse(login_html.safe_substitute(error_msg=error_msg))
-
-@app.post("/login")
-def login_post(email: str = Form(...), password: str = Form(...)):
-    row = get_user_row_by_email(email)
-    if not row or row["password"] != password:
-        return RedirectResponse("/login?error=Invalid credentials", status_code=302)
-    
-    resp = RedirectResponse("/tool2", status_code=302)
-    set_cookie(resp, "user_email", email.lower())
-    return resp
-
-@app.get("/signup", response_class=HTMLResponse)
-def signup_page(error: str = ""):
-    error_msg = f'<div class="error">{error}</div>' if error else ""
-    return HTMLResponse(signup_html.safe_substitute(error_msg=error_msg))
-
-@app.post("/signup")
-def signup_post(email: str = Form(...), password: str = Form(...)):
-    conn = get_db()
-    cur = conn.cursor()
-    
-    try:
-        cur.execute(
-            "INSERT INTO users (email, password, subscription_status) VALUES (?, ?, ?)",
-            (email.lower(), password, "active")
-        )
-        conn.commit()
-    except sqlite3.IntegrityError:
-        conn.close()
-        return RedirectResponse("/signup?error=Email already exists", status_code=302)
-    finally:
-        conn.close()
-    
-    resp = RedirectResponse("/tool2", status_code=302)
-    set_cookie(resp, "user_email", email.lower())
-    return resp
-
-@app.get("/logout")
-def logout():
-    resp = RedirectResponse("/login", status_code=302)
-    resp.delete_cookie("user_email")
-    return resp
-
-@app.get("/tool2", response_class=HTMLResponse)
-def tool2(request: Request):
-    row = require_active_user_row(request)
-    if isinstance(row, (RedirectResponse, HTMLResponse)):
-        return row
-    
-    show_admin = ADMIN_EMAIL and row["email"].lower() == ADMIN_EMAIL
-    
-    # Simple version - show to everyone
-    admin_link = ""
-    if show_admin:
-        admin_link = '<a href="/admin">Admin</a> '
-    
-    # Always show Retrofit Design link for now
-    admin_link += '<a href="/retrofit-tool" style="color:#22c55e;font-weight:600">🏠 Retrofit Design</a> '
-    
-    return HTMLResponse(tool2_html.safe_substitute(admin_link=admin_link))
-
-# --- NEW: Native Retrofit Design Tool ---
-@app.get("/retrofit-tool", response_class=HTMLResponse)
-def retrofit_tool(request: Request):
-    row = require_active_user_row(request)
-    if isinstance(row, (RedirectResponse, HTMLResponse)):
-        return row
-    
-    html = """
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Retrofit Design Tool - AutoDate</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            min-height: 100vh;
-            padding: 2rem;
-        }
-        
-        .header {
-            text-align: center;
-            color: white;
-            margin-bottom: 2rem;
-        }
-        
-        .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-        }
-        
-        .nav {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-        
-        .nav a {
-            color: white;
-            text-decoration: none;
-            margin: 0 1rem;
-            font-weight: 500;
-            transition: all 0.3s;
-        }
-        
-        .nav a:hover {
-            text-decoration: underline;
-            color: #22c55e;
-        }
-        
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 1.5rem;
-            box-shadow: 0 25px 80px rgba(0,0,0,0.4);
-            overflow: hidden;
-        }
-        
-        .progress-bar {
-            display: flex;
-            background: #f8fafc;
-            padding: 1.5rem 2rem;
-            border-bottom: 2px solid #e2e8f0;
-        }
-        
-        .progress-step {
-            flex: 1;
-            text-align: center;
-            position: relative;
-        }
-        
-        .progress-step::after {
-            content: '';
-            position: absolute;
-            top: 15px;
-            left: 50%;
-            width: 100%;
-            height: 3px;
-            background: #e2e8f0;
-            z-index: 0;
-        }
-        
-        .progress-step:last-child::after {
-            display: none;
-        }
-        
-        .progress-circle {
-            width: 40px;
-            height: 40px;
-            background: white;
-            border: 3px solid #e2e8f0;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 0.5rem;
-            font-weight: bold;
-            color: #94a3b8;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .progress-step.active .progress-circle {
-            background: #22c55e;
-            border-color: #22c55e;
-            color: white;
-        }
-        
-        .progress-step.completed .progress-circle {
-            background: #3b82f6;
-            border-color: #3b82f6;
-            color: white;
-        }
-        
-        .progress-label {
-            font-size: 0.85rem;
-            color: #64748b;
-            font-weight: 500;
-        }
-        
-        .content {
-            padding: 3rem;
-        }
-        
-        .step-title {
-            font-size: 2rem;
-            color: #1e293b;
-            margin-bottom: 0.5rem;
-            font-weight: 700;
-        }
-        
-        .step-subtitle {
-            color: #64748b;
-            margin-bottom: 2rem;
-            font-size: 1.1rem;
-        }
-        
-        .format-tabs {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-        
-        .format-tab {
-            flex: 1;
-            padding: 1.5rem;
-            background: #f8fafc;
-            border: 3px solid #e2e8f0;
-            border-radius: 1rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .format-tab:hover {
-            border-color: #22c55e;
-            background: #f0fdf4;
-        }
-        
-        .format-tab.active {
-            border-color: #22c55e;
-            background: #f0fdf4;
-        }
-        
-        .format-tab h3 {
-            color: #1e293b;
-            margin-bottom: 0.5rem;
-            font-size: 1.3rem;
-        }
-        
-        .format-tab p {
-            color: #64748b;
-            font-size: 0.9rem;
-        }
-        
-        .upload-section {
-            margin-bottom: 2rem;
-        }
-        
-        .upload-label {
-            display: block;
-            font-weight: 600;
-            color: #1e293b;
-            margin-bottom: 0.75rem;
-            font-size: 1.1rem;
-        }
-        
-        .upload-zone {
-            border: 3px dashed #cbd5e1;
-            border-radius: 1rem;
-            padding: 3rem;
-            text-align: center;
-            background: #f8fafc;
-            cursor: pointer;
-            transition: all 0.3s;
-            position: relative;
-        }
-        
-        .upload-zone:hover {
-            border-color: #22c55e;
-            background: #f0fdf4;
-        }
-        
-        .upload-zone.dragover {
-            border-color: #22c55e;
-            background: #dcfce7;
-        }
-        
-        .upload-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            color: #3b82f6;
-        }
-        
-        .upload-text {
-            font-size: 1.1rem;
-            color: #1e293b;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-        }
-        
-        .upload-hint {
-            color: #64748b;
-            font-size: 0.9rem;
-        }
-        
-        .file-input {
-            display: none;
-        }
-        
-        .file-display {
-            display: flex;
-            align-items: center;
-            padding: 1rem;
-            background: #f0fdf4;
-            border: 2px solid #22c55e;
-            border-radius: 0.75rem;
-            margin-top: 1rem;
-        }
-        
-        .file-icon {
-            width: 40px;
-            height: 40px;
-            background: #22c55e;
-            color: white;
-            border-radius: 0.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            margin-right: 1rem;
-        }
-        
-        .file-info {
-            flex: 1;
-        }
-        
-        .file-name {
-            font-weight: 600;
-            color: #1e293b;
-            margin-bottom: 0.25rem;
-        }
-        
-        .file-size {
-            color: #64748b;
-            font-size: 0.9rem;
-        }
-        
-        .file-remove {
-            color: #ef4444;
-            cursor: pointer;
-            font-size: 1.5rem;
-            padding: 0.5rem;
-        }
-        
-        .file-remove:hover {
-            color: #dc2626;
-        }
-        
-        .button-group {
-            display: flex;
-            gap: 1rem;
-            margin-top: 2rem;
-        }
-        
-        .btn {
-            flex: 1;
-            padding: 1rem;
-            border: none;
-            border-radius: 0.75rem;
-            font-size: 1.1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .btn-back {
-            background: #f1f5f9;
-            color: #475569;
-        }
-        
-        .btn-back:hover {
-            background: #e2e8f0;
-        }
-        
-        .btn-continue {
-            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-            color: white;
-        }
-        
-        .btn-continue:hover {
-            opacity: 0.9;
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(34, 197, 94, 0.3);
-        }
-        
-        .btn-continue:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .processing {
-            display: none;
-            padding: 2rem;
-            background: #f8fafc;
-            border-radius: 1rem;
-            text-align: center;
-            margin-top: 2rem;
-        }
-        
-        .processing.active {
-            display: block;
-        }
-        
-        .spinner {
-            width: 60px;
-            height: 60px;
-            border: 5px solid #e2e8f0;
-            border-top-color: #22c55e;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 1rem;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .processing-text {
-            font-size: 1.1rem;
-            color: #1e293b;
-            font-weight: 600;
-        }
-        
-        .hidden {
-            display: none !important;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>🏠 AutoDate - Retrofit Design</h1>
-    </div>
-    
-    <div class="nav">
-        <a href="/admin">Admin</a>
-        <a href="/tool2">Timestamp Tool</a>
-        <a href="/billing">Billing</a>
-        <a href="/logout">Logout</a>
-    </div>
-    
-    <div class="container">
-        <div class="progress-bar">
-            <div class="progress-step active">
-                <div class="progress-circle">1</div>
-                <div class="progress-label">Upload Documents</div>
-            </div>
-            <div class="progress-step">
-                <div class="progress-circle">2</div>
-                <div class="progress-label">Select Measures</div>
-            </div>
-            <div class="progress-step">
-                <div class="progress-circle">3</div>
-                <div class="progress-label">Answer Questions</div>
-            </div>
-            <div class="progress-step">
-                <div class="progress-circle">4</div>
-                <div class="progress-label">Upload Calcs</div>
-            </div>
-            <div class="progress-step">
-                <div class="progress-circle">5</div>
-                <div class="progress-label">Generate Design</div>
-            </div>
-        </div>
-        
-        <div class="content">
-            <h2 class="step-title">Step 1: Upload Site Notes</h2>
-            <p class="step-subtitle">Choose your format and upload the required documents</p>
-            
-            <div class="format-tabs">
-                <div class="format-tab active" id="pashub-tab" onclick="selectFormat('pashub')">
-                    <h3>📋 PAS Hub Format</h3>
-                    <p>Upload site notes + condition report</p>
-                </div>
-                <div class="format-tab" id="elmhurst-tab" onclick="selectFormat('elmhurst')">
-                    <h3>📊 Elmhurst Format</h3>
-                    <p>Upload site notes + condition report</p>
-                </div>
-            </div>
-            
-            <!-- PAS Hub Uploads -->
-            <div id="pashub-uploads">
-                <div class="upload-section">
-                    <label class="upload-label">1. PAS Hub Site Notes PDF</label>
-                    <div class="upload-zone" id="pashub-sitenotes-zone" onclick="document.getElementById('pashub-sitenotes-input').click()">
-                        <div class="upload-icon">📄</div>
-                        <div class="upload-text">Drop PAS Hub Site Notes Here</div>
-                        <div class="upload-hint">or click to browse for PDF file</div>
-                    </div>
-                    <input type="file" id="pashub-sitenotes-input" class="file-input" accept=".pdf" onchange="handleFileSelect(event, 'pashub-sitenotes')">
-                    <div id="pashub-sitenotes-display" class="hidden"></div>
-                </div>
+                const data = await response.json();
                 
-                <div class="upload-section">
-                    <label class="upload-label">2. PAS Hub Condition Report PDF (with photos)</label>
-                    <div class="upload-zone" id="pashub-condition-zone" onclick="document.getElementById('pashub-condition-input').click()">
-                        <div class="upload-icon">📷</div>
-                        <div class="upload-text">Drop Condition Report Here</div>
-                        <div class="upload-hint">or click to browse for PDF file</div>
-                    </div>
-                    <input type="file" id="pashub-condition-input" class="file-input" accept=".pdf" onchange="handleFileSelect(event, 'pashub-condition')">
-                    <div id="pashub-condition-display" class="hidden"></div>
-                </div>
-            </div>
-            
-            <!-- Elmhurst Uploads -->
-            <div id="elmhurst-uploads" class="hidden">
-                <div class="upload-section">
-                    <label class="upload-label">1. Elmhurst Site Notes PDF (RdSAP Assessment)</label>
-                    <div class="upload-zone" id="elmhurst-sitenotes-zone" onclick="document.getElementById('elmhurst-sitenotes-input').click()">
-                        <div class="upload-icon">📄</div>
-                        <div class="upload-text">Drop Elmhurst Site Notes Here</div>
-                        <div class="upload-hint">or click to browse for PDF file</div>
-                    </div>
-                    <input type="file" id="elmhurst-sitenotes-input" class="file-input" accept=".pdf" onchange="handleFileSelect(event, 'elmhurst-sitenotes')">
-                    <div id="elmhurst-sitenotes-display" class="hidden"></div>
-                </div>
+                loading.classList.remove('show');
+                results.classList.add('show');
                 
-                <div class="upload-section">
-                    <label class="upload-label">2. Elmhurst Condition Report PDF (with photos)</label>
-                    <div class="upload-zone" id="elmhurst-condition-zone" onclick="document.getElementById('elmhurst-condition-input').click()">
-                        <div class="upload-icon">📷</div>
-                        <div class="upload-text">Drop Condition Report Here</div>
-                        <div class="upload-hint">or click to browse for PDF file</div>
-                    </div>
-                    <input type="file" id="elmhurst-condition-input" class="file-input" accept=".pdf" onchange="handleFileSelect(event, 'elmhurst-condition')">
-                    <div id="elmhurst-condition-display" class="hidden"></div>
-                </div>
-            </div>
-            
-            <div class="processing" id="processing">
-                <div class="spinner"></div>
-                <div class="processing-text">Processing documents and moving to Step 2... (Full processing coming next!)</div>
-            </div>
-            
-            <div class="button-group">
-                <button class="btn btn-back" onclick="window.location.href='/tool2'">Back</button>
-                <button class="btn btn-continue" id="continue-btn" onclick="continueToStep2()" disabled>Continue to Measure Selection</button>
-            </div>
-        </div>
-    </div>
-    
-    <script>
-        let currentFormat = 'pashub';
-        let uploadedFiles = {
-            'pashub-sitenotes': null,
-            'pashub-condition': null,
-            'elmhurst-sitenotes': null,
-            'elmhurst-condition': null
-        };
-        
-        function selectFormat(format) {
-            currentFormat = format;
-            
-            // Update tabs
-            document.getElementById('pashub-tab').classList.toggle('active', format === 'pashub');
-            document.getElementById('elmhurst-tab').classList.toggle('active', format === 'elmhurst');
-            
-            // Show/hide upload sections
-            document.getElementById('pashub-uploads').classList.toggle('hidden', format !== 'pashub');
-            document.getElementById('elmhurst-uploads').classList.toggle('hidden', format !== 'elmhurst');
-            
-            updateContinueButton();
-        }
-        
-        function handleFileSelect(event, uploadType) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            uploadedFiles[uploadType] = file;
-            
-            // Create file display
-            const displayDiv = document.getElementById(uploadType + '-display');
-            displayDiv.className = 'file-display';
-            displayDiv.innerHTML = `
-                <div class="file-icon">PDF</div>
-                <div class="file-info">
-                    <div class="file-name">${file.name}</div>
-                    <div class="file-size">${(file.size / 1024 / 1024).toFixed(2)} MB</div>
-                </div>
-                <div class="file-remove" onclick="removeFile('${uploadType}')">×</div>
-            `;
-            
-            updateContinueButton();
-        }
-        
-        function removeFile(uploadType) {
-            uploadedFiles[uploadType] = null;
-            document.getElementById(uploadType + '-display').className = 'hidden';
-            document.getElementById(uploadType + '-input').value = '';
-            updateContinueButton();
-        }
-        
-        function updateContinueButton() {
-            const btn = document.getElementById('continue-btn');
-            
-            if (currentFormat === 'pashub') {
-                btn.disabled = !(uploadedFiles['pashub-sitenotes'] && uploadedFiles['pashub-condition']);
-            } else {
-                btn.disabled = !(uploadedFiles['elmhurst-sitenotes'] && uploadedFiles['elmhurst-condition']);
-            }
-        }
-        
-        async function continueToStep2() {
-            // Show processing
-            document.getElementById('processing').classList.add('active');
-            document.getElementById('continue-btn').disabled = true;
-            
-            // Prepare FormData
-            const formData = new FormData();
-            formData.append('format', currentFormat);
-            
-            if (currentFormat === 'pashub') {
-                formData.append('sitenotes', uploadedFiles['pashub-sitenotes']);
-                formData.append('condition', uploadedFiles['pashub-condition']);
-            } else {
-                formData.append('sitenotes', uploadedFiles['elmhurst-sitenotes']);
-                formData.append('condition', uploadedFiles['elmhurst-condition']);
-            }
-            
-            try {
-                const response = await fetch('/api/retrofit/process-upload', {
-                    method: 'POST',
-                    body: formData
+                resultGrid.innerHTML = '';
+                data.images.forEach((img, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'result-item';
+                    div.innerHTML = `
+                        <img src="data:image/jpeg;base64,${img.data}" alt="Result ${index + 1}">
+                        <a href="data:image/jpeg;base64,${img.data}" download="stamped_${index + 1}.jpg" class="download-btn">
+                            Download
+                        </a>
+                    `;
+                    resultGrid.appendChild(div);
                 });
                 
-                if (response.ok) {
-                    const result = await response.json();
-                    
-                    // Simulate processing delay (remove this later when real processing is added)
-                    setTimeout(() => {
-                        alert('Upload successful! Moving to Step 2: Measure Selection (Coming next!)');
-                        // TODO: Navigate to Step 2
-                    }, 2000);
-                } else {
-                    alert('Error processing documents');
-                    document.getElementById('processing').classList.remove('active');
-                    updateContinueButton();
-                }
+                submitBtn.disabled = false;
             } catch (error) {
-                alert('Error: ' + error.message);
-                document.getElementById('processing').classList.remove('active');
-                updateContinueButton();
+                alert('Error processing images. Please try again.');
+                loading.classList.remove('show');
+                submitBtn.disabled = false;
             }
-        }
-        
-        // Drag and drop handlers
-        ['pashub-sitenotes', 'pashub-condition', 'elmhurst-sitenotes', 'elmhurst-condition'].forEach(type => {
-            const zone = document.getElementById(type + '-zone');
-            
-            zone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                zone.classList.add('dragover');
-            });
-            
-            zone.addEventListener('dragleave', () => {
-                zone.classList.remove('dragover');
-            });
-            
-            zone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                zone.classList.remove('dragover');
-                
-                const file = e.dataTransfer.files[0];
-                if (file && file.type === 'application/pdf') {
-                    const input = document.getElementById(type + '-input');
-                    const dataTransfer = new DataTransfer();
-                    dataTransfer.items.add(file);
-                    input.files = dataTransfer.files;
-                    
-                    input.dispatchEvent(new Event('change'));
-                }
-            });
         });
     </script>
 </body>
 </html>
-    """
-    
-    return HTMLResponse(html)
+"""
 
-# --- NEW: Retrofit Upload Processing API ---
-@app.post("/api/retrofit/process-upload")
-async def process_retrofit_upload(
-    format: str = Form(...),
-    sitenotes: UploadFile = File(...),
-    condition: UploadFile = File(...)
-):
-    """
-    Process uploaded site notes and condition report.
-    This is a placeholder - full PDF processing will be added next.
-    """
-    
-    # TODO: Add PDF processing here using PyPDF2
-    # TODO: Extract data from site notes based on format
-    # TODO: Store extracted data for Step 2
-    
-    return JSONResponse({
-        "success": True,
-        "format": format,
-        "sitenotes_filename": sitenotes.filename,
-        "condition_filename": condition.filename,
-        "message": "Documents uploaded successfully. Ready for Step 2!"
-    })
+@app.get("/tool/timestamp")
+def get_timestamp_tool(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
+    return HTMLResponse(timestamp_tool_html)
 
-# --- Image Stamping API ---
+# --- Timestamp API with Pillow ---
 from PIL import Image, ImageDraw, ImageFont
-from io import BytesIO
-import base64
 
 @app.post("/api/stamp-batch")
 async def stamp_batch(
@@ -1277,443 +1157,637 @@ async def stamp_batch(
     date_text: str = Form(...),
     start_time: str = Form(...),
     end_time: str = Form(...),
-    crop_height: int = Form(0),
-    font_size: int = Form(30),
-    text_color: str = Form("white")
+    crop_bottom: int = Form(0),
+    text_color: str = Form("255,255,255")
 ):
-    """
-    Process multiple images with time distribution and cropping
-    """
-    if len(images) < 2:
-        return JSONResponse({"error": "Need at least 2 images"}, status_code=400)
+    """Process multiple images with distributed timestamps"""
     
     # Parse times
-    try:
-        start_dt = datetime.strptime(start_time, "%H:%M:%S")
-        end_dt = datetime.strptime(end_time, "%H:%M:%S")
-    except:
-        return JSONResponse({"error": "Invalid time format. Use HH:MM:SS"}, status_code=400)
+    start_h, start_m = map(int, start_time.split(':'))
+    end_h, end_m = map(int, end_time.split(':'))
     
-    total_images = len(images)
-    total_duration = (end_dt - start_dt).total_seconds()
-    interval = total_duration / (total_images - 1) if total_images > 1 else 0
+    start_minutes = start_h * 60 + start_m
+    end_minutes = end_h * 60 + end_m
     
-    # Load font
-    try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-    except:
-        font = ImageFont.load_default()
+    num_images = len(images)
     
-    # Color mapping
-    color_map = {
-        "white": (255, 255, 255),
-        "black": (0, 0, 0),
-        "yellow": (255, 255, 0),
-        "red": (255, 0, 0)
-    }
-    rgb_color = color_map.get(text_color, (255, 255, 255))
+    # Calculate time interval
+    if num_images > 1:
+        interval = (end_minutes - start_minutes) / (num_images - 1)
+    else:
+        interval = 0
     
-    result_images = []
+    # Parse color
+    r, g, b = map(int, text_color.split(','))
+    
+    results = []
     
     for idx, img_file in enumerate(images):
-        # Calculate timestamp for this image
-        timestamp_dt = start_dt + timedelta(seconds=interval * idx)
-        time_str = timestamp_dt.strftime("%H:%M:%S")
-        full_timestamp = f"{date_text}, {time_str}"
+        # Calculate time for this image
+        current_minutes = start_minutes + (interval * idx)
+        current_h = int(current_minutes // 60)
+        current_m = int(current_minutes % 60)
+        time_str = f"{current_h:02d}:{current_m:02d}"
         
-        # Read and process image
+        # Read image
         img_bytes = await img_file.read()
-        img = Image.open(BytesIO(img_bytes))
+        img = Image.open(io.BytesIO(img_bytes))
+        
+        # Convert to RGB if needed
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
         
         # Crop from bottom if needed
-        if crop_height > 0:
+        if crop_bottom > 0:
             width, height = img.size
-            img = img.crop((0, 0, width, height - crop_height))
+            img = img.crop((0, 0, width, height - crop_bottom))
         
         # Add timestamp
         draw = ImageDraw.Draw(img)
-        bbox = draw.textbbox((0, 0), full_timestamp, font=font)
+        
+        # Try to use a nice font, fallback to default
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
+        except:
+            font = ImageFont.load_default()
+        
+        # Create timestamp text
+        timestamp_text = f"{date_text} {time_str}"
+        
+        # Get text size
+        bbox = draw.textbbox((0, 0), timestamp_text, font=font)
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
         
-        x = img.width - text_width - 10
-        y = img.height - text_height - 10
+        # Position at bottom right with padding
+        width, height = img.size
+        x = width - text_width - 20
+        y = height - text_height - 20
         
-        draw.text((x, y), full_timestamp, fill=rgb_color, font=font)
+        # Draw text with shadow
+        draw.text((x+2, y+2), timestamp_text, font=font, fill=(0, 0, 0))
+        draw.text((x, y), timestamp_text, font=font, fill=(r, g, b))
         
-        # Convert to base64
-        output = BytesIO()
+        # Save to bytes
+        output = io.BytesIO()
         img.save(output, format='JPEG', quality=95)
         output.seek(0)
-        img_base64 = base64.b64encode(output.read()).decode('utf-8')
         
-        result_images.append({
-            "filename": f"processed_{idx+1:03d}.jpg",
-            "timestamp": full_timestamp,
+        # Base64 encode
+        import base64
+        img_base64 = base64.b64encode(output.read()).decode()
+        
+        results.append({
+            "filename": f"stamped_{idx+1}.jpg",
             "data": img_base64
         })
     
-    return JSONResponse({
-        "success": True,
-        "total": len(result_images),
-        "images": result_images
-    })
+    return {"images": results}
 
-# Keep old single image endpoint for compatibility
-@app.post("/api/stamp")
-async def stamp_image(
-    image: UploadFile = File(...),
-    date_format: str = Form("dd_slash_mm_yyyy"),
-    time_format: str = Form("24h"),
-    font_size: int = Form(40),
-    color: str = Form("#FFFFFF")
-):
-    # Read image
-    img_bytes = await image.read()
-    img = Image.open(BytesIO(img_bytes))
+# --- Retrofit Tool (Foundation) ---
+retrofit_tool_html = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retrofit Design Tool - AutoDate</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 36px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 16px;
+        }
+        
+        .back-btn {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        
+        .back-btn:hover {
+            color: #764ba2;
+        }
+        
+        .progress-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 40px;
+            position: relative;
+        }
+        
+        .progress-bar::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: #e0e0e0;
+            z-index: 0;
+        }
+        
+        .progress-step {
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .progress-step .circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 8px;
+            font-weight: 600;
+            color: #999;
+        }
+        
+        .progress-step.active .circle {
+            background: #667eea;
+            color: white;
+        }
+        
+        .progress-step .label {
+            font-size: 12px;
+            color: #999;
+        }
+        
+        .progress-step.active .label {
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        .format-tabs {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+        
+        .format-tab {
+            flex: 1;
+            padding: 20px;
+            border: 3px solid #e0e0e0;
+            border-radius: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .format-tab:hover {
+            border-color: #667eea;
+        }
+        
+        .format-tab.active {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        
+        .format-tab h3 {
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .upload-section {
+            display: none;
+        }
+        
+        .upload-section.active {
+            display: block;
+        }
+        
+        .upload-group {
+            margin-bottom: 24px;
+        }
+        
+        .upload-group h4 {
+            color: #333;
+            margin-bottom: 12px;
+        }
+        
+        .drop-zone {
+            border: 3px dashed #667eea;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .drop-zone:hover {
+            background: #f0f2ff;
+            border-color: #764ba2;
+        }
+        
+        .drop-zone.dragover {
+            background: #e8ebff;
+            border-color: #764ba2;
+        }
+        
+        .drop-zone p {
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .drop-zone span {
+            color: #999;
+            font-size: 14px;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .file-display {
+            margin-top: 12px;
+            padding: 12px;
+            background: #f0f2ff;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .file-display.show {
+            display: block;
+        }
+        
+        .file-display p {
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .file-display span {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .submit-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 30px;
+        }
+        
+        .submit-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+        
+        .submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-btn">← Back to Dashboard</a>
+        
+        <div class="header">
+            <h1>🏠 Retrofit Design Tool</h1>
+            <p>Create PAS 2035 Compliant Retrofit Designs</p>
+        </div>
+        
+        <div class="progress-bar">
+            <div class="progress-step active">
+                <div class="circle">1</div>
+                <div class="label">Upload</div>
+            </div>
+            <div class="progress-step">
+                <div class="circle">2</div>
+                <div class="label">Measures</div>
+            </div>
+            <div class="progress-step">
+                <div class="circle">3</div>
+                <div class="label">Questions</div>
+            </div>
+            <div class="progress-step">
+                <div class="circle">4</div>
+                <div class="label">Calcs</div>
+            </div>
+            <div class="progress-step">
+                <div class="circle">5</div>
+                <div class="label">Generate</div>
+            </div>
+        </div>
+        
+        <h3 style="margin-bottom: 20px; color: #333;">Step 1: Select Format & Upload Documents</h3>
+        
+        <div class="format-tabs">
+            <div class="format-tab active" onclick="selectFormat('pashub')">
+                <h3>PAS Hub</h3>
+                <p>Upload PAS Hub site notes + condition report</p>
+            </div>
+            <div class="format-tab" onclick="selectFormat('elmhurst')">
+                <h3>Elmhurst</h3>
+                <p>Upload Elmhurst RdSAP + condition report</p>
+            </div>
+        </div>
+        
+        <form id="uploadForm">
+            <!-- PAS Hub Uploads -->
+            <div class="upload-section active" id="pashub-section">
+                <div class="upload-group">
+                    <h4>📄 PAS Hub Site Notes</h4>
+                    <div class="drop-zone" onclick="document.getElementById('pashub-sitenotes').click()">
+                        <p>📁 Drop file here or click to browse</p>
+                        <span>PDF format</span>
+                    </div>
+                    <input type="file" id="pashub-sitenotes" class="file-input" accept=".pdf">
+                    <div class="file-display" id="pashub-sitenotes-display"></div>
+                </div>
+                
+                <div class="upload-group">
+                    <h4>📷 PAS Hub Condition Report</h4>
+                    <div class="drop-zone" onclick="document.getElementById('pashub-condition').click()">
+                        <p>📁 Drop file here or click to browse</p>
+                        <span>PDF format with photos</span>
+                    </div>
+                    <input type="file" id="pashub-condition" class="file-input" accept=".pdf">
+                    <div class="file-display" id="pashub-condition-display"></div>
+                </div>
+            </div>
+            
+            <!-- Elmhurst Uploads -->
+            <div class="upload-section" id="elmhurst-section">
+                <div class="upload-group">
+                    <h4>📄 Elmhurst RdSAP Site Notes</h4>
+                    <div class="drop-zone" onclick="document.getElementById('elmhurst-sitenotes').click()">
+                        <p>📁 Drop file here or click to browse</p>
+                        <span>PDF format</span>
+                    </div>
+                    <input type="file" id="elmhurst-sitenotes" class="file-input" accept=".pdf">
+                    <div class="file-display" id="elmhurst-sitenotes-display"></div>
+                </div>
+                
+                <div class="upload-group">
+                    <h4>📷 Elmhurst Condition Report</h4>
+                    <div class="drop-zone" onclick="document.getElementById('elmhurst-condition').click()">
+                        <p>📁 Drop file here or click to browse</p>
+                        <span>PDF format with photos</span>
+                    </div>
+                    <input type="file" id="elmhurst-condition" class="file-input" accept=".pdf">
+                    <div class="file-display" id="elmhurst-condition-display"></div>
+                </div>
+            </div>
+            
+            <button type="submit" class="submit-btn" id="submitBtn" disabled>
+                Continue to Measure Selection →
+            </button>
+        </form>
+    </div>
     
-    # Get EXIF data for timestamp
-    exif = img._getexif() if hasattr(img, '_getexif') else {}
-    
-    # Try to get date from EXIF, fallback to now
-    date_taken = None
-    if exif and 36867 in exif:  # DateTimeOriginal
-        date_str = exif[36867]
-        try:
-            date_taken = datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
-        except:
-            pass
-    
-    if not date_taken:
-        date_taken = datetime.now()
-    
-    # Format date
-    if date_format == "dd_slash_mm_yyyy":
-        date_text = date_taken.strftime("%d/%m/%Y")
-    elif date_format == "mm_slash_dd_yyyy":
-        date_text = date_taken.strftime("%m/%d/%Y")
-    else:  # yyyy_dash_mm_dd
-        date_text = date_taken.strftime("%Y-%m-%d")
-    
-    # Format time
-    if time_format == "24h":
-        time_text = date_taken.strftime("%H:%M:%S")
-    else:  # 12h
-        time_text = date_taken.strftime("%I:%M:%S %p")
-    
-    full_text = f"{date_text} {time_text}"
-    
-    # Draw on image
-    draw = ImageDraw.Draw(img)
-    
-    try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-    except:
-        font = ImageFont.load_default()
-    
-    # Position at bottom right with padding
-    bbox = draw.textbbox((0, 0), full_text, font=font)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-    
-    x = img.width - text_width - 20
-    y = img.height - text_height - 20
-    
-    # Parse color
-    rgb_color = tuple(int(color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
-    
-    draw.text((x, y), full_text, fill=rgb_color, font=font)
-    
-    # Save to bytes
-    output = BytesIO()
-    img.save(output, format='JPEG', quality=95)
-    output.seek(0)
-    
-    return FileResponse(
-        output,
-        media_type="image/jpeg",
-        headers={"Content-Disposition": "attachment; filename=timestamped.jpg"}
-    )
+    <script>
+        let currentFormat = 'pashub';
+        let uploadedFiles = {
+            pashub: { sitenotes: null, condition: null },
+            elmhurst: { sitenotes: null, condition: null }
+        };
+        
+        function selectFormat(format) {
+            currentFormat = format;
+            
+            // Update tabs
+            document.querySelectorAll('.format-tab').forEach(tab => tab.classList.remove('active'));
+            event.target.closest('.format-tab').classList.add('active');
+            
+            // Update sections
+            document.querySelectorAll('.upload-section').forEach(section => section.classList.remove('active'));
+            document.getElementById(format + '-section').classList.add('active');
+            
+            updateSubmitButton();
+        }
+        
+        // File input handlers
+        ['pashub-sitenotes', 'pashub-condition', 'elmhurst-sitenotes', 'elmhurst-condition'].forEach(id => {
+            const input = document.getElementById(id);
+            input.addEventListener('change', (e) => handleFileSelect(e, id));
+        });
+        
+        function handleFileSelect(e, inputId) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const [format, type] = inputId.split('-');
+            uploadedFiles[format][type] = file;
+            
+            // Display file info
+            const display = document.getElementById(inputId + '-display');
+            display.classList.add('show');
+            display.innerHTML = `
+                <p>✅ ${file.name}</p>
+                <span>${(file.size / 1024 / 1024).toFixed(2)} MB</span>
+            `;
+            
+            updateSubmitButton();
+        }
+        
+        function updateSubmitButton() {
+            const btn = document.getElementById('submitBtn');
+            const files = uploadedFiles[currentFormat];
+            btn.disabled = !files.sitenotes || !files.condition;
+        }
+        
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            alert('Upload successful! Moving to Step 2 (Coming next!)');
+        });
+    </script>
+</body>
+</html>
+"""
 
-# --- Admin Dashboard ---
-@app.get("/admin", response_class=HTMLResponse)
-def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional[str] = None):
-    u = require_admin(request)
-    if isinstance(u, (RedirectResponse, HTMLResponse)):
-        return u
+@app.get("/tool/retrofit")
+def get_retrofit_tool(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
+    return HTMLResponse(retrofit_tool_html)
+
+# --- Admin Panel ---
+@app.get("/admin")
+def admin_panel(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
     
     conn = get_db()
     cur = conn.cursor()
-    
-    # Get all users
     cur.execute("SELECT * FROM users ORDER BY created_at DESC")
-    users = cur.fetchall()
+    rows = cur.fetchall()
+    conn.close()
     
-    # Build table rows
-    rows = []
-    for r in users:
-        # Safe access to retrofit column
-        try:
-            retrofit_val = int(r['can_use_retrofit_tool'])
-        except (KeyError, TypeError, ValueError):
-            retrofit_val = 1
-        retrofit_status = "✅ Yes" if retrofit_val == 1 else "❌ No"
-        
-        # Safe retrofit button
-        try:
-            retrofit_val = int(r['can_use_retrofit_tool'])
-        except (KeyError, TypeError, ValueError):
-            retrofit_val = 1
-            
-        if retrofit_val == 1:
-            retrofit_btn = f'<button onclick="toggleRetrofit({r["id"]}, 0)">Block Retrofit</button>'
-        else:
-            retrofit_btn = f'<button onclick="toggleRetrofit({r["id"]}, 1)">Allow Retrofit</button>'
-        
-        status = r["subscription_status"]
-        if status == "active":
-            btn = f'<button onclick="updateStatus({r["id"]}, \'inactive\')">Deactivate</button>'
-        else:
-            btn = f'<button onclick="updateStatus({r["id"]}, \'active\')">Activate</button>'
-        
-        rows.append(f"""
+    table_rows = ""
+    for r in rows:
+        end_date = r["subscription_end_date"] if r["subscription_end_date"] else "N/A"
+        table_rows += f"""
             <tr>
                 <td>{r["id"]}</td>
                 <td>{r["email"]}</td>
                 <td>{r["subscription_status"]}</td>
-                <td>{r["subscription_end_date"] if r["subscription_end_date"] else "N/A"}</td>
-                <td>{retrofit_status}</td>
-                <td>{btn}</td>
-                <td>{retrofit_btn}</td>
+                <td>{end_date}</td>
+                <td>{r["created_at"]}</td>
             </tr>
-        """)
+        """
     
-    conn.close()
-    
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Admin Dashboard</title>
-        <style>
-            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-            body {{
-                font-family: system-ui, -apple-system, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                padding: 2rem;
-            }}
-            .container {{
-                max-width: 1200px;
-                margin: 0 auto;
-                background: white;
-                padding: 2rem;
-                border-radius: 1rem;
-                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            }}
-            h1 {{ color: #667eea; margin-bottom: 2rem; }}
-            table {{
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 1rem;
-            }}
-            th, td {{
-                padding: 1rem;
-                text-align: left;
-                border-bottom: 1px solid #e0e0e0;
-            }}
-            th {{
-                background: #f7fafc;
-                font-weight: 600;
-                color: #2d3748;
-            }}
-            button {{
-                padding: 0.5rem 1rem;
-                background: #667eea;
-                color: white;
-                border: none;
-                border-radius: 0.5rem;
-                cursor: pointer;
-                margin-right: 0.5rem;
-            }}
-            button:hover {{ opacity: 0.9; }}
-            .nav {{ margin-bottom: 2rem; }}
-            .nav a {{
-                color: #667eea;
-                text-decoration: none;
-                margin-right: 1rem;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="nav">
-                <a href="/tool2">← Back to Tools</a>
-            </div>
-            <h1>Admin Dashboard</h1>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Email</th>
-                        <th>Status</th>
-                        <th>End Date</th>
-                        <th>Retrofit</th>
-                        <th>Actions</th>
-                        <th>Retrofit Access</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {''.join(rows)}
-                </tbody>
-            </table>
+    return HTMLResponse(f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - AutoDate</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }}
+        
+        .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }}
+        
+        .header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }}
+        
+        .header h1 {{
+            font-size: 32px;
+            color: #333;
+        }}
+        
+        .back-btn {{
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+        }}
+        
+        .back-btn:hover {{
+            background: #764ba2;
+        }}
+        
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+        }}
+        
+        th {{
+            background: #f5f5f5;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e0e0e0;
+        }}
+        
+        td {{
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+            color: #666;
+        }}
+        
+        tr:hover {{
+            background: #f9f9f9;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚙️ Admin Panel</h1>
+            <a href="/" class="back-btn">← Back to Dashboard</a>
         </div>
-        <script>
-            async function updateStatus(userId, newStatus) {{
-                const response = await fetch('/admin/update-status', {{
-                    method: 'POST',
-                    headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ user_id: userId, status: newStatus }})
-                }});
-                if (response.ok) {{
-                    location.reload();
-                }}
-            }}
-            
-            async function toggleRetrofit(userId, newValue) {{
-                const response = await fetch('/admin/toggle-retrofit', {{
-                    method: 'POST',
-                    headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ user_id: userId, value: newValue }})
-                }});
-                if (response.ok) {{
-                    location.reload();
-                }}
-            }}
-        </script>
-    </body>
-    </html>
-    """
-    
-    return HTMLResponse(html)
-
-@app.post("/admin/update-status")
-async def admin_update_status(request: Request):
-    u = require_admin(request)
-    if isinstance(u, (RedirectResponse, HTMLResponse)):
-        return u
-    
-    data = await request.json()
-    user_id = data.get("user_id")
-    status = data.get("status")
-    
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("UPDATE users SET subscription_status=? WHERE id=?", (status, user_id))
-    conn.commit()
-    conn.close()
-    
-    return JSONResponse({"success": True})
-
-@app.post("/admin/toggle-retrofit")
-async def admin_toggle_retrofit(request: Request):
-    u = require_admin(request)
-    if isinstance(u, (RedirectResponse, HTMLResponse)):
-        return u
-    
-    data = await request.json()
-    user_id = data.get("user_id")
-    value = data.get("value")
-    
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("UPDATE users SET can_use_retrofit_tool=? WHERE id=?", (value, user_id))
-    conn.commit()
-    conn.close()
-    
-    return JSONResponse({"success": True})
-
-# --- API Endpoints ---
-@app.get("/api/check-retrofit-access")
-def api_check_retrofit_access(request: Request):
-    """API endpoint to check if user has retrofit tool access"""
-    email = get_cookie(request, "user_email")
-    if not email:
-        return JSONResponse({"error": "Not authenticated"}, status_code=401)
-    
-    row = get_user_row_by_email(email)
-    if not row:
-        return JSONResponse({"error": "User not found"}, status_code=404)
-    
-    # Safe access to retrofit column
-    try:
-        can_use = bool(row['can_use_retrofit_tool'])
-    except (KeyError, TypeError):
-        can_use = True  # Default to allowing access
-    
-    return JSONResponse({
-        "email": email,
-        "can_use_retrofit_tool": can_use
-    })
-
-@app.get("/api/ping")
-def ping():
-    return {"status": "ok", "timestamp": datetime.now().isoformat()}
-
-@app.get("/billing", response_class=HTMLResponse)
-def billing_page(request: Request):
-    row = require_active_user_row(request)
-    if isinstance(row, (RedirectResponse, HTMLResponse)):
-        return row
-    
-    return HTMLResponse("""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Billing - AutoDate</title>
-        <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
-                font-family: system-ui, -apple-system, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 2rem;
-            }
-            .container {
-                background: white;
-                padding: 3rem;
-                border-radius: 1rem;
-                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-                max-width: 600px;
-                text-align: center;
-            }
-            h1 { color: #667eea; margin-bottom: 1rem; }
-            p { color: #666; margin-bottom: 2rem; line-height: 1.6; }
-            a {
-                display: inline-block;
-                padding: 1rem 2rem;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                text-decoration: none;
-                border-radius: 0.5rem;
-                font-weight: 600;
-            }
-            a:hover { opacity: 0.9; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>💳 Billing Information</h1>
-            <p>Your subscription is currently active. For billing inquiries or to manage your subscription, please contact support.</p>
-            <a href="/tool2">← Back to Tools</a>
-        </div>
-    </body>
-    </html>
+        
+        <h2 style="margin-bottom: 20px; color: #333;">Users</h2>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Subscription End</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {table_rows}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
     """)
 
+# --- Ping endpoint ---
+@app.get("/api/ping")
+def ping():
+    return {"status": "ok"}
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
