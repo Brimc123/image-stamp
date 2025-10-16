@@ -840,8 +840,8 @@ def tool2(request: Request):
     if show_admin:
         admin_link = '<a href="/admin">Admin</a> '
     
-    # Always show Retrofit Design link for now
-    admin_link += '<a href="/retrofit-design" style="color:#22c55e;font-weight:600">🏠 Retrofit Design</a> '
+    # Link to native Retrofit Tool instead of broken Streamlit
+    admin_link += '<a href="/retrofit-tool" style="color:#22c55e;font-weight:600">🏠 Retrofit Design</a> '
     
     return HTMLResponse(tool2_html.safe_substitute(admin_link=admin_link))
 
@@ -851,7 +851,7 @@ def retrofit_design(request: Request):
     if isinstance(row, (RedirectResponse, HTMLResponse)):
         return row
     
-    # User has access - show the iframe
+    # User has access - show the iframe (keeping this for backwards compatibility)
     show_admin = ADMIN_EMAIL and row["email"].lower() == ADMIN_EMAIL
     admin_link_html = '<a href="/admin">Admin</a>' if show_admin else ''
     
@@ -926,6 +926,372 @@ def retrofit_design(request: Request):
         </div>
       </div>
       <iframe src="https://autodate-retrofit.streamlit.app" allow="clipboard-write" allowfullscreen></iframe>
+    </body>
+    </html>
+    """)
+
+@app.get("/retrofit-tool", response_class=HTMLResponse)
+def retrofit_tool(request: Request):
+    row = require_active_user_row(request)
+    if isinstance(row, (RedirectResponse, HTMLResponse)):
+        return row
+    
+    # Check if user has Retrofit access (safe version)
+    can_use = 1  # Default to allowed
+    try:
+        can_use = int(row["can_use_retrofit_tool"])
+    except (KeyError, TypeError, ValueError):
+        can_use = 1
+    
+    if can_use != 1:
+        return HTMLResponse("""
+        <!doctype html>
+        <html lang="en">
+        <head>
+        <meta charset="utf-8" />
+        <title>Access Denied - AutoDate</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <style>
+        body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#0b1220;color:#e8eefc}
+        .card{max-width:560px;margin:3rem auto;background:#111827;border:1px solid #1f2937;border-radius:16px;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+        h1{margin:0 0 12px;font-size:1.4rem}
+        .badge{display:inline-block;background:#7c2d12;color:#fff;padding:.2rem .5rem;border-radius:999px;border:1px solid #9a3412}
+        a{color:#93c5fd}
+        </style>
+        </head>
+        <body>
+          <div class="card">
+            <h1>Access Denied</h1>
+            <p><span class="badge">Retrofit Design Tool - Access Blocked</span></p>
+            <p>Your account doesn't have access to the Retrofit Design Tool. Please contact your administrator to request access.</p>
+            <p><a href="/tool2">Back to AutoDate</a></p>
+          </div>
+        </body>
+        </html>
+        """)
+    
+    # User has access - show the native tool
+    show_admin = ADMIN_EMAIL and row["email"].lower() == ADMIN_EMAIL
+    admin_link = '<a href="/admin">Admin</a>' if show_admin else ''
+    
+    return HTMLResponse(f"""
+    <!doctype html>
+    <html lang="en">
+    <head>
+    <meta charset="utf-8" />
+    <title>Retrofit Design Tool - AutoDate</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+    :root{{
+      --bg1:#0f1c3e; --bg2:#0d1834; --grid:#132044;
+      --card:#ffffff; --card-soft:#f7f9fc; --text:#0b1220; --muted:#5b6b86;
+      --primary:#22c55e; --primary2:#16a34a; --accent:#2563eb; --stroke:#e6eaf2;
+    }}
+    *{{box-sizing:border-box}}
+    body{{
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      margin:0;
+      background:
+        radial-gradient(1200px 640px at 10% -10%, rgba(37,99,235,.35), transparent 60%),
+        radial-gradient(900px 520px at 100% 0%, rgba(34,197,94,.18), transparent 65%),
+        linear-gradient(180deg,var(--bg1),var(--bg2));
+      min-height:100svh;
+      color:var(--text);
+    }}
+    body::before{{
+      content:""; position:fixed; inset:0; pointer-events:none;
+      background:
+        linear-gradient(transparent 31px, rgba(255,255,255,.05) 32px),
+        linear-gradient(90deg, transparent 31px, rgba(255,255,255,.05) 32px);
+      background-size:32px 32px; opacity:.4;
+      mask-image: radial-gradient(1100px 700px at 30% 0%, #000, rgba(0,0,0,.3) 60%, transparent 80%);
+    }}
+    .container{{max-width:1150px;margin:0 auto;padding:28px}}
+    .header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}}
+    .brand{{display:flex;align-items:center;gap:12px;font-weight:900;color:#eaf1ff}}
+    .brand svg{{width:28px;height:28px}}
+    .nav{{display:flex;gap:16px}}
+    .nav a{{color:#e7efff;text-underline-offset:3px}}
+    .card{{
+      position:relative; border-radius:22px; padding:22px; background:var(--card);
+      border:1px solid var(--stroke); box-shadow:0 18px 50px rgba(6,11,22,.22);
+    }}
+    .card.gfx::before{{
+      content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1px;
+      background:linear-gradient(120deg, rgba(37,99,235,.55), rgba(34,197,94,.55));
+      -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none;
+    }}
+    .progress{{
+      background:#1f2937; border-radius:999px; height:8px; margin:20px 0;
+      overflow:hidden; position:relative;
+    }}
+    .progress-bar{{
+      background:linear-gradient(90deg,var(--primary),var(--accent));
+      height:100%; transition:width 0.3s ease; border-radius:999px;
+    }}
+    .step-nav{{
+      display:flex; justify-content:space-between; align-items:center;
+      margin:24px 0; padding:0 4px;
+    }}
+    .step{{
+      display:flex; align-items:center; gap:8px; color:var(--muted); font-size:0.9rem;
+    }}
+    .step.active{{color:var(--primary); font-weight:600;}}
+    .step.completed{{color:var(--accent);}}
+    .step-num{{
+      width:24px; height:24px; border-radius:50%; border:2px solid currentColor;
+      display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:800;
+    }}
+    .step.active .step-num{{background:var(--primary); color:white; border-color:var(--primary);}}
+    .step.completed .step-num{{background:var(--accent); color:white; border-color:var(--accent);}}
+    .drop-zone{{
+      border:2px dashed #c8d3e5; border-radius:16px; padding:40px;
+      background:var(--card-soft); text-align:center; cursor:pointer;
+      transition:all 0.2s ease; min-height:200px; display:flex;
+      align-items:center; justify-content:center; flex-direction:column;
+    }}
+    .drop-zone:hover{{border-color:var(--accent); background:#f0f4ff;}}
+    .drop-zone.dragover{{border-color:var(--primary); background:#f0fff4; transform:scale(1.02);}}
+    .upload-icon{{
+      width:48px; height:48px; margin:0 auto 16px; opacity:0.6;
+      background:var(--accent); border-radius:50%; display:flex;
+      align-items:center; justify-content:center; color:white; font-size:24px;
+    }}
+    .format-tabs{{
+      display:flex; gap:12px; margin:20px 0;
+    }}
+    .tab{{
+      flex:1; padding:16px; border:2px solid var(--stroke); border-radius:12px;
+      background:white; cursor:pointer; transition:all 0.2s ease; text-align:center;
+    }}
+    .tab.active{{border-color:var(--primary); background:#f0fff4;}}
+    .tab h4{{margin:0 0 8px; color:var(--text);}}
+    .tab p{{margin:0; color:var(--muted); font-size:0.9rem;}}
+    button{{
+      padding:12px 24px; border:1px solid var(--primary2);
+      background:linear-gradient(180deg,var(--primary),var(--primary2));
+      color:#062015; font-weight:900; border-radius:12px; cursor:pointer;
+      transition:all 0.2s ease; min-width:120px;
+    }}
+    button:hover{{filter:brightness(1.06); box-shadow:0 10px 26px rgba(22,163,74,.36);}}
+    button:disabled{{opacity:0.5; cursor:not-allowed;}}
+    .btn-secondary{{
+      background:white; color:var(--text); border-color:var(--stroke);
+    }}
+    .btn-secondary:hover{{background:#f8fafc; box-shadow:0 4px 12px rgba(0,0,0,.1);}}
+    .file-list{{
+      margin:20px 0; padding:0; list-style:none;
+    }}
+    .file-item{{
+      display:flex; align-items:center; gap:12px; padding:12px;
+      background:white; border:1px solid var(--stroke); border-radius:8px; margin:8px 0;
+    }}
+    .file-icon{{
+      width:32px; height:32px; background:var(--accent); border-radius:4px;
+      display:flex; align-items:center; justify-content:center; color:white; font-size:14px;
+    }}
+    .file-info{{flex:1;}}
+    .file-name{{font-weight:600; color:var(--text);}}
+    .file-size{{font-size:0.8rem; color:var(--muted);}}
+    .file-remove{{
+      color:#ef4444; cursor:pointer; padding:4px; border-radius:4px;
+    }}
+    .file-remove:hover{{background:#fee2e2;}}
+    </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="brand">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="6" y="10" width="36" height="28" rx="4" stroke="white" opacity=".9"/>
+              <path d="M12 18h24M16 14v4M32 14v4" stroke="white" opacity=".9"/>
+              <circle cx="28" cy="28" r="7" stroke="white" opacity=".9"/>
+              <path d="M28 24v4l3 3" stroke="white" opacity=".9"/>
+              <path d="M20 24h8M20 28h6" stroke="white" opacity=".6"/>
+            </svg>
+            <div>AutoDate - Retrofit Design</div>
+          </div>
+          <div class="nav">
+            {admin_link}
+            <a href="/tool2">Timestamp Tool</a>
+            <a href="/billing">Billing</a>
+            <a href="/logout">Logout</a>
+          </div>
+        </div>
+
+        <div class="progress">
+          <div class="progress-bar" style="width: 20%"></div>
+        </div>
+
+        <div class="step-nav">
+          <div class="step active">
+            <div class="step-num">1</div>
+            <span>Upload Documents</span>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <span>Select Measures</span>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <span>Answer Questions</span>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <span>Review & Upload Calcs</span>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <span>Generate Design</span>
+          </div>
+        </div>
+
+        <div class="card gfx">
+          <h2 style="margin:0 0 12px; color:var(--text);">Step 1: Upload Site Notes</h2>
+          <p style="margin:0 0 20px; color:var(--muted);">Choose your format and upload the required documents</p>
+
+          <div class="format-tabs">
+            <div class="tab active" id="pashub-tab">
+              <h4>PAS Hub Format</h4>
+              <p>Upload single site notes file</p>
+            </div>
+            <div class="tab" id="elmhurst-tab">
+              <h4>Elmhurst Format</h4>
+              <p>Upload site notes + condition report</p>
+            </div>
+          </div>
+
+          <div id="pashub-content">
+            <div class="drop-zone" id="pashub-drop">
+              <div class="upload-icon">📄</div>
+              <h3 style="margin:0 0 8px; color:var(--text);">Drop PAS Hub Site Notes Here</h3>
+              <p style="margin:0; color:var(--muted);">or click to browse for PDF file</p>
+            </div>
+            <input type="file" id="pashub-input" accept=".pdf" style="display:none;">
+            <ul class="file-list" id="pashub-files"></ul>
+          </div>
+
+          <div id="elmhurst-content" style="display:none;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+              <div>
+                <h4 style="margin:0 0 12px; color:var(--text);">Site Notes</h4>
+                <div class="drop-zone" id="elmhurst-site-drop">
+                  <div class="upload-icon">📋</div>
+                  <h4 style="margin:0 0 8px;">Site Notes PDF</h4>
+                  <p style="margin:0; color:var(--muted); font-size:0.8rem;">Elmhurst site survey</p>
+                </div>
+                <input type="file" id="elmhurst-site-input" accept=".pdf" style="display:none;">
+                <ul class="file-list" id="elmhurst-site-files"></ul>
+              </div>
+              <div>
+                <h4 style="margin:0 0 12px; color:var(--text);">Condition Report</h4>
+                <div class="drop-zone" id="elmhurst-condition-drop">
+                  <div class="upload-icon">🔍</div>
+                  <h4 style="margin:0 0 8px;">Condition Report PDF</h4>
+                  <p style="margin:0; color:var(--muted); font-size:0.8rem;">Building condition assessment</p>
+                </div>
+                <input type="file" id="elmhurst-condition-input" accept=".pdf" style="display:none;">
+                <ul class="file-list" id="elmhurst-condition-files"></ul>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; margin-top:30px;">
+            <button class="btn-secondary" disabled>Back</button>
+            <button id="continue-btn" disabled>Continue to Measure Selection</button>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        // Format tab switching
+        document.getElementById('pashub-tab').addEventListener('click', () => {{
+          document.getElementById('pashub-tab').classList.add('active');
+          document.getElementById('elmhurst-tab').classList.remove('active');
+          document.getElementById('pashub-content').style.display = 'block';
+          document.getElementById('elmhurst-content').style.display = 'none';
+          checkContinueButton();
+        }});
+
+        document.getElementById('elmhurst-tab').addEventListener('click', () => {{
+          document.getElementById('elmhurst-tab').classList.add('active');
+          document.getElementById('pashub-tab').classList.remove('active');
+          document.getElementById('elmhurst-content').style.display = 'block';
+          document.getElementById('pashub-content').style.display = 'none';
+          checkContinueButton();
+        }});
+
+        // File upload handlers
+        function setupDropZone(dropId, inputId, filesListId) {{
+          const drop = document.getElementById(dropId);
+          const input = document.getElementById(inputId);
+          const filesList = document.getElementById(filesListId);
+
+          drop.addEventListener('click', () => input.click());
+          
+          drop.addEventListener('dragover', (e) => {{
+            e.preventDefault();
+            drop.classList.add('dragover');
+          }});
+          
+          drop.addEventListener('dragleave', () => {{
+            drop.classList.remove('dragover');
+          }});
+          
+          drop.addEventListener('drop', (e) => {{
+            e.preventDefault();
+            drop.classList.remove('dragover');
+            input.files = e.dataTransfer.files;
+            displayFiles(input.files, filesList);
+            checkContinueButton();
+          }});
+          
+          input.addEventListener('change', () => {{
+            displayFiles(input.files, filesList);
+            checkContinueButton();
+          }});
+        }}
+
+        function displayFiles(files, container) {{
+          container.innerHTML = '';
+          for (let file of files) {{
+            const li = document.createElement('li');
+            li.className = 'file-item';
+            li.innerHTML = `
+              <div class="file-icon">PDF</div>
+              <div class="file-info">
+                <div class="file-name">${{file.name}}</div>
+                <div class="file-size">${{(file.size / 1024 / 1024).toFixed(2)}} MB</div>
+              </div>
+              <div class="file-remove" onclick="this.parentElement.remove(); checkContinueButton();">×</div>
+            `;
+            container.appendChild(li);
+          }}
+        }}
+
+        function checkContinueButton() {{
+          const pashubActive = document.getElementById('pashub-tab').classList.contains('active');
+          const pashubFiles = document.getElementById('pashub-input').files.length > 0;
+          const elmhurstSiteFiles = document.getElementById('elmhurst-site-input').files.length > 0;
+          const elmhurstConditionFiles = document.getElementById('elmhurst-condition-input').files.length > 0;
+          
+          const canContinue = pashubActive ? pashubFiles : (elmhurstSiteFiles && elmhurstConditionFiles);
+          document.getElementById('continue-btn').disabled = !canContinue;
+        }}
+
+        // Setup all drop zones
+        setupDropZone('pashub-drop', 'pashub-input', 'pashub-files');
+        setupDropZone('elmhurst-site-drop', 'elmhurst-site-input', 'elmhurst-site-files');
+        setupDropZone('elmhurst-condition-drop', 'elmhurst-condition-input', 'elmhurst-condition-files');
+
+        // Continue button
+        document.getElementById('continue-btn').addEventListener('click', () => {{
+          alert('Processing documents and moving to Step 2... (Full processing coming next!)');
+          // TODO: Process files and move to next step
+        }});
+      </script>
     </body>
     </html>
     """)
@@ -1262,4 +1628,50 @@ async def api_stamp(
                 w, h = img.size
 
             if end_sec > start_sec:
-                t_sec = random.randint
+                t_sec = random.randint(start_sec, end_sec)
+            else:
+                t_sec = start_sec
+
+            hours = t_sec // 3600
+            minutes = (t_sec % 3600) // 60
+            seconds = t_sec % 60
+
+            stamp_dt = date_obj.replace(hour=hours, minute=minutes, second=seconds)
+
+            if date_format == "dd_slash_mm_yyyy":
+                stamp_text = stamp_dt.strftime("%d/%m/%Y, %H:%M:%S")
+            else:
+                stamp_text = stamp_dt.strftime("%d %b %Y, %H:%M:%S")
+
+            bar_height = 48
+            new_h = h + bar_height
+            canvas = Image.new("RGB", (w, new_h), (0, 0, 0))
+            canvas.paste(img, (0, 0))
+
+            draw = ImageDraw.Draw(canvas)
+            try:
+                if FONT_PATH and os.path.exists(FONT_PATH):
+                    font = ImageFont.truetype(FONT_PATH, 28)
+                else:
+                    font = ImageFont.load_default()
+            except:
+                font = ImageFont.load_default()
+
+            text_bbox = draw.textbbox((0, 0), stamp_text, font=font)
+            text_w = text_bbox[2] - text_bbox[0]
+            text_x = (w - text_w) // 2
+            text_y = h + (bar_height - 28) // 2
+
+            draw.text((text_x, text_y), stamp_text, fill=(255, 255, 255), font=font)
+
+            out_buf = io.BytesIO()
+            canvas.save(out_buf, format="JPEG", quality=92)
+            out_buf.seek(0)
+
+            base = os.path.splitext(ufile.filename or f"image_{i+1}")[0]
+            zf.writestr(f"{base}_stamped.jpg", out_buf.read())
+
+    buf.seek(0)
+    refreshed = get_user_by_email(row["email"])
+    headers = {"X-Credits-Balance": str(refreshed["credits"])}
+    return StreamingResponse(buf, media_type="application/zip", headers=headers)
