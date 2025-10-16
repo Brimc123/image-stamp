@@ -1251,7 +1251,7 @@ async def stamp_batch(
                 
                 for font_path in font_paths:
                     try:
-                        font = ImageFont.truetype(font_path, 56)  # Larger font to match examples
+                        font = ImageFont.truetype(font_path, 32)  # Smaller font to match examples
                         break
                     except:
                         continue
@@ -1270,11 +1270,11 @@ async def stamp_batch(
                 
                 # Position at BOTTOM RIGHT with padding (like your examples)
                 width, height = img.size
-                x = width - text_width - 30  # Right side with 30px padding
-                y = height - text_height - 30  # Bottom with 30px padding
+                x = width - text_width - 15  # Small padding like originals
+                y = height - text_height - 15  # Small padding like originals
                 
-                # Draw text with black shadow for better visibility (like your examples)
-                shadow_offset = 4
+                # Draw text with subtle black shadow (like your examples)
+                shadow_offset = 2
                 draw.text((x+shadow_offset, y+shadow_offset), timestamp_text, font=font, fill=(0, 0, 0))
                 draw.text((x, y), timestamp_text, font=font, fill=(r, g, b))
                 
