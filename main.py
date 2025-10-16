@@ -301,7 +301,7 @@ tool2_html = Template("""
         }
         .nav a:hover { text-decoration: underline; }
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             background: white;
             padding: 2rem;
@@ -309,6 +309,11 @@ tool2_html = Template("""
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }
         .form-group { margin-bottom: 1.5rem; }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
         label { display: block; margin-bottom: 0.5rem; color: #333; font-weight: 500; }
         input, select {
             width: 100%;
@@ -330,19 +335,78 @@ tool2_html = Template("""
             cursor: pointer;
         }
         button:hover { opacity: 0.9; }
-        .result {
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .help-text {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+        .results {
             margin-top: 2rem;
-            padding: 1rem;
+            padding: 1.5rem;
             background: #f7fafc;
             border-radius: 0.5rem;
             border: 2px solid #667eea;
         }
-        .result img { max-width: 100%; height: auto; border-radius: 0.5rem; }
+        .results h3 { margin-bottom: 1rem; }
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .image-item {
+            position: relative;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            border: 2px solid #e0e0e0;
+        }
+        .image-item img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .image-label {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 0.5rem;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+        .download-all {
+            margin-top: 1rem;
+        }
+        #processing {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+            background: #f0f9ff;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+        }
+        #processing.active { display: block; }
+        .spinner {
+            border: 4px solid #e0e0e0;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>⏰ Timestamp Tool</h1>
+        <h1>⏰ Crop & Timestamp Tool</h1>
     </div>
     <div class="nav">
         $admin_link
@@ -352,68 +416,136 @@ tool2_html = Template("""
     <div class="container">
         <form id="stampForm" enctype="multipart/form-data">
             <div class="form-group">
-                <label>Upload Image</label>
-                <input type="file" name="image" accept="image/*" required>
+                <label>Upload Images (Multiple)</label>
+                <input type="file" name="images" accept="image/*" multiple required>
+                <div class="help-text">Select 2 or more images for time distribution</div>
             </div>
+            
             <div class="form-group">
-                <label>Date Format</label>
-                <select name="date_format">
-                    <option value="dd_slash_mm_yyyy">DD/MM/YYYY</option>
-                    <option value="mm_slash_dd_yyyy">MM/DD/YYYY</option>
-                    <option value="yyyy_dash_mm_dd">YYYY-MM-DD</option>
+                <label>Date to Use</label>
+                <input type="text" name="date_text" placeholder="e.g., 30 May 2025" required>
+                <div class="help-text">Enter the date in any format</div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Start Time (HH:MM:SS)</label>
+                    <input type="text" name="start_time" placeholder="13:00:00" pattern="[0-9]{2}:[0-9]{2}:[0-9]{2}" required>
+                </div>
+                <div class="form-group">
+                    <label>End Time (HH:MM:SS)</label>
+                    <input type="text" name="end_time" placeholder="15:00:00" pattern="[0-9]{2}:[0-9]{2}:[0-9]{2}" required>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Crop Bottom (pixels)</label>
+                    <input type="number" name="crop_height" value="0" min="0" max="500">
+                    <div class="help-text">Pixels to remove from bottom</div>
+                </div>
+                <div class="form-group">
+                    <label>Font Size</label>
+                    <input type="number" name="font_size" value="30" min="10" max="100">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Text Color</label>
+                <select name="text_color">
+                    <option value="white">White</option>
+                    <option value="black">Black</option>
+                    <option value="yellow">Yellow</option>
+                    <option value="red">Red</option>
                 </select>
             </div>
-            <div class="form-group">
-                <label>Time Format</label>
-                <select name="time_format">
-                    <option value="24h">24 Hour (HH:MM:SS)</option>
-                    <option value="12h">12 Hour (HH:MM:SS AM/PM)</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Font Size</label>
-                <input type="number" name="font_size" value="40" min="10" max="200">
-            </div>
-            <div class="form-group">
-                <label>Text Color (Hex)</label>
-                <input type="text" name="color" value="#FFFFFF" pattern="^#[0-9A-Fa-f]{6}$">
-            </div>
-            <button type="submit">Generate Timestamp</button>
+            
+            <button type="submit" id="submitBtn">Process Images</button>
         </form>
-        <div id="result" class="result" style="display:none;">
-            <h3>Result:</h3>
-            <img id="resultImg" src="" alt="Timestamped Image">
-            <br><br>
-            <a id="downloadLink" href="" download="timestamped.jpg">
-                <button type="button">Download Image</button>
-            </a>
+        
+        <div id="processing">
+            <div class="spinner"></div>
+            <p>Processing images...</p>
+        </div>
+        
+        <div id="results" class="results" style="display:none;">
+            <h3>✅ Processing Complete</h3>
+            <div id="imageGrid" class="image-grid"></div>
+            <div class="download-all">
+                <button type="button" onclick="downloadAll()">Download All as ZIP</button>
+            </div>
         </div>
     </div>
+    
     <script>
+        let processedImages = [];
+        
         document.getElementById('stampForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
             const formData = new FormData(e.target);
+            const submitBtn = document.getElementById('submitBtn');
+            const processing = document.getElementById('processing');
+            const results = document.getElementById('results');
+            
+            // Validate at least 2 images
+            const files = formData.getAll('images');
+            if (files.length < 2) {
+                alert('Please select at least 2 images');
+                return;
+            }
+            
+            submitBtn.disabled = true;
+            processing.classList.add('active');
+            results.style.display = 'none';
             
             try {
-                const response = await fetch('/api/stamp', {
+                const response = await fetch('/api/stamp-batch', {
                     method: 'POST',
                     body: formData
                 });
                 
                 if (response.ok) {
-                    const blob = await response.blob();
-                    const url = URL.createObjectURL(blob);
-                    
-                    document.getElementById('resultImg').src = url;
-                    document.getElementById('downloadLink').href = url;
-                    document.getElementById('result').style.display = 'block';
+                    const data = await response.json();
+                    processedImages = data.images;
+                    displayResults(data.images);
                 } else {
-                    alert('Error generating timestamp');
+                    const error = await response.text();
+                    alert('Error: ' + error);
                 }
             } catch (error) {
                 alert('Error: ' + error.message);
+            } finally {
+                submitBtn.disabled = false;
+                processing.classList.remove('active');
             }
         });
+        
+        function displayResults(images) {
+            const grid = document.getElementById('imageGrid');
+            grid.innerHTML = '';
+            
+            images.forEach((img, idx) => {
+                const item = document.createElement('div');
+                item.className = 'image-item';
+                item.innerHTML = `
+                    <img src="data:image/jpeg;base64,\${img.data}" alt="Image \${idx + 1}">
+                    <div class="image-label">\${img.filename}</div>
+                `;
+                grid.appendChild(item);
+            });
+            
+            document.getElementById('results').style.display = 'block';
+        }
+        
+        function downloadAll() {
+            processedImages.forEach((img, idx) => {
+                const link = document.createElement('a');
+                link.href = 'data:image/jpeg;base64,' + img.data;
+                link.download = img.filename;
+                link.click();
+            });
+        }
     </script>
 </body>
 </html>
@@ -1137,7 +1269,97 @@ async def process_retrofit_upload(
 # --- Image Stamping API ---
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
+import base64
 
+@app.post("/api/stamp-batch")
+async def stamp_batch(
+    images: List[UploadFile] = File(...),
+    date_text: str = Form(...),
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+    crop_height: int = Form(0),
+    font_size: int = Form(30),
+    text_color: str = Form("white")
+):
+    """
+    Process multiple images with time distribution and cropping
+    """
+    if len(images) < 2:
+        return JSONResponse({"error": "Need at least 2 images"}, status_code=400)
+    
+    # Parse times
+    try:
+        start_dt = datetime.strptime(start_time, "%H:%M:%S")
+        end_dt = datetime.strptime(end_time, "%H:%M:%S")
+    except:
+        return JSONResponse({"error": "Invalid time format. Use HH:MM:SS"}, status_code=400)
+    
+    total_images = len(images)
+    total_duration = (end_dt - start_dt).total_seconds()
+    interval = total_duration / (total_images - 1) if total_images > 1 else 0
+    
+    # Load font
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+    except:
+        font = ImageFont.load_default()
+    
+    # Color mapping
+    color_map = {
+        "white": (255, 255, 255),
+        "black": (0, 0, 0),
+        "yellow": (255, 255, 0),
+        "red": (255, 0, 0)
+    }
+    rgb_color = color_map.get(text_color, (255, 255, 255))
+    
+    result_images = []
+    
+    for idx, img_file in enumerate(images):
+        # Calculate timestamp for this image
+        timestamp_dt = start_dt + timedelta(seconds=interval * idx)
+        time_str = timestamp_dt.strftime("%H:%M:%S")
+        full_timestamp = f"{date_text}, {time_str}"
+        
+        # Read and process image
+        img_bytes = await img_file.read()
+        img = Image.open(BytesIO(img_bytes))
+        
+        # Crop from bottom if needed
+        if crop_height > 0:
+            width, height = img.size
+            img = img.crop((0, 0, width, height - crop_height))
+        
+        # Add timestamp
+        draw = ImageDraw.Draw(img)
+        bbox = draw.textbbox((0, 0), full_timestamp, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        x = img.width - text_width - 10
+        y = img.height - text_height - 10
+        
+        draw.text((x, y), full_timestamp, fill=rgb_color, font=font)
+        
+        # Convert to base64
+        output = BytesIO()
+        img.save(output, format='JPEG', quality=95)
+        output.seek(0)
+        img_base64 = base64.b64encode(output.read()).decode('utf-8')
+        
+        result_images.append({
+            "filename": f"processed_{idx+1:03d}.jpg",
+            "timestamp": full_timestamp,
+            "data": img_base64
+        })
+    
+    return JSONResponse({
+        "success": True,
+        "total": len(result_images),
+        "images": result_images
+    })
+
+# Keep old single image endpoint for compatibility
 @app.post("/api/stamp")
 async def stamp_image(
     image: UploadFile = File(...),
@@ -1259,7 +1481,7 @@ def admin_dashboard(request: Request, start: Optional[str] = None, end: Optional
                 <td>{r["id"]}</td>
                 <td>{r["email"]}</td>
                 <td>{r["subscription_status"]}</td>
-                <td>{r.get("subscription_end_date", "N/A")}</td>
+                <td>{r["subscription_end_date"] if r["subscription_end_date"] else "N/A"}</td>
                 <td>{retrofit_status}</td>
                 <td>{btn}</td>
                 <td>{retrofit_btn}</td>
