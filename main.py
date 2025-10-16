@@ -476,7 +476,7 @@ signup_html = """
 
 # --- Routes ---
 @app.get("/")
-def root(request: Request):
+async def root(request: Request):
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -1147,6 +1147,11 @@ def get_timestamp_tool(request: Request):
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
     return HTMLResponse(timestamp_tool_html)
+
+# Backward compatibility - redirect old URL to new
+@app.get("/tool2")
+def redirect_tool2(request: Request):
+    return RedirectResponse("/tool/timestamp", status_code=301)
 
 # --- Timestamp API with Pillow ---
 from PIL import Image, ImageDraw, ImageFont
