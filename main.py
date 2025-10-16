@@ -1020,6 +1020,7 @@ timestamp_tool_html = """
         
         <div class="results" id="results">
             <h3>✅ Processed Images</h3>
+            <button onclick="downloadAll()" class="submit-btn" style="margin-bottom: 20px;">📦 Download All Images</button>
             <div class="result-grid" id="resultGrid"></div>
         </div>
     </div>
@@ -1088,6 +1089,24 @@ timestamp_tool_html = """
             submitBtn.disabled = selectedFiles.length === 0;
         };
         
+        let processedImages = [];
+        
+        window.downloadAll = function() {
+            processedImages.forEach((img, index) => {
+                const link = document.createElement('a');
+                link.href = `data:image/jpeg;base64,${img.data}`;
+                link.download = `stamped_${index + 1}.jpg`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Small delay between downloads
+                if (index < processedImages.length - 1) {
+                    setTimeout(() => {}, 100);
+                }
+            });
+        };
+        
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -1115,6 +1134,8 @@ timestamp_tool_html = """
                 
                 loading.classList.remove('show');
                 results.classList.add('show');
+                
+                processedImages = data.images;  // Store for download all
                 
                 resultGrid.innerHTML = '';
                 data.images.forEach((img, index) => {
@@ -1230,7 +1251,7 @@ async def stamp_batch(
                 
                 for font_path in font_paths:
                     try:
-                        font = ImageFont.truetype(font_path, 48)  # Larger, bold font
+                        font = ImageFont.truetype(font_path, 56)  # Larger font to match examples
                         break
                     except:
                         continue
@@ -1247,14 +1268,14 @@ async def stamp_batch(
                 text_width = bbox[2] - bbox[0]
                 text_height = bbox[3] - bbox[1]
                 
-                # Position at bottom right with padding (like your examples)
+                # Position at BOTTOM RIGHT with padding (like your examples)
                 width, height = img.size
-                x = width - text_width - 30
-                y = height - text_height - 30
+                x = width - text_width - 30  # Right side with 30px padding
+                y = height - text_height - 30  # Bottom with 30px padding
                 
                 # Draw text with black shadow for better visibility (like your examples)
-                shadow_offset = 3
-                draw.text((x+shadow_offset, y+shadow_offset), timestamp_text, font=font, fill=(0, 0, 0, 180))
+                shadow_offset = 4
+                draw.text((x+shadow_offset, y+shadow_offset), timestamp_text, font=font, fill=(0, 0, 0))
                 draw.text((x, y), timestamp_text, font=font, fill=(r, g, b))
                 
                 # Save to bytes
@@ -1705,13 +1726,24 @@ def admin_panel(request: Request):
     table_rows = ""
     for r in rows:
         end_date = r["subscription_end_date"] if r["subscription_end_date"] else "N/A"
+        status_color = "#4caf50" if r["subscription_status"] == "active" else "#f44336"
+        action_btn = f'''
+            <form method="POST" action="/admin/toggle-status" style="display:inline;">
+                <input type="hidden" name="user_id" value="{r['id']}">
+                <input type="hidden" name="current_status" value="{r['subscription_status']}">
+                <button type="submit" style="background: {status_color}; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    {'Suspend' if r['subscription_status'] == 'active' else 'Activate'}
+                </button>
+            </form>
+        '''
         table_rows += f"""
             <tr>
                 <td>{r["id"]}</td>
                 <td>{r["email"]}</td>
-                <td>{r["subscription_status"]}</td>
+                <td><span style="color: {status_color}; font-weight: 600;">{r["subscription_status"]}</span></td>
                 <td>{end_date}</td>
                 <td>{r["created_at"]}</td>
+                <td>{action_btn}</td>
             </tr>
         """
     
@@ -1812,6 +1844,7 @@ def admin_panel(request: Request):
                     <th>Status</th>
                     <th>Subscription End</th>
                     <th>Created</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -1822,6 +1855,23 @@ def admin_panel(request: Request):
 </body>
 </html>
     """)
+
+@app.post("/admin/toggle-status")
+def toggle_user_status(request: Request, user_id: int = Form(...), current_status: str = Form(...)):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
+    
+    # Toggle status
+    new_status = "suspended" if current_status == "active" else "active"
+    
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET subscription_status=? WHERE id=?", (new_status, user_id))
+    conn.commit()
+    conn.close()
+    
+    return RedirectResponse("/admin", status_code=302)
 
 # --- Ping endpoint ---
 @app.get("/api/ping")
