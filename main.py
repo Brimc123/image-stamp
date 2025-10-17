@@ -1706,8 +1706,6 @@ def get_retrofit_tool(request: Request):
 
 # --- API Endpoints ---
 @app.post("/api/stamp-batch")
-# --- API Endpoints ---
-@app.post("/api/stamp-batch")
 async def stamp_batch(
     request: Request,
     files: List[UploadFile] = File(...),
