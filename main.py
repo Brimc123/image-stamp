@@ -1759,8 +1759,8 @@ async def stamp_batch(
                 width, height = img.size
                 x = width - text_width - 30
                 y = height - text_height - 30
-                        outline_color = (0, 0, 0)         
-        outline_width = 3
+                outline_color = (0, 0, 0)         
+                outline_width = 3
                 for adj_x in range(-outline_width, outline_width + 1):
                     for adj_y in range(-outline_width, outline_width + 1):
                         if adj_x != 0 or adj_y != 0:
