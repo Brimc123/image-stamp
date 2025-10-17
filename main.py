@@ -1683,9 +1683,10 @@ def get_retrofit_tool(request: Request):
 async def stamp_batch(
     request: Request,
     files: List[UploadFile] = File(...),
-    start_datetime: str = Form(...),
-    end_datetime: str = Form(...),
-    font_size: int = Form(48),
+    date: str = Form(...),
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+    font_size: int = Form(26),
     crop_height: int = Form(0)
 ):
     user_row = require_active_user_row(request)
@@ -1708,21 +1709,31 @@ async def stamp_batch(
     conn.close()
     
     try:
-        start = datetime.strptime(start_datetime, "%Y-%m-%dT%H:%M")
-        end = datetime.strptime(end_datetime, "%Y-%m-%dT%H:%M")
-        
-        if start > end:
-            return Response(content="Start date must be before end date", status_code=400)
-        
-        num_images = len(files)
-        if num_images == 0:
-            return Response(content="No images provided", status_code=400)
-        
-        if num_images == 1:
-            datetimes = [start]
-        else:
-            delta = (end - start) / (num_images - 1)
-            datetimes = [start + delta * i for i in range(num_images)]
+   base_date = datetime.strptime(date, "%Y-%m-%d")
+   start_hour, start_min = map(int, start_time.split(':'))
+   end_hour, end_min = map(int, end_time.split(':'))
+
+   start_datetime = base_date.replace(hour=start_hour, minute=start_min, second=0)
+   end_datetime = base_date.replace(hour=end_hour, minute=end_min, second=0)
+
+    if start_datetime > end_datetime:
+    return Response(content="Start time must be before end time", status_code=400)
+
+    num_images = len(files)
+    if num_images == 0:
+    return Response(content="No images provided", status_code=400)
+
+    time_range_seconds = int((end_datetime - start_datetime).total_seconds())
+
+    random_times = []
+    for _ in range(num_images):
+    random_offset = random.randint(0, time_range_seconds)
+    random_dt = start_datetime + timedelta(seconds=random_offset)
+    random_times.append(random_dt)
+
+       random_times.sort()
+
+       datetimes = random_times 
         
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
