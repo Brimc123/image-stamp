@@ -16,7 +16,6 @@ import zipfile
 
 app = FastAPI()
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,11 +24,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Admin Configuration ---
 ADMIN_EMAIL = "brimc123@hotmail.com"
 ADMIN_PASSWORD = "Dylan1981!!"
 
-# --- Database ---
 DB_PATH = "users.db"
 
 def get_db():
@@ -67,7 +64,6 @@ def init_db():
 
 init_db()
 
-# --- Helper Functions ---
 def is_admin(request: Request) -> bool:
     email = request.cookies.get("user_email")
     return email == ADMIN_EMAIL
@@ -133,7 +129,7 @@ def require_active_user_row(request: Request):
             </head>
             <body>
                 <div class="container">
-                    <h1>⚠️ Account Suspended</h1>
+                    <h1>Account Suspended</h1>
                     <p>Your account has been suspended. Please contact the administrator for assistance.</p>
                     <a href="/logout">Logout</a>
                 </div>
@@ -142,7 +138,6 @@ def require_active_user_row(request: Request):
         """)
     return user_row
 
-# --- Login Page ---
 @app.get("/login")
 def get_login():
     html_content = """
@@ -228,7 +223,7 @@ def get_login():
 </head>
 <body>
     <div class="login-container">
-        <h1>🔐 Login to AutoDate</h1>
+        <h1>Login to AutoDate</h1>
         <form method="POST" action="/login">
             <div class="form-group">
                 <label>Email</label>
@@ -236,7 +231,7 @@ def get_login():
             </div>
             <div class="form-group">
                 <label>Password</label>
-                <input type="password" name="password" required placeholder="••••••••">
+                <input type="password" name="password" required placeholder="Password">
             </div>
             <button type="submit">Login</button>
         </form>
@@ -263,7 +258,6 @@ def post_login(email: str = Form(...), password: str = Form(...)):
     set_cookie(resp, "user_email", email)
     return resp
 
-# --- Signup Page ---
 @app.get("/signup")
 def get_signup():
     html_content = """
@@ -349,7 +343,7 @@ def get_signup():
 </head>
 <body>
     <div class="signup-container">
-        <h1>📝 Create Account</h1>
+        <h1>Create Account</h1>
         <form method="POST" action="/signup">
             <div class="form-group">
                 <label>Email</label>
@@ -357,7 +351,7 @@ def get_signup():
             </div>
             <div class="form-group">
                 <label>Password</label>
-                <input type="password" name="password" required placeholder="••••••••">
+                <input type="password" name="password" required placeholder="Password">
             </div>
             <button type="submit">Sign Up</button>
         </form>
@@ -390,14 +384,12 @@ def post_signup(email: str = Form(...), password: str = Form(...)):
     set_cookie(resp, "user_email", email)
     return resp
 
-# --- Logout ---
 @app.get("/logout")
 def logout():
     resp = RedirectResponse(url="/login", status_code=302)
     delete_cookie(resp, "user_email")
     return resp
 
-# --- Dashboard ---
 @app.get("/")
 async def root(request: Request):
     user_row = require_active_user_row(request)
@@ -413,7 +405,7 @@ async def root(request: Request):
     
     billing_card_html = """
         <div class="tool-card">
-            <h2>💳 Billing & Credits</h2>
+            <h2>Billing & Credits</h2>
             <p>Manage your account credits and view transaction history.</p>
             <a href="/billing" class="tool-button">View Billing</a>
         </div>
@@ -423,7 +415,7 @@ async def root(request: Request):
     if user_is_admin:
         admin_card_html = """
             <div class="tool-card admin-card">
-                <h2>⚙️ Admin Panel</h2>
+                <h2>Admin Panel</h2>
                 <p>Manage users, suspensions, and view all billing.</p>
                 <a href="/admin" class="tool-button">Open Admin</a>
             </div>
@@ -431,17 +423,17 @@ async def root(request: Request):
     
     timestamp_card = f"""
         <div class="tool-card {'disabled-card' if not has_timestamp_access else ''}">
-            <h2>📸 Timestamp Tool</h2>
+            <h2>Timestamp Tool</h2>
             <p>Add timestamps to multiple images with custom date ranges and cropping options.</p>
-            {'<a href="/tool/timestamp" class="tool-button">Open Tool</a>' if has_timestamp_access else '<span class="disabled-text">❌ Access Suspended</span>'}
+            {'<a href="/tool/timestamp" class="tool-button">Open Tool</a>' if has_timestamp_access else '<span class="disabled-text">Access Suspended</span>'}
         </div>
     """
     
     retrofit_card = f"""
         <div class="tool-card {'disabled-card' if not has_retrofit_access else ''}">
-            <h2>🏠 Retrofit Design Tool</h2>
+            <h2>Retrofit Design Tool</h2>
             <p>Generate PAS 2035 compliant retrofit designs with automated questioning.</p>
-            {'<a href="/tool/retrofit" class="tool-button">Open Tool</a>' if has_retrofit_access else '<span class="disabled-text">❌ Access Suspended</span>'}
+            {'<a href="/tool/retrofit" class="tool-button">Open Tool</a>' if has_retrofit_access else '<span class="disabled-text">Access Suspended</span>'}
         </div>
     """
     
@@ -554,7 +546,7 @@ async def root(request: Request):
 </head>
 <body>
     <div class="header">
-        <h1>🚀 AutoDate Dashboard</h1>
+        <h1>AutoDate Dashboard</h1>
         <div class="user-info">
             <div class="credits">£{credits:.2f}</div>
             <a href="/logout" class="logout-btn">Logout</a>
@@ -572,7 +564,6 @@ async def root(request: Request):
     """
     return HTMLResponse(html_content)
 
-# --- Billing & Credits ---
 @app.get("/billing")
 def get_billing(request: Request):
     user_row = require_active_user_row(request)
@@ -685,14 +676,14 @@ def get_billing(request: Request):
 </head>
 <body>
     <div class="container">
-        <h1>💳 Billing & Credits</h1>
+        <h1>Billing & Credits</h1>
         
         <div class="credits-display">
             <h2>£{credits:.2f}</h2>
             <p>Available Credits</p>
         </div>
         
-        <a href="/topup" class="topup-btn">💰 Top Up Credits</a>
+        <a href="/topup" class="topup-btn">Top Up Credits</a>
         
         <h2>Transaction History</h2>
         <table>
@@ -708,7 +699,7 @@ def get_billing(request: Request):
             </tbody>
         </table>
         
-        <a href="/" class="back-btn">← Back to Dashboard</a>
+        <a href="/" class="back-btn">Back to Dashboard</a>
     </div>
 </body>
 </html>
@@ -812,7 +803,7 @@ def get_topup(request: Request):
 </head>
 <body>
     <div class="container">
-        <h1>💰 Top Up Credits</h1>
+        <h1>Top Up Credits</h1>
         
         <div class="info-box">
             <p><strong>Pricing:</strong> £5 per image processing</p>
@@ -822,13 +813,13 @@ def get_topup(request: Request):
         
         <form method="POST" action="/topup">
             <div class="form-group">
-                <label>Top-up Amount (£)</label>
+                <label>Top-up Amount</label>
                 <input type="number" name="amount" min="50" step="0.01" value="50" required>
             </div>
             <button type="submit">Add Credits</button>
         </form>
         
-        <a href="/billing" class="back-link">← Back to Billing</a>
+        <a href="/billing" class="back-link">Back to Billing</a>
     </div>
 </body>
 </html>
@@ -868,7 +859,6 @@ def post_topup(request: Request, amount: float = Form(...)):
         </script>
     """)
 
-# --- Admin Panel ---
 @app.get("/admin")
 def admin_panel(request: Request):
     user_row = require_active_user_row(request)
@@ -916,7 +906,7 @@ def admin_panel(request: Request):
             </head>
             <body>
                 <div class="container">
-                    <h1>🚫 Access Denied</h1>
+                    <h1>Access Denied</h1>
                     <p>You do not have permission to access the admin panel.</p>
                     <a href="/">Back to Dashboard</a>
                 </div>
@@ -936,10 +926,10 @@ def admin_panel(request: Request):
         status_text = "Active" if u["is_active"] == 1 else "Suspended"
         toggle_text = "Suspend" if u["is_active"] == 1 else "Activate"
         
-        timestamp_badge = "✓ Timestamp" if u["timestamp_tool_access"] == 1 else "✗ Timestamp"
+        timestamp_badge = "Timestamp" if u["timestamp_tool_access"] == 1 else "No Timestamp"
         timestamp_color = "#4caf50" if u["timestamp_tool_access"] == 1 else "#f44336"
         
-        retrofit_badge = "✓ Retrofit" if u["retrofit_tool_access"] == 1 else "✗ Retrofit"
+        retrofit_badge = "Retrofit" if u["retrofit_tool_access"] == 1 else "No Retrofit"
         retrofit_color = "#4caf50" if u["retrofit_tool_access"] == 1 else "#f44336"
         
         user_rows_html += f"""
@@ -1032,11 +1022,11 @@ def admin_panel(request: Request):
 </head>
 <body>
     <div class="container">
-        <h1>⚙️ Admin Panel</h1>
+        <h1>Admin Panel</h1>
         
         <div class="actions">
-            <a href="/">← Back to Dashboard</a>
-            <a href="/admin/billing">💳 View All Billing</a>
+            <a href="/">Back to Dashboard</a>
+            <a href="/admin/billing">View All Billing</a>
         </div>
         
         <h2>User Management</h2>
@@ -1161,7 +1151,7 @@ def admin_billing(request: Request):
             </head>
             <body>
                 <div class="container">
-                    <h1>🚫 Access Denied</h1>
+                    <h1>Access Denied</h1>
                     <p>You do not have permission to access admin billing.</p>
                     <a href="/">Back to Dashboard</a>
                 </div>
@@ -1250,8 +1240,8 @@ def admin_billing(request: Request):
 </head>
 <body>
     <div class="container">
-        <h1>💳 All Billing Transactions</h1>
-        <a href="/admin" class="back-btn">← Back to Admin</a>
+        <h1>All Billing Transactions</h1>
+        <a href="/admin" class="back-btn">Back to Admin</a>
         
         <table>
             <thead>
@@ -1272,7 +1262,6 @@ def admin_billing(request: Request):
     """
     return HTMLResponse(html_content)
 
-# --- Timestamp Tool ---
 @app.get("/tool/timestamp")
 def get_timestamp_tool(request: Request):
     user_row = require_active_user_row(request)
@@ -1319,7 +1308,7 @@ def get_timestamp_tool(request: Request):
             </head>
             <body>
                 <div class="container">
-                    <h1>🚫 Access Denied</h1>
+                    <h1>Access Denied</h1>
                     <p>Your access to the Timestamp Tool has been suspended. Please contact the administrator.</p>
                     <a href="/">Back to Dashboard</a>
                 </div>
@@ -1457,7 +1446,7 @@ def get_timestamp_tool(request: Request):
 </head>
 <body>
     <div class="header">
-        <h1>📸 Timestamp Tool</h1>
+        <h1>Timestamp Tool</h1>
         <div class="credits">£{credits:.2f}</div>
     </div>
 
@@ -1493,12 +1482,12 @@ def get_timestamp_tool(request: Request):
                 <input type="number" name="crop_height" id="crop_height" value="0" min="0" required>
             </div>
 
-            <button type="submit">🚀 Process Images</button>
+            <button type="submit">Process Images</button>
         </form>
 
         <div id="status"></div>
 
-        <a href="/" class="back-btn">← Back to Dashboard</a>
+        <a href="/" class="back-btn">Back to Dashboard</a>
     </div>
 
     <script>
@@ -1539,7 +1528,7 @@ def get_timestamp_tool(request: Request):
                     a.remove();
                     
                     statusDiv.className = 'success';
-                    statusDiv.textContent = '✓ Success! Your images have been downloaded.';
+                    statusDiv.textContent = 'Success! Your images have been downloaded.';
                 }} else {{
                     const error = await response.text();
                     statusDiv.className = 'error';
@@ -1556,7 +1545,6 @@ def get_timestamp_tool(request: Request):
     """
     return HTMLResponse(html_content)
 
-# --- Retrofit Tool ---
 @app.get("/tool/retrofit")
 def get_retrofit_tool(request: Request):
     user_row = require_active_user_row(request)
@@ -1603,7 +1591,7 @@ def get_retrofit_tool(request: Request):
             </head>
             <body>
                 <div class="container">
-                    <h1>🚫 Access Denied</h1>
+                    <h1>Access Denied</h1>
                     <p>Your access to the Retrofit Design Tool has been suspended. Please contact the administrator.</p>
                     <a href="/">Back to Dashboard</a>
                 </div>
@@ -1669,7 +1657,7 @@ def get_retrofit_tool(request: Request):
 </head>
 <body>
     <div class="container">
-        <h1>🏠 Retrofit Design Tool</h1>
+        <h1>Retrofit Design Tool</h1>
         
         <div class="info-box">
             <h2>Coming Soon!</h2>
@@ -1683,14 +1671,13 @@ def get_retrofit_tool(request: Request):
             </ul>
         </div>
         
-        <a href="/" class="back-btn">← Back to Dashboard</a>
+        <a href="/" class="back-btn">Back to Dashboard</a>
     </div>
 </body>
 </html>
     """
     return HTMLResponse(html_content)
 
-# --- API Endpoints ---
 @app.post("/api/stamp-batch")
 async def stamp_batch(
     request: Request,
@@ -1707,4 +1694,112 @@ async def stamp_batch(
     cost = 5.0
     current_credits = user_row["credits"] if "credits" in user_row.keys() else 0.0
     if current_credits < cost:
-        return Response(content="
+        return Response(content="Insufficient credits. Please top up.", status_code=400)
+    
+    user_id = user_row["id"]
+    new_credits = current_credits - cost
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET credits = ? WHERE id = ?", (new_credits, user_id))
+    cur.execute("INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)", 
+                (user_id, -cost, "processing"))
+    conn.commit()
+    conn.close()
+    
+    try:
+        start = datetime.strptime(start_datetime, "%Y-%m-%dT%H:%M")
+        end = datetime.strptime(end_datetime, "%Y-%m-%dT%H:%M")
+        
+        if start > end:
+            return Response(content="Start date must be before end date", status_code=400)
+        
+        num_images = len(files)
+        if num_images == 1:
+            datetimes = [start]
+        else:
+            delta = (end - start) / (num_images - 1)
+            datetimes = [start + delta * i for i in range(num_images)]
+        
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for idx, (file, dt) in enumerate(zip(files, datetimes)):
+                image_data = await file.read()
+                img = Image.open(io.BytesIO(image_data))
+                
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                if crop_height > 0:
+                    width, height = img.size
+                    if crop_height < height:
+                        img = img.crop((0, 0, width, height - crop_height))
+                
+                draw = ImageDraw.Draw(img)
+                timestamp_text = dt.strftime("%d %b %Y, %H:%M:%S")
+                
+                try:
+                    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+                except:
+                    try:
+                        font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", font_size)
+                    except:
+                        try:
+                            font = ImageFont.truetype("arialbd.ttf", font_size)
+                        except:
+                            font = ImageFont.load_default()
+                
+                bbox = draw.textbbox((0, 0), timestamp_text, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+                
+                width, height = img.size
+                x = width - text_width - 30
+                y = height - text_height - 30
+                
+                outline_color = (0, 0, 0)
+                outline_width = 3
+                for adj_x in range(-outline_width, outline_width + 1):
+                    for adj_y in range(-outline_width, outline_width + 1):
+                        if adj_x != 0 or adj_y != 0:
+                            draw.text((x + adj_x, y + adj_y), timestamp_text, font=font, fill=outline_color)
+                
+                draw.text((x, y), timestamp_text, font=font, fill=(255, 255, 255))
+                
+                output = io.BytesIO()
+                img.save(output, format='JPEG', quality=95)
+                output.seek(0)
+                
+                original_filename = file.filename or f"image_{idx}.jpg"
+                name, ext = os.path.splitext(original_filename)
+                new_filename = f"{name}_stamped{ext}"
+                
+                zip_file.writestr(new_filename, output.read())
+        
+        zip_buffer.seek(0)
+        return Response(
+            content=zip_buffer.read(),
+            media_type="application/zip",
+            headers={"Content-Disposition": "attachment; filename=timestamped_images.zip"}
+        )
+    
+    except Exception as e:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET credits = credits + ? WHERE id = ?", (cost, user_id))
+        cur.execute("INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)", 
+                    (user_id, cost, "refund"))
+        conn.commit()
+        conn.close()
+        
+        return Response(content=f"Error processing images: {str(e)}", status_code=500)
+
+@app.get("/api/ping")
+def ping():
+    return {"status": "ok"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)_images == 0:
+            return Response(content="No images provided", status_code=400)
+        
+        if num
