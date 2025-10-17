@@ -26,8 +26,8 @@ app.add_middleware(
 )
 
 # --- Admin Configuration ---
-ADMIN_EMAIL = "brimc123@hotmail.com"  # Main admin user
-ADMIN_PASSWORD = "Dylan1981!!"  # Admin password
+ADMIN_EMAIL = "brimc123@hotmail.com"
+ADMIN_PASSWORD = "Dylan1981!!"
 
 # --- Database ---
 DB_PATH = "users.db"
@@ -69,7 +69,6 @@ init_db()
 
 # --- Helper Functions ---
 def is_admin(request: Request) -> bool:
-    """Check if the current user is the admin"""
     email = request.cookies.get("user_email")
     return email == ADMIN_EMAIL
 
@@ -79,7 +78,6 @@ def set_cookie(response: Response, key: str, value: str):
 def delete_cookie(response: Response, key: str):
     response.delete_cookie(key=key)
 
-# --- User Helpers ---
 def get_user_row_by_email(email: str):
     conn = get_db()
     cur = conn.cursor()
@@ -95,7 +93,6 @@ def require_active_user_row(request: Request):
     user_row = get_user_row_by_email(email)
     if not user_row:
         return RedirectResponse(url="/login", status_code=302)
-    # Check if user is suspended (unless they're admin)
     if user_row["is_active"] == 0 and email != ADMIN_EMAIL:
         return HTMLResponse("""
             <!DOCTYPE html>
@@ -148,7 +145,7 @@ def require_active_user_row(request: Request):
 # --- Login Page ---
 @app.get("/login")
 def get_login():
-    return HTMLResponse("""
+    html_content = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -249,7 +246,8 @@ def get_login():
     </div>
 </body>
 </html>
-    """)
+    """
+    return HTMLResponse(html_content)
 
 @app.post("/login")
 def post_login(email: str = Form(...), password: str = Form(...)):
@@ -268,7 +266,7 @@ def post_login(email: str = Form(...), password: str = Form(...)):
 # --- Signup Page ---
 @app.get("/signup")
 def get_signup():
-    return HTMLResponse("""
+    html_content = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -369,7 +367,8 @@ def get_signup():
     </div>
 </body>
 </html>
-    """)
+    """
+    return HTMLResponse(html_content)
 
 @app.post("/signup")
 def post_signup(email: str = Form(...), password: str = Form(...)):
@@ -409,11 +408,9 @@ async def root(request: Request):
     user_is_admin = is_admin(request)
     credits = user_row["credits"] if "credits" in user_row.keys() else 0.0
     
-    # Check tool access
     has_timestamp_access = user_row["timestamp_tool_access"] == 1
     has_retrofit_access = user_row["retrofit_tool_access"] == 1
     
-    # Show billing card for all users
     billing_card_html = """
         <div class="tool-card">
             <h2>💳 Billing & Credits</h2>
@@ -422,7 +419,6 @@ async def root(request: Request):
         </div>
     """
     
-    # Admin panel card (only for admin)
     admin_card_html = ""
     if user_is_admin:
         admin_card_html = """
@@ -433,7 +429,6 @@ async def root(request: Request):
             </div>
         """
     
-    # Tool cards with access checking
     timestamp_card = f"""
         <div class="tool-card {'disabled-card' if not has_timestamp_access else ''}">
             <h2>📸 Timestamp Tool</h2>
@@ -450,7 +445,7 @@ async def root(request: Request):
         </div>
     """
     
-    return HTMLResponse(f"""
+    html_content = f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -574,7 +569,8 @@ async def root(request: Request):
     </div>
 </body>
 </html>
-    """)
+    """
+    return HTMLResponse(html_content)
 
 # --- Billing & Credits ---
 @app.get("/billing")
@@ -587,7 +583,6 @@ def get_billing(request: Request):
     user_id = user_row["id"]
     credits = user_row["credits"] if "credits" in user_row.keys() else 0.0
     
-    # Get transaction history for this user
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC", (user_id,))
@@ -605,7 +600,7 @@ def get_billing(request: Request):
             </tr>
         """
     
-    return HTMLResponse(f"""
+    html_content = f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -717,154 +712,8 @@ def get_billing(request: Request):
     </div>
 </body>
 </html>
-    """)
-
-# --- API Endpoints ---
-@app.post("/api/stamp-batch")
-async def stamp_batch(
-    request: Request,
-    files: List[UploadFile] = File(...),
-    start_date: str = Form(...),
-    end_date: str = Form(...),
-    font_size: int = Form(36),
-    font_color: str = Form("red"),
-    crop_height: int = Form(0)
-):
-    user_row = require_active_user_row(request)
-    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
-        return Response(content="Unauthorized", status_code=401)
-    
-    # Check credits
-    cost = 5.0
-    current_credits = user_row["credits"] if "credits" in user_row.keys() else 0.0
-    if current_credits < cost:
-        return Response(content="Insufficient credits. Please top up.", status_code=400)
-    
-    # Deduct credits
-    user_id = user_row["id"]
-    new_credits = current_credits - cost
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("UPDATE users SET credits = ? WHERE id = ?", (new_credits, user_id))
-    cur.execute("INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)", 
-                (user_id, -cost, "processing"))
-    conn.commit()
-    conn.close()
-    
-    try:
-        # Parse dates
-        start = datetime.strptime(start_date, "%Y-%m-%d")
-        end = datetime.strptime(end_date, "%Y-%m-%d")
-        
-        if start > end:
-            return Response(content="Start date must be before end date", status_code=400)
-        
-        # Calculate date range
-        num_images = len(files)
-        if num_images == 0:
-            return Response(content="No images provided", status_code=400)
-        
-        if num_images == 1:
-            dates = [start]
-        else:
-            delta = (end - start) / (num_images - 1)
-            dates = [start + delta * i for i in range(num_images)]
-        
-        # Color mapping
-        color_map = {
-            "red": (255, 0, 0),
-            "white": (255, 255, 255),
-            "black": (0, 0, 0),
-            "yellow": (255, 255, 0),
-            "blue": (0, 0, 255)
-        }
-        rgb_color = color_map.get(font_color.lower(), (255, 0, 0))
-        
-        # Process images
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for idx, (file, date) in enumerate(zip(files, dates)):
-                # Read image
-                image_data = await file.read()
-                img = Image.open(io.BytesIO(image_data))
-                
-                # Convert to RGB if necessary
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                
-                # Crop from bottom if specified
-                if crop_height > 0:
-                    width, height = img.size
-                    if crop_height < height:
-                        img = img.crop((0, 0, width, height - crop_height))
-                
-                # Add timestamp
-                draw = ImageDraw.Draw(img)
-                timestamp_text = date.strftime("%d/%m/%Y")
-                
-                # Try to use a font, fallback to default
-                try:
-                    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-                except:
-                    try:
-                        font = ImageFont.truetype("arial.ttf", font_size)
-                    except:
-                        font = ImageFont.load_default()
-                
-                # Get text size
-                bbox = draw.textbbox((0, 0), timestamp_text, font=font)
-                text_width = bbox[2] - bbox[0]
-                text_height = bbox[3] - bbox[1]
-                
-                # Position at bottom right
-                width, height = img.size
-                x = width - text_width - 20
-                y = height - text_height - 20
-                
-                # Draw text with outline for visibility
-                outline_color = (0, 0, 0) if font_color != "black" else (255, 255, 255)
-                for adj_x in range(-2, 3):
-                    for adj_y in range(-2, 3):
-                        draw.text((x + adj_x, y + adj_y), timestamp_text, font=font, fill=outline_color)
-                draw.text((x, y), timestamp_text, font=font, fill=rgb_color)
-                
-                # Save to zip
-                output = io.BytesIO()
-                img.save(output, format='JPEG', quality=95)
-                output.seek(0)
-                
-                original_filename = file.filename or f"image_{idx}.jpg"
-                name, ext = os.path.splitext(original_filename)
-                new_filename = f"{name}_stamped{ext}"
-                
-                zip_file.writestr(new_filename, output.read())
-        
-        zip_buffer.seek(0)
-        return Response(
-            content=zip_buffer.read(),
-            media_type="application/zip",
-            headers={"Content-Disposition": "attachment; filename=timestamped_images.zip"}
-        )
-    
-    except Exception as e:
-        # Refund credits on error
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute("UPDATE users SET credits = credits + ? WHERE id = ?", (cost, user_id))
-        cur.execute("INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)", 
-                    (user_id, cost, "refund"))
-        conn.commit()
-        conn.close()
-        
-        return Response(content=f"Error processing images: {str(e)}", status_code=500)
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) to Dashboard</a>
-    </div>
-</body>
-</html>
-    """)
+    """
+    return HTMLResponse(html_content)
 
 @app.get("/topup")
 def get_topup(request: Request):
@@ -872,7 +721,7 @@ def get_topup(request: Request):
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
     
-    return HTMLResponse("""
+    html_content = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -983,7 +832,8 @@ def get_topup(request: Request):
     </div>
 </body>
 </html>
-    """)
+    """
+    return HTMLResponse(html_content)
 
 @app.post("/topup")
 def post_topup(request: Request, amount: float = Form(...)):
@@ -1025,7 +875,6 @@ def admin_panel(request: Request):
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
     
-    # Check if user is admin
     admin_check = is_admin(request)
     if not admin_check:
         return HTMLResponse("""
@@ -1075,7 +924,6 @@ def admin_panel(request: Request):
             </html>
         """)
     
-    # Get all users
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT * FROM users ORDER BY created_at DESC")
@@ -1088,7 +936,6 @@ def admin_panel(request: Request):
         status_text = "Active" if u["is_active"] == 1 else "Suspended"
         toggle_text = "Suspend" if u["is_active"] == 1 else "Activate"
         
-        # Tool access badges
         timestamp_badge = "✓ Timestamp" if u["timestamp_tool_access"] == 1 else "✗ Timestamp"
         timestamp_color = "#4caf50" if u["timestamp_tool_access"] == 1 else "#f44336"
         
@@ -1124,7 +971,7 @@ def admin_panel(request: Request):
             </tr>
         """
     
-    return HTMLResponse(f"""
+    html_content = f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -1210,7 +1057,8 @@ def admin_panel(request: Request):
     </div>
 </body>
 </html>
-    """)
+    """
+    return HTMLResponse(html_content)
 
 @app.post("/admin/toggle-status")
 def toggle_user_status(request: Request, user_id: int = Form(...), current_status: str = Form(...)):
@@ -1272,7 +1120,6 @@ def admin_billing(request: Request):
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
     
-    # Check if user is admin
     admin_check = is_admin(request)
     if not admin_check:
         return HTMLResponse("""
@@ -1322,7 +1169,6 @@ def admin_billing(request: Request):
             </html>
         """)
     
-    # Get all transactions with user emails
     conn = get_db()
     cur = conn.cursor()
     cur.execute("""
@@ -1346,7 +1192,7 @@ def admin_billing(request: Request):
             </tr>
         """
     
-    return HTMLResponse(f"""
+    html_content = f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -1423,7 +1269,8 @@ def admin_billing(request: Request):
     </div>
 </body>
 </html>
-    """)
+    """
+    return HTMLResponse(html_content)
 
 # --- Timestamp Tool ---
 @app.get("/tool/timestamp")
@@ -1432,7 +1279,6 @@ def get_timestamp_tool(request: Request):
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
     
-    # Check if user has access to timestamp tool
     if user_row["timestamp_tool_access"] == 0:
         return HTMLResponse("""
             <!DOCTYPE html>
@@ -1483,7 +1329,7 @@ def get_timestamp_tool(request: Request):
     
     credits = user_row["credits"] if "credits" in user_row.keys() else 0.0
     
-    return HTMLResponse(f"""
+    html_content = f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -1721,7 +1567,8 @@ def get_timestamp_tool(request: Request):
     </script>
 </body>
 </html>
-    """)
+    """
+    return HTMLResponse(html_content)
 
 # --- Retrofit Tool ---
 @app.get("/tool/retrofit")
@@ -1730,7 +1577,6 @@ def get_retrofit_tool(request: Request):
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
     
-    # Check if user has access to retrofit tool
     if user_row["retrofit_tool_access"] == 0:
         return HTMLResponse("""
             <!DOCTYPE html>
@@ -1779,7 +1625,7 @@ def get_retrofit_tool(request: Request):
             </html>
         """)
     
-    return HTMLResponse("""
+    html_content = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -1851,4 +1697,18 @@ def get_retrofit_tool(request: Request):
             </ul>
         </div>
         
-        <a href="/" class="back-btn">← Back
+        <a href="/" class="back-btn">← Back to Dashboard</a>
+    </div>
+</body>
+</html>
+    """
+    return HTMLResponse(html_content)
+
+# --- API Endpoints ---
+@app.post("/api/stamp-batch")
+async def stamp_batch(
+    request: Request,
+    files: List[UploadFile] = File(...),
+    start_date: str = Form(...),
+    end_date: str = Form(...),
+    font_size:
