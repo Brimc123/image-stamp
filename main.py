@@ -1832,8 +1832,3 @@ async def stamp_batch(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-    request: Request,
-    files: List[UploadFile] = File(...),
-    start_date: str = Form(...),
-    end_date: str = Form(...),
-    font_size:
