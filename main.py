@@ -1703,3 +1703,60 @@ async def stamp_batch(
     cur.execute("UPDATE users SET credits = ? WHERE id = ?", (new_credits, user_id))
     cur.execute("INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)", 
                 (user_id, -cost, "processing"))
+conn.commit()
+    conn.close()
+    
+    try:
+        start = datetime.strptime(start_datetime, "%Y-%m-%dT%H:%M")
+        end = datetime.strptime(end_datetime, "%Y-%m-%dT%H:%M")
+        
+        if start > end:
+            return Response(content="Start date must be before end date", status_code=400)
+        
+        num_images = len(files)
+        if num_images == 0:
+            return Response(content="No images provided", status_code=400)
+        
+        if num_images == 1:
+            datetimes = [start]
+        else:
+            delta = (end - start) / (num_images - 1)
+            datetimes = [start + delta * i for i in range(num_images)]
+        
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for idx, (file, dt) in enumerate(zip(files, datetimes)):
+                image_data = await file.read()
+                img = Image.open(io.BytesIO(image_data))
+                
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                if crop_height > 0:
+                    width, height = img.size
+                    if crop_height < height:
+                        img = img.crop((0, 0, width, height - crop_height))
+                
+                draw = ImageDraw.Draw(img)
+                timestamp_text = dt.strftime("%d %b %Y, %H:%M:%S")
+                
+                try:
+                    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+                except:
+                    try:
+                        font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", font_size)
+                    except:
+                        try:
+                            font = ImageFont.truetype("arialbd.ttf", font_size)
+                        except:
+                            font = ImageFont.load_default()
+                
+                bbox = draw.textbbox((0, 0), timestamp_text, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+                
+                width, height = img.size
+                x = width - text_width - 30
+                y = height - text_height - 30
+                
+                outline_color = (0
