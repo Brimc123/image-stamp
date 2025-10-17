@@ -1706,7 +1706,132 @@ def get_retrofit_tool(request: Request):
 
 # --- API Endpoints ---
 @app.post("/api/stamp-batch")
+# --- API Endpoints ---
+@app.post("/api/stamp-batch")
 async def stamp_batch(
+    request: Request,
+    files: List[UploadFile] = File(...),
+    start_date: str = Form(...),
+    end_date: str = Form(...),
+    font_size: int = Form(36),
+    font_color: str = Form("red"),
+    crop_height: int = Form(0)
+):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return Response(content="Unauthorized", status_code=401)
+    
+    cost = 5.0
+    current_credits = user_row["credits"] if "credits" in user_row.keys() else 0.0
+    if current_credits < cost:
+        return Response(content="Insufficient credits. Please top up.", status_code=400)
+    
+    user_id = user_row["id"]
+    new_credits = current_credits - cost
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET credits = ? WHERE id = ?", (new_credits, user_id))
+    cur.execute("INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)", 
+                (user_id, -cost, "processing"))
+    conn.commit()
+    conn.close()
+    
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+        
+        if start > end:
+            return Response(content="Start date must be before end date", status_code=400)
+        
+        num_images = len(files)
+        if num_images == 0:
+            return Response(content="No images provided", status_code=400)
+        
+        if num_images == 1:
+            dates = [start]
+        else:
+            delta = (end - start) / (num_images - 1)
+            dates = [start + delta * i for i in range(num_images)]
+        
+        color_map = {
+            "red": (255, 0, 0),
+            "white": (255, 255, 255),
+            "black": (0, 0, 0),
+            "yellow": (255, 255, 0),
+            "blue": (0, 0, 255)
+        }
+        rgb_color = color_map.get(font_color.lower(), (255, 0, 0))
+        
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for idx, (file, date) in enumerate(zip(files, dates)):
+                image_data = await file.read()
+                img = Image.open(io.BytesIO(image_data))
+                
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                if crop_height > 0:
+                    width, height = img.size
+                    if crop_height < height:
+                        img = img.crop((0, 0, width, height - crop_height))
+                
+                draw = ImageDraw.Draw(img)
+                timestamp_text = date.strftime("%d/%m/%Y")
+                
+                try:
+                    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+                except:
+                    try:
+                        font = ImageFont.truetype("arial.ttf", font_size)
+                    except:
+                        font = ImageFont.load_default()
+                
+                bbox = draw.textbbox((0, 0), timestamp_text, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+                
+                width, height = img.size
+                x = width - text_width - 20
+                y = height - text_height - 20
+                
+                outline_color = (0, 0, 0) if font_color != "black" else (255, 255, 255)
+                for adj_x in range(-2, 3):
+                    for adj_y in range(-2, 3):
+                        draw.text((x + adj_x, y + adj_y), timestamp_text, font=font, fill=outline_color)
+                draw.text((x, y), timestamp_text, font=font, fill=rgb_color)
+                
+                output = io.BytesIO()
+                img.save(output, format='JPEG', quality=95)
+                output.seek(0)
+                
+                original_filename = file.filename or f"image_{idx}.jpg"
+                name, ext = os.path.splitext(original_filename)
+                new_filename = f"{name}_stamped{ext}"
+                
+                zip_file.writestr(new_filename, output.read())
+        
+        zip_buffer.seek(0)
+        return Response(
+            content=zip_buffer.read(),
+            media_type="application/zip",
+            headers={"Content-Disposition": "attachment; filename=timestamped_images.zip"}
+        )
+    
+    except Exception as e:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET credits = credits + ? WHERE id = ?", (cost, user_id))
+        cur.execute("INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)", 
+                    (user_id, cost, "refund"))
+        conn.commit()
+        conn.close()
+        
+        return Response(content=f"Error processing images: {str(e)}", status_code=500)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
     request: Request,
     files: List[UploadFile] = File(...),
     start_date: str = Form(...),
