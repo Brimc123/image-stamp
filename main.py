@@ -1827,6 +1827,11 @@ async def stamp_batch(
         
         return Response(content=f"Error processing images: {str(e)}", status_code=500)
 
+# --- Health Check for Render.com ---
+@app.get("/api/ping")
+def ping():
+    return {"status": "ok"}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
