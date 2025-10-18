@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from PIL import Image, ImageDraw, ImageFont
 from auth import require_active_user_row
 from database import update_user_credits, add_transaction
-from config import TIMESTAMP_TOOL_COST, DEFAULT_FONT_SIZE, TIMESTAMP_PADDING, OUTLINE_WIDTH, FONT_PATHS
+from config import TIMESTAMP_TOOL_COST, TIMESTAMP_PADDING, OUTLINE_WIDTH, FONT_PATHS
 
 def get_timestamp_tool_page(request: Request):
     """Timestamp tool page"""
@@ -131,7 +131,6 @@ def get_timestamp_tool_page(request: Request):
             color: #555;
             font-weight: 600;
         }}
-        input[type="file"],
         input[type="text"],
         input[type="number"] {{
             width: 100%;
@@ -143,6 +142,51 @@ def get_timestamp_tool_page(request: Request):
         input:focus {{
             outline: none;
             border-color: #667eea;
+        }}
+        .drop-zone {{
+            border: 3px dashed #667eea;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9ff;
+        }}
+        .drop-zone:hover {{
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }}
+        .drop-zone.dragover {{
+            border-color: #4caf50;
+            background: #e8f5e9;
+        }}
+        .drop-zone p {{
+            color: #667eea;
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }}
+        .drop-zone small {{
+            color: #999;
+            display: block;
+        }}
+        #fileInput {{
+            display: none;
+        }}
+        #fileList {{
+            margin-top: 15px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 5px;
+            display: none;
+        }}
+        .file-item {{
+            padding: 8px;
+            background: white;
+            margin-bottom: 5px;
+            border-radius: 3px;
+            font-size: 14px;
+            color: #333;
         }}
         button {{
             width: 100%;
@@ -226,7 +270,12 @@ def get_timestamp_tool_page(request: Request):
         <form id="stampForm" enctype="multipart/form-data">
             <div class="form-group">
                 <label>Upload Images (multiple)</label>
-                <input type="file" name="files" id="files" multiple accept="image/*" required>
+                <div class="drop-zone" id="dropZone">
+                    <p>📁 Drag & Drop Images Here</p>
+                    <small>or click to browse</small>
+                </div>
+                <input type="file" name="files" id="fileInput" multiple accept="image/*" required>
+                <div id="fileList"></div>
             </div>
 
             <div class="form-group">
@@ -245,13 +294,13 @@ def get_timestamp_tool_page(request: Request):
             </div>
 
             <div class="form-group">
-                <label>Font Size (default: {DEFAULT_FONT_SIZE})</label>
-                <input type="number" name="font_size" id="font_size" value="{DEFAULT_FONT_SIZE}" min="20" max="120" required>
+                <label>Font Size (default: 30)</label>
+                <input type="number" name="font_size" id="font_size" value="30" min="20" max="120" required>
             </div>
 
             <div class="form-group">
                 <label>Crop Height from Bottom (pixels)</label>
-                <input type="number" name="crop_height" id="crop_height" value="0" min="0" required>
+                <input type="number" name="crop_height" id="crop_height" value="60" min="0" required>
             </div>
 
             <button type="submit" id="submitBtn">Process Images</button>
@@ -263,8 +312,71 @@ def get_timestamp_tool_page(request: Request):
     </div>
 
     <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        let selectedFiles = [];
+
+        // Click to browse
+        dropZone.addEventListener('click', () => {{
+            fileInput.click();
+        }});
+
+        // Drag & drop handlers
+        dropZone.addEventListener('dragover', (e) => {{
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        }});
+
+        dropZone.addEventListener('dragleave', () => {{
+            dropZone.classList.remove('dragover');
+        }});
+
+        dropZone.addEventListener('drop', (e) => {{
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            handleFiles(files);
+        }});
+
+        // File input change
+        fileInput.addEventListener('change', (e) => {{
+            handleFiles(e.target.files);
+        }});
+
+        function handleFiles(files) {{
+            selectedFiles = Array.from(files);
+            displayFiles();
+        }}
+
+        function displayFiles() {{
+            if (selectedFiles.length === 0) {{
+                fileList.style.display = 'none';
+                return;
+            }}
+            
+            fileList.style.display = 'block';
+            fileList.innerHTML = '<strong>' + selectedFiles.length + ' file(s) selected:</strong><br>';
+            selectedFiles.forEach(file => {{
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                div.textContent = '📷 ' + file.name;
+                fileList.appendChild(div);
+            }});
+        }}
+
         document.getElementById('stampForm').addEventListener('submit', async (e) => {{
             e.preventDefault();
+            
+            if (selectedFiles.length === 0) {{
+                alert('Please select at least 2 images');
+                return;
+            }}
+
+            if (selectedFiles.length < 2) {{
+                alert('Please select at least 2 images');
+                return;
+            }}
             
             const statusDiv = document.getElementById('status');
             const submitBtn = document.getElementById('submitBtn');
@@ -275,11 +387,10 @@ def get_timestamp_tool_page(request: Request):
             submitBtn.disabled = true;
             
             const formData = new FormData();
-            const files = document.getElementById('files').files;
             
-            for (let i = 0; i < files.length; i++) {{
-                formData.append('files', files[i]);
-            }}
+            selectedFiles.forEach(file => {{
+                formData.append('files', file);
+            }});
             
             formData.append('date_text', document.getElementById('date_text').value);
             formData.append('start_time', document.getElementById('start_time').value);
