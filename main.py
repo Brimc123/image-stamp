@@ -10,6 +10,18 @@ from auth import (
     logout, require_active_user_row,
     is_admin
 )
+from billing import (
+    get_billing_page,
+    get_topup_page,
+    post_topup
+)
+from admin import (
+    get_admin_panel,
+    toggle_user_status,
+    toggle_timestamp_access,
+    toggle_retrofit_access,
+    get_admin_billing
+)
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -239,44 +251,43 @@ async def root(request: Request):
     """
     return HTMLResponse(html_content)
 
-# ==================== PLACEHOLDER ROUTES ====================
+# ==================== BILLING ROUTES ====================
 
 @app.get("/billing")
-def billing_placeholder(request: Request):
-    user_row = require_active_user_row(request)
-    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
-        return user_row
-    
-    return HTMLResponse("""
-        <!DOCTYPE html>
-        <html>
-        <head><title>Billing - Coming Soon</title></head>
-        <body>
-            <h1>Billing Page - Coming in Phase 2</h1>
-            <a href="/">Back to Dashboard</a>
-        </body>
-        </html>
-    """)
+def billing_page(request: Request):
+    return get_billing_page(request)
+
+@app.get("/topup")
+def topup_page(request: Request):
+    return get_topup_page(request)
+
+@app.post("/topup")
+def topup(request: Request, amount: float = Form(...)):
+    return post_topup(request, amount)
+
+# ==================== ADMIN ROUTES ====================
 
 @app.get("/admin")
-def admin_placeholder(request: Request):
-    user_row = require_active_user_row(request)
-    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
-        return user_row
-    
-    if not is_admin(request):
-        return HTMLResponse("<h1>Access Denied</h1><a href='/'>Back</a>")
-    
-    return HTMLResponse("""
-        <!DOCTYPE html>
-        <html>
-        <head><title>Admin - Coming Soon</title></head>
-        <body>
-            <h1>Admin Panel - Coming in Phase 2</h1>
-            <a href="/">Back to Dashboard</a>
-        </body>
-        </html>
-    """)
+def admin_page(request: Request):
+    return get_admin_panel(request)
+
+@app.post("/admin/toggle-status")
+def admin_toggle_status(request: Request, user_id: int = Form(...), current_status: str = Form(...)):
+    return toggle_user_status(request, user_id, current_status)
+
+@app.post("/admin/toggle-timestamp")
+def admin_toggle_timestamp(request: Request, user_id: int = Form(...), current_access: str = Form(...)):
+    return toggle_timestamp_access(request, user_id, current_access)
+
+@app.post("/admin/toggle-retrofit")
+def admin_toggle_retrofit(request: Request, user_id: int = Form(...), current_access: str = Form(...)):
+    return toggle_retrofit_access(request, user_id, current_access)
+
+@app.get("/admin/billing")
+def admin_billing_page(request: Request):
+    return get_admin_billing(request)
+
+# ==================== PLACEHOLDER ROUTES ====================
 
 @app.get("/tool/timestamp")
 def timestamp_placeholder(request: Request):
