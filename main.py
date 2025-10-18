@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List
 
 # Import our modules
 from database import init_db
@@ -21,6 +22,10 @@ from admin import (
     toggle_timestamp_access,
     toggle_retrofit_access,
     get_admin_billing
+)
+from timestamp_tool import (
+    get_timestamp_tool_page,
+    process_timestamp_images
 )
 
 # Initialize FastAPI app
@@ -287,24 +292,25 @@ def admin_toggle_retrofit(request: Request, user_id: int = Form(...), current_ac
 def admin_billing_page(request: Request):
     return get_admin_billing(request)
 
-# ==================== PLACEHOLDER ROUTES ====================
+# ==================== TIMESTAMP TOOL ROUTES ====================
 
 @app.get("/tool/timestamp")
-def timestamp_placeholder(request: Request):
-    user_row = require_active_user_row(request)
-    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
-        return user_row
-    
-    return HTMLResponse("""
-        <!DOCTYPE html>
-        <html>
-        <head><title>Timestamp Tool - Coming Soon</title></head>
-        <body>
-            <h1>Timestamp Tool - Coming in Phase 3</h1>
-            <a href="/">Back to Dashboard</a>
-        </body>
-        </html>
-    """)
+def timestamp_tool_page(request: Request):
+    return get_timestamp_tool_page(request)
+
+@app.post("/api/process-timestamp")
+async def process_timestamp(
+    request: Request,
+    files: List[UploadFile] = File(...),
+    date_text: str = Form(...),
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+    font_size: int = Form(...),
+    crop_height: int = Form(...)
+):
+    return await process_timestamp_images(request, files, date_text, start_time, end_time, font_size, crop_height)
+
+# ==================== RETROFIT TOOL ROUTES ====================
 
 @app.get("/tool/retrofit")
 def retrofit_placeholder(request: Request):
