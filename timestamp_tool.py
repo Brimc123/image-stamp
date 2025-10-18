@@ -281,7 +281,7 @@ def get_timestamp_tool_page(request: Request):
                     <p>📁 Drag & Drop Images Here</p>
                     <small>or click to browse</small>
                 </div>
-                <input type="file" name="files" id="fileInput" multiple accept="image/*" required>
+                <input type="file" name="files" id="fileInput" multiple accept="image/*">
                 <div id="fileList"></div>
             </div>
 
