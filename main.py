@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 
 # Import our modules
-from database import init_db
+from database import init_db, get_user_transactions
 from auth import (
     get_login_page, post_login,
     get_signup_page, post_signup,
@@ -103,9 +103,19 @@ async def root(request: Request):
     except Exception:
         pass
 
-    # Safe numeric credits
+    # Safe numeric credits (prefer computing from transactions to avoid stale session)
     try:
-        credits = float(user_row.get("credits", 0.0))
+        user_id = user_row.get("id") if isinstance(user_row, dict) else None
+        credits = None
+        if user_id is not None:
+            try:
+                txs = get_user_transactions(user_id)
+                # Sum all amounts (TOPUP positive, tool usage negative)
+                credits = float(sum(t.get('amount', 0.0) for t in txs))
+            except Exception:
+                credits = None
+        if credits is None:
+            credits = float(user_row.get("credits", 0.0))
     except Exception:
         credits = 0.0
 
