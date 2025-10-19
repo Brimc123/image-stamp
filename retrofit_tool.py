@@ -1,13 +1,6 @@
 """
-Retrofit Design Tool - COMPLETE VERSION
-Phases 1-5: Ready for AutoDate Integration
-All functions from Streamlit app converted to FastAPI
-
-TO USE:
-1. Upload this file to GitHub as retrofit_tool.py
-2. Update requirements.txt (see instructions below)
-3. Update main.py imports and routes
-4. Deploy!
+Retrofit Design Tool - COMPLETE VERSION WITH FULL HTML
+Phases 1-5: All HTML forms restored from Phase 3
 """
 
 import io
@@ -112,7 +105,7 @@ MEASURES = {
     "IWI": {
         "name": "Internal Wall Insulation",
         "code": "IWI",
-        "icon": "🏗️",
+        "icon": "🗂️",
         "requires_calc": False,
         "questions": [
             {"id": "area", "label": "M2 Area being treated", "type": "number", "unit": "m²", "auto_populate": True},
@@ -141,7 +134,7 @@ MEASURES = {
     }
 }
 
-# ==================== HELPER FUNCTIONS FROM PHASE 2 ====================
+# ==================== HELPER FUNCTIONS ====================
 
 def extract_text_from_pdf(pdf_file_bytes: bytes) -> str:
     """Extract text from PDF bytes"""
@@ -156,7 +149,7 @@ def extract_text_from_pdf(pdf_file_bytes: bytes) -> str:
 
 
 def extract_data_from_text(site_notes_text: str, condition_report_text: str, format_type: str) -> Dict:
-    """Extract property data from site notes - PRESERVED FROM STREAMLIT"""
+    """Extract property data from site notes"""
     combined_text = site_notes_text + " " + condition_report_text
     
     data = {
@@ -256,7 +249,7 @@ def extract_data_from_text(site_notes_text: str, condition_report_text: str, for
 
 
 def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
-    """Parse calculation PDFs - PRESERVED FROM STREAMLIT"""
+    """Parse calculation PDFs"""
     if calc_type == 'heatpump':
         data = {"heatPumpSize": "", "manufacturer": "", "model": ""}
         capacity_match = re.search(r'Capacity.*?([0-9]+)\s*kW', calc_text, re.IGNORECASE) or re.search(r'([0-9]+)\s*kW', calc_text, re.IGNORECASE)
@@ -298,7 +291,7 @@ def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
 
 
 def get_installation_requirements(measure_code: str) -> List[str]:
-    """Get installation requirements - PRESERVED FROM STREAMLIT"""
+    """Get installation requirements"""
     requirements = {
         'LOFT': ['Ensure adequate loft access', 'Check ventilation', 'Install insulation to specified depth'],
         'CWI': ['Borescope survey', 'Check cavity width', 'Appropriate insulation material'],
@@ -315,7 +308,7 @@ def get_installation_requirements(measure_code: str) -> List[str]:
 
 
 def generate_pdf_design(design_doc: Dict) -> bytes:
-    """Generate PDF - USES YOUR EXACT STREAMLIT CODE"""
+    """Generate PDF design document"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.4*inch, bottomMargin=0.5*inch, leftMargin=0.65*inch, rightMargin=0.65*inch)
     
@@ -409,10 +402,10 @@ def generate_pdf_design(design_doc: Dict) -> bytes:
     return buffer.getvalue()
 
 
-# ==================== FASTAPI ROUTES - COMPLETE ====================
+# ==================== FASTAPI ROUTES WITH COMPLETE HTML ====================
 
 def get_retrofit_tool_page(request: Request):
-    """Entry point - upload page"""
+    """Entry point - COMPLETE upload page with full HTML"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -430,20 +423,277 @@ def get_retrofit_tool_page(request: Request):
     except Exception:
         credits = 0.0
 
-    # NOTE: Full HTML provided in previous phases
-    # This is abbreviated for space - use Phase 3 HTML
-    return HTMLResponse(f"""
+    # COMPLETE HTML FROM PHASE 3
+    html = f"""
 <!DOCTYPE html>
-<html>
-<head><title>Retrofit Tool</title></head>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retrofit Design Tool - AutoDate</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #0f172a; }}
+        .header {{ background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 2rem; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+        .header h1 {{ font-size: 2rem; margin-bottom: 0.5rem; }}
+        .credits {{ background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 20px; display: inline-block; font-weight: 600; margin-top: 1rem; }}
+        .container {{ max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }}
+        .card {{ background: white; border-radius: 12px; padding: 2rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+        .section-title {{ font-size: 1.5rem; color: #0f172a; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 3px solid #3b82f6; }}
+        
+        /* Upload Areas */
+        .upload-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; }}
+        .upload-box {{ border: 3px dashed #cbd5e1; border-radius: 12px; padding: 2rem; text-align: center; transition: all 0.3s; cursor: pointer; background: #f8fafc; }}
+        .upload-box:hover {{ border-color: #3b82f6; background: #eff6ff; }}
+        .upload-box.drag-over {{ border-color: #10b981; background: #ecfdf5; }}
+        .upload-icon {{ font-size: 3rem; margin-bottom: 1rem; }}
+        .upload-label {{ font-size: 1.1rem; font-weight: 600; color: #0f172a; margin-bottom: 0.5rem; }}
+        .upload-hint {{ font-size: 0.9rem; color: #64748b; }}
+        input[type="file"] {{ display: none; }}
+        
+        /* Project Info */
+        .form-row {{ display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }}
+        .form-group {{ margin-bottom: 1rem; }}
+        label {{ display: block; font-weight: 600; margin-bottom: 0.5rem; color: #0f172a; }}
+        input[type="text"], input[type="date"] {{ width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; transition: border-color 0.3s; }}
+        input:focus {{ outline: none; border-color: #3b82f6; }}
+        
+        /* Measures Grid */
+        .measures-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }}
+        .measure-card {{ border: 2px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; text-align: center; cursor: pointer; transition: all 0.3s; background: white; }}
+        .measure-card:hover {{ border-color: #3b82f6; transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+        .measure-card.selected {{ border-color: #10b981; background: #ecfdf5; }}
+        .measure-icon {{ font-size: 2.5rem; margin-bottom: 0.5rem; }}
+        .measure-name {{ font-weight: 600; color: #0f172a; }}
+        .measure-checkbox {{ display: none; }}
+        
+        /* Buttons */
+        .btn {{ padding: 1rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }}
+        .btn-primary {{ background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; }}
+        .btn-primary:hover {{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }}
+        .btn-primary:disabled {{ background: #cbd5e1; cursor: not-allowed; transform: none; }}
+        .btn-secondary {{ background: #f1f5f9; color: #0f172a; }}
+        .btn-secondary:hover {{ background: #e2e8f0; }}
+        
+        .file-status {{ margin-top: 1rem; padding: 0.5rem; border-radius: 6px; font-size: 0.9rem; }}
+        .file-status.success {{ background: #d1fae5; color: #065f46; }}
+        .file-status.error {{ background: #fee2e2; color: #991b1b; }}
+        
+        @media (max-width: 768px) {{
+            .upload-grid, .form-row {{ grid-template-columns: 1fr; }}
+            .measures-grid {{ grid-template-columns: 1fr; }}
+        }}
+    </style>
+</head>
 <body>
-<h1>Retrofit Design Tool - Phase 4/5 Complete</h1>
-<p>Credits: £{credits:.2f}</p>
-<p>Upload forms implemented in Phase 3</p>
-<a href="/">Back to Dashboard</a>
+    <div class="header">
+        <h1>🏗️ Retrofit Design Tool</h1>
+        <p>PAS 2035 Compliant Design Documents</p>
+        <div class="credits">💳 Credits: £{credits:.2f}</div>
+    </div>
+
+    <div class="container">
+        <form id="retrofitForm" method="POST" enctype="multipart/form-data">
+            
+            <!-- STEP 1: Upload Files -->
+            <div class="card">
+                <h2 class="section-title">Step 1: Upload Site Documents</h2>
+                <div class="upload-grid">
+                    <!-- PAS Hub -->
+                    <div>
+                        <div class="upload-box" id="pasUploadBox">
+                            <div class="upload-icon">📄</div>
+                            <div class="upload-label">PAS Hub Site Notes</div>
+                            <div class="upload-hint">Click or drag PDF here</div>
+                            <input type="file" id="pasFile" name="pas_file" accept=".pdf">
+                        </div>
+                        <div id="pasStatus" class="file-status" style="display:none;"></div>
+                    </div>
+                    
+                    <!-- Elmhurst -->
+                    <div>
+                        <div class="upload-box" id="elmhurstUploadBox">
+                            <div class="upload-icon">📄</div>
+                            <div class="upload-label">Elmhurst Condition Report</div>
+                            <div class="upload-hint">Click or drag PDF here</div>
+                            <input type="file" id="elmhurstFile" name="elmhurst_file" accept=".pdf">
+                        </div>
+                        <div id="elmhurstStatus" class="file-status" style="display:none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 2: Project Information -->
+            <div class="card">
+                <h2 class="section-title">Step 2: Project Information</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Project Name</label>
+                        <input type="text" name="project_name" required placeholder="e.g., Smith Residence Retrofit">
+                    </div>
+                    <div class="form-group">
+                        <label>Retrofit Coordinator</label>
+                        <input type="text" name="coordinator" required placeholder="Your name">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Property Address</label>
+                    <input type="text" id="propertyAddress" name="property_address" required placeholder="Will auto-populate from documents">
+                </div>
+            </div>
+
+            <!-- STEP 3: Select Measures -->
+            <div class="card">
+                <h2 class="section-title">Step 3: Select Retrofit Measures</h2>
+                <div class="measures-grid" id="measuresGrid">
+                    <!-- JavaScript will populate measures -->
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="card" style="text-align: center;">
+                <button type="button" class="btn btn-primary" id="continueBtn" disabled>
+                    Continue to Questions →
+                </button>
+                <a href="/" class="btn btn-secondary" style="display: inline-block; margin-left: 1rem; text-decoration: none;">
+                    ← Back to Dashboard
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Measures data
+        const measures = {json.dumps(MEASURES)};
+        
+        // State
+        let selectedMeasures = new Set();
+        let extractedData = null;
+        
+        // Populate measures grid
+        const grid = document.getElementById('measuresGrid');
+        Object.keys(measures).forEach(code => {{
+            const m = measures[code];
+            const card = document.createElement('div');
+            card.className = 'measure-card';
+            card.innerHTML = `
+                <div class="measure-icon">${{m.icon}}</div>
+                <div class="measure-name">${{m.name}}</div>
+                <input type="checkbox" class="measure-checkbox" name="measures[]" value="${{code}}" id="m_${{code}}">
+            `;
+            card.onclick = () => toggleMeasure(code, card);
+            grid.appendChild(card);
+        }});
+        
+        function toggleMeasure(code, card) {{
+            const checkbox = document.getElementById(`m_${{code}}`);
+            checkbox.checked = !checkbox.checked;
+            
+            if (checkbox.checked) {{
+                selectedMeasures.add(code);
+                card.classList.add('selected');
+            }} else {{
+                selectedMeasures.delete(code);
+                card.classList.remove('selected');
+            }}
+            
+            updateContinueButton();
+        }}
+        
+        function updateContinueButton() {{
+            const btn = document.getElementById('continueBtn');
+            const hasPas = document.getElementById('pasFile').files.length > 0;
+            const hasElmhurst = document.getElementById('elmhurstFile').files.length > 0;
+            const hasMeasures = selectedMeasures.size > 0;
+            
+            btn.disabled = !(hasPas && hasElmhurst && hasMeasures);
+        }}
+        
+        // File upload handlers
+        function setupUpload(boxId, inputId, statusId) {{
+            const box = document.getElementById(boxId);
+            const input = document.getElementById(inputId);
+            const status = document.getElementById(statusId);
+            
+            box.onclick = () => input.click();
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(event => {{
+                box.addEventListener(event, e => {{
+                    e.preventDefault();
+                    e.stopPropagation();
+                }});
+            }});
+            
+            ['dragenter', 'dragover'].forEach(event => {{
+                box.addEventListener(event, () => box.classList.add('drag-over'));
+            }});
+            
+            ['dragleave', 'drop'].forEach(event => {{
+                box.addEventListener(event, () => box.classList.remove('drag-over'));
+            }});
+            
+            box.addEventListener('drop', e => {{
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {{
+                    input.files = files;
+                    handleFileSelect(input, status);
+                }}
+            }});
+            
+            input.onchange = () => handleFileSelect(input, status);
+        }}
+        
+        function handleFileSelect(input, status) {{
+            if (input.files.length > 0) {{
+                const file = input.files[0];
+                status.style.display = 'block';
+                status.className = 'file-status success';
+                status.textContent = `✓ ${{file.name}} uploaded`;
+                updateContinueButton();
+            }}
+        }}
+        
+        setupUpload('pasUploadBox', 'pasFile', 'pasStatus');
+        setupUpload('elmhurstUploadBox', 'elmhurstFile', 'elmhurstStatus');
+        
+        // Continue button - submit form
+        document.getElementById('continueBtn').onclick = async () => {{
+            const formData = new FormData(document.getElementById('retrofitForm'));
+            
+            // Add selected measures as JSON
+            formData.append('selected_measures', JSON.stringify(Array.from(selectedMeasures)));
+            
+            // Show loading
+            const btn = document.getElementById('continueBtn');
+            btn.textContent = 'Processing...';
+            btn.disabled = true;
+            
+            try {{
+                const response = await fetch('/api/retrofit-process', {{
+                    method: 'POST',
+                    body: formData
+                }});
+                
+                if (response.ok) {{
+                    // Go to questions page
+                    window.location.href = '/tool/retrofit/questions';
+                }} else {{
+                    alert('Error processing files. Please try again.');
+                    btn.textContent = 'Continue to Questions →';
+                    btn.disabled = false;
+                }}
+            }} catch (error) {{
+                alert('Error: ' + error.message);
+                btn.textContent = 'Continue to Questions →';
+                btn.disabled = false;
+            }}
+        }};
+    </script>
 </body>
 </html>
-    """)
+    """
+    
+    return HTMLResponse(html)
 
 
 async def post_retrofit_complete(request: Request):
