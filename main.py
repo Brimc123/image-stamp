@@ -1,7 +1,6 @@
-from fastapi import FastAPI, Form, Request, UploadFile, File
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List
 
 # Import our modules
 from database import init_db
@@ -25,7 +24,7 @@ from admin import (
 )
 from timestamp_tool import (
     get_timestamp_tool_page,
-    process_timestamp_images
+    post_timestamp_tool
 )
 
 # Initialize FastAPI app
@@ -73,64 +72,52 @@ async def root(request: Request):
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
     
-    email = user_row["email"]
-    user_is_admin = is_admin(request)
-    
     try:
-        credits = user_row["credits"]
-    except (KeyError, TypeError):
+        credits = float(user_row.get("credits", 0.0))
+    except Exception:
         credits = 0.0
     
     try:
-        has_timestamp_access = user_row["timestamp_tool_access"] == 1
-    except (KeyError, TypeError):
+        has_timestamp_access = user_row.get("timestamp_tool_access", 1) == 1
+    except Exception:
         has_timestamp_access = True
     
     try:
-        has_retrofit_access = user_row["retrofit_tool_access"] == 1
-    except (KeyError, TypeError):
+        has_retrofit_access = user_row.get("retrofit_tool_access", 1) == 1
+    except Exception:
         has_retrofit_access = True
     
-    # Admin card (only show to admin)
-    admin_card_html = ""
-    if user_is_admin:
-        admin_card_html = """
-            <div class="tool-card admin-card">
+    user_is_admin = is_admin(request)
+    
+    admin_card_html = """            <div class="tool-card admin-card">
                 <h2>Admin Panel</h2>
                 <p>Manage users, suspensions, and view all billing.</p>
                 <a href="/admin" class="tool-button">Open Admin</a>
             </div>
-        """
-    
-    # Timestamp tool card
-    timestamp_card = f"""
-        <div class="tool-card {'disabled-card' if not has_timestamp_access else ''}">
+    """ if user_is_admin else ""
+
+    timestamp_card = f"""        <div class="tool-card {'disabled-card' if not has_timestamp_access else ''}">
             <h2>Timestamp Tool</h2>
             <p>Add timestamps to multiple images with custom date ranges and cropping options.</p>
-            {'<a href="/tool/timestamp" class="tool-button">Open Tool</a>' if has_timestamp_access else '<span class="disabled-text">Access Suspended</span>'}
+            {('<a href="/tool/timestamp" class="tool-button">Open Tool</a>') if has_timestamp_access else '<span class="disabled-text">Access Suspended</span>'}
         </div>
     """
     
-    # Retrofit tool card
-    retrofit_card = f"""
-        <div class="tool-card {'disabled-card' if not has_retrofit_access else ''}">
+    retrofit_card = f"""        <div class="tool-card {'disabled-card' if not has_retrofit_access else ''}">
             <h2>Retrofit Design Tool</h2>
             <p>Generate PAS 2035 compliant retrofit designs with automated questioning.</p>
-            {'<a href="/tool/retrofit" class="tool-button">Open Tool</a>' if has_retrofit_access else '<span class="disabled-text">Access Suspended</span>'}
+            {('<a href="/tool/retrofit" class="tool-button">Open Tool</a>') if has_retrofit_access else '<span class="disabled-text">Access Suspended</span>'}
         </div>
     """
     
-    # Billing card
-    billing_card_html = """
-        <div class="tool-card">
+    billing_card_html = """        <div class="tool-card">
             <h2>Billing & Credits</h2>
             <p>Manage your account credits and view transaction history.</p>
             <a href="/billing" class="tool-button">View Billing</a>
         </div>
     """
     
-    html_content = f"""
-<!DOCTYPE html>
+    html_content = f"""<!DOCTYPE html>
 <html>
 <head>
     <title>Dashboard - AutoDate</title>
@@ -219,21 +206,13 @@ async def root(request: Request):
             font-weight: 600;
             transition: transform 0.2s;
         }}
-        .tool-button:hover {{
-            transform: scale(1.05);
-        }}
+        .tool-button:hover {{ transform: scale(1.05); }}
         .admin-card {{
             border: 3px solid #f39c12;
             background: linear-gradient(135deg, #fff9e6 0%, #ffe6cc 100%);
         }}
-        .disabled-card {{
-            opacity: 0.5;
-            background: #f5f5f5;
-        }}
-        .disabled-text {{
-            color: #e74c3c;
-            font-weight: 600;
-        }}
+        .disabled-card {{ opacity: 0.5; background: #f5f5f5; }}
+        .disabled-text {{ color: #e74c3c; font-weight: 600; }}
     </style>
 </head>
 <body>
@@ -299,16 +278,9 @@ def timestamp_tool_page(request: Request):
     return get_timestamp_tool_page(request)
 
 @app.post("/api/process-timestamp")
-async def process_timestamp(
-    request: Request,
-    files: List[UploadFile] = File(...),
-    date_text: str = Form(...),
-    start_time: str = Form(...),
-    end_time: str = Form(...),
-    font_size: int = Form(...),
-    crop_height: int = Form(...)
-):
-    return await process_timestamp_images(request, files, date_text, start_time, end_time, font_size, crop_height)
+async def process_timestamp(request: Request):
+    # Delegate to the tool's handler so credits/transactions stay consistent
+    return await post_timestamp_tool(request)
 
 # ==================== RETROFIT TOOL ROUTES ====================
 
@@ -318,8 +290,7 @@ def retrofit_placeholder(request: Request):
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
     
-    return HTMLResponse("""
-        <!DOCTYPE html>
+    return HTMLResponse("""        <!DOCTYPE html>
         <html>
         <head><title>Retrofit Tool - Coming Soon</title></head>
         <body>
@@ -333,7 +304,6 @@ def retrofit_placeholder(request: Request):
 
 @app.get("/api/ping")
 def ping():
-    """Health check for Render"""
     return {"status": "ok"}
 
 # ==================== RUN SERVER ====================
