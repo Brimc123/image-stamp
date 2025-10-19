@@ -249,41 +249,143 @@ def extract_data_from_text(site_notes_text: str, condition_report_text: str, for
 
 
 def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
-    """Parse calculation PDFs"""
-    if calc_type == 'heatpump':
-        data = {"heatPumpSize": "", "manufacturer": "", "model": ""}
-        capacity_match = re.search(r'Capacity.*?([0-9]+)\s*kW', calc_text, re.IGNORECASE) or re.search(r'([0-9]+)\s*kW', calc_text, re.IGNORECASE)
-        if capacity_match:
-            data["heatPumpSize"] = float(capacity_match.group(1))
-        if not data["heatPumpSize"]:
-            data["heatPumpSize"] = 16
-        return data
-        
-    elif calc_type == 'solar':
+    """Parse calculation PDFs - ENHANCED for Solar PV, Heat Pump, and ESH"""
+    
+    if calc_type == 'solar':
         data = {
             "systemSize": "",
             "systemSizeNumeric": 0,
-            "panels": {"manufacturer": "", "quantity": 0},
-            "inverter": {"manufacturer": "", "model": "", "capacity": ""},
-            "performance": {"annualGeneration": "", "selfConsumption": "", "gridIndependence": "", "shadingFactor": ""},
-            "orientation": [],
-            "pitch": "",
-            "mounting": "",
-            "components": []
+            "manufacturer": "",
+            "model": "",
+            "quantity": 0,
+            "inverter": "",
+            "annualGeneration": ""
         }
         
-        size_match = re.search(r'Installed capacity.*?([0-9.]+)\s*kWp', calc_text, re.IGNORECASE)
-        if size_match:
-            data["systemSize"] = f"{size_match.group(1)} kWp"
-            data["systemSizeNumeric"] = float(size_match.group(1))
+        # System size (kWp)
+        size_patterns = [
+            r'Installed capacity.*?([0-9.]+)\s*kWp',
+            r'(\d+\.?\d*)\s*kWp',
+            r'PV power\s+(\d+\.?\d*)\s*W'
+        ]
+        for pattern in size_patterns:
+            size_match = re.search(pattern, calc_text, re.IGNORECASE)
+            if size_match:
+                if 'PV power' in pattern:
+                    data["systemSizeNumeric"] = float(size_match.group(1)) / 1000  # Convert W to kWp
+                else:
+                    data["systemSizeNumeric"] = float(size_match.group(1))
+                data["systemSize"] = f"{data['systemSizeNumeric']} kWp"
+                break
         
-        panel_match = re.search(r'([A-Z\s]+)\s+solar panel', calc_text, re.IGNORECASE)
-        if panel_match:
-            data["panels"]["manufacturer"] = panel_match.group(1).strip()
+        # Panel manufacturer and model
+        panel_patterns = [
+            r'(\d+)\s+([A-Za-z\s]+)\s+(\d+W)',  # "10 Longi HiMo6 HTB 435W"
+            r'([A-Za-z]+)\s+([A-Za-z0-9\s]+)\s+(\d+W)',  # "Longi HiMo6 HTB 435W"
+        ]
+        for pattern in panel_patterns:
+            panel_match = re.search(pattern, calc_text, re.IGNORECASE)
+            if panel_match:
+                groups = panel_match.groups()
+                if len(groups) == 3 and groups[0].isdigit():
+                    data["quantity"] = int(groups[0])
+                    data["manufacturer"] = groups[1].strip()
+                    data["model"] = f"{groups[1].strip()} {groups[2]}"
+                else:
+                    data["manufacturer"] = groups[0].strip()
+                    data["model"] = f"{groups[0].strip()} {groups[1].strip()} {groups[2]}"
+                break
         
-        panel_qty = re.search(r'(\d+)\s+[A-Z\s]+\s+solar panel', calc_text, re.IGNORECASE)
-        if panel_qty:
-            data["panels"]["quantity"] = int(panel_qty.group(1))
+        # Panel quantity (if not found above)
+        if data["quantity"] == 0:
+            qty_match = re.search(r'Quantty\s+(\d+)', calc_text, re.IGNORECASE)
+            if qty_match:
+                data["quantity"] = int(qty_match.group(1))
+        
+        # Inverter
+        inverter_patterns = [
+            r'(SolaX|Growatt|Solis|Fronius|SMA)\s+([A-Z0-9\-\s]+)\s+(\d+\.?\d*)\s*kW',
+            r'Inverter.*?([A-Za-z]+\s+[A-Z0-9\-\s]+)',
+        ]
+        for pattern in inverter_patterns:
+            inverter_match = re.search(pattern, calc_text, re.IGNORECASE)
+            if inverter_match:
+                data["inverter"] = inverter_match.group(0).strip()
+                break
+        
+        # Annual generation
+        gen_patterns = [
+            r'Estimated output.*?(\d+)\s*kWh',
+            r'Annual.*?generation.*?(\d+)\s*kWh',
+            r'(\d+)\s*kWh/yr'
+        ]
+        for pattern in gen_patterns:
+            gen_match = re.search(pattern, calc_text, re.IGNORECASE)
+            if gen_match:
+                data["annualGeneration"] = f"{gen_match.group(1)} kWh"
+                break
+        
+        return data
+        
+    elif calc_type == 'heatpump':
+        data = {
+            "heatPumpSize": "",
+            "manufacturer": "",
+            "model": "",
+            "scop": "",
+            "annualHeatDemand": ""
+        }
+        
+        # Heat pump size (kW)
+        capacity_patterns = [
+            r'Capacity\s*@\s*design.*?(\d+\.?\d*)\s*kW',
+            r'Heat pump size.*?(\d+\.?\d*)\s*kW',
+            r'(\d+\.?\d*)\s*kW.*?capacity'
+        ]
+        for pattern in capacity_patterns:
+            capacity_match = re.search(pattern, calc_text, re.IGNORECASE)
+            if capacity_match:
+                data["heatPumpSize"] = f"{capacity_match.group(1)} kW"
+                break
+        
+        # SCOP
+        scop_match = re.search(r'SCOP\s+(\d+\.?\d*)', calc_text, re.IGNORECASE)
+        if scop_match:
+            data["scop"] = scop_match.group(1)
+        
+        # Annual heat demand
+        demand_match = re.search(r'Demand\s+kWh/yr\s+(\d+)', calc_text, re.IGNORECASE)
+        if demand_match:
+            data["annualHeatDemand"] = f"{demand_match.group(1)} kWh"
+        
+        # Manufacturer (try to find common brands)
+        manufacturers = ['Mitsubishi', 'Daikin', 'Vaillant', 'Samsung', 'LG', 'Grant', 'Nibe']
+        for mfr in manufacturers:
+            if re.search(mfr, calc_text, re.IGNORECASE):
+                data["manufacturer"] = mfr
+                break
+        
+        return data
+        
+    elif calc_type == 'esh':
+        data = {
+            "manufacturer": "Elnur",
+            "models": [],
+            "totalHeaters": 0,
+            "totalKW": 0
+        }
+        
+        # Extract heater models and quantities
+        heater_patterns = [
+            r'(ECOHHR\d+|PH\d+|CCB\d+).*?(\d+)',  # Model followed by quantity
+        ]
+        
+        for pattern in heater_patterns:
+            for match in re.finditer(pattern, calc_text):
+                model = match.group(1)
+                qty = int(match.group(2))
+                data["models"].append({"model": model, "quantity": qty})
+                data["totalHeaters"] += qty
         
         return data
     
@@ -713,8 +815,8 @@ def get_retrofit_tool_page(request: Request):
                 }});
                 
                 if (response.ok) {{
-                    // Go to questions page
-                    window.location.href = '/tool/retrofit/questions';
+                    // Go to calc upload page (which will auto-skip if no calcs needed)
+                    window.location.href = '/tool/retrofit/calcs';
                 }} else {{
                     alert('Error processing files. Please try again.');
                     btn.textContent = 'Continue to Questions →';
@@ -814,7 +916,7 @@ async def post_retrofit_process(request: Request):
         
         # Success! Return JSON response
         return Response(
-            content=json.dumps({"success": True, "redirect": "/tool/retrofit/questions"}),
+            content=json.dumps({"success": True, "redirect": "/tool/retrofit/calcs"}),
             media_type="application/json"
         )
         
@@ -826,7 +928,242 @@ async def post_retrofit_process(request: Request):
         )
 
 
-# ==================== STEP 2: QUESTIONS PAGE ====================
+# ==================== STEP 2.5: CALCULATION FILES UPLOAD (CONDITIONAL) ====================
+
+def get_calc_upload_page(request: Request):
+    """Show calc upload page if Solar PV, Heat Pump, or ESH selected - STEP 2.5"""
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
+    
+    user_id = user_row["id"]
+    session_data = get_session_data(user_id)
+    
+    if not session_data:
+        return RedirectResponse("/tool/retrofit", status_code=303)
+    
+    selected_measures = session_data.get("selected_measures", [])
+    
+    # Check which calcs are needed
+    needs_solar = "SOLAR_PV" in selected_measures
+    needs_heatpump = "HEAT_PUMP" in selected_measures
+    needs_esh = "ESH" in selected_measures
+    
+    if not (needs_solar or needs_heatpump or needs_esh):
+        # Skip this step - go straight to questions
+        return RedirectResponse("/tool/retrofit/questions", status_code=303)
+    
+    # Build upload boxes HTML
+    upload_boxes = ""
+    
+    if needs_solar:
+        upload_boxes += """
+            <div class="calc-upload-box">
+                <div class="calc-icon">☀️</div>
+                <h3>Solar PV Calculation</h3>
+                <p>Upload solar PV calculation PDF to auto-populate system size, panels, inverter, etc.</p>
+                <input type="file" id="solarCalcFile" name="solar_calc_file" accept=".pdf">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('solarCalcFile').click()">
+                    Choose File
+                </button>
+                <div id="solarCalcStatus" class="file-status" style="display:none;"></div>
+            </div>
+        """
+    
+    if needs_heatpump:
+        upload_boxes += """
+            <div class="calc-upload-box">
+                <div class="calc-icon">♨️</div>
+                <h3>Heat Pump Calculation</h3>
+                <p>Upload heat pump calculation PDF to auto-populate size, SCOP, heat demand, etc.</p>
+                <input type="file" id="hpCalcFile" name="hp_calc_file" accept=".pdf">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('hpCalcFile').click()">
+                    Choose File
+                </button>
+                <div id="hpCalcStatus" class="file-status" style="display:none;"></div>
+            </div>
+        """
+    
+    if needs_esh:
+        upload_boxes += """
+            <div class="calc-upload-box">
+                <div class="calc-icon">🔌</div>
+                <h3>Electric Storage Heater Calculation</h3>
+                <p>Upload ESH calculation PDF to auto-populate manufacturer, models, quantities, etc.</p>
+                <input type="file" id="eshCalcFile" name="esh_calc_file" accept=".pdf">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('eshCalcFile').click()">
+                    Choose File
+                </button>
+                <div id="eshCalcStatus" class="file-status" style="display:none;"></div>
+            </div>
+        """
+    
+    html = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Calculations - AutoDate</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #0f172a; }}
+        .header {{ background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 2rem; text-align: center; }}
+        .header h1 {{ font-size: 1.8rem; margin-bottom: 0.5rem; }}
+        .container {{ max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }}
+        .card {{ background: white; border-radius: 12px; padding: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+        .info-box {{ background: #eff6ff; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; border-left: 4px solid #3b82f6; }}
+        .calc-upload-box {{ border: 2px solid #e2e8f0; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; text-align: center; }}
+        .calc-icon {{ font-size: 3rem; margin-bottom: 1rem; }}
+        .calc-upload-box h3 {{ color: #0f172a; margin-bottom: 0.5rem; }}
+        .calc-upload-box p {{ color: #64748b; margin-bottom: 1rem; }}
+        input[type="file"] {{ display: none; }}
+        .btn {{ padding: 1rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }}
+        .btn-primary {{ background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; }}
+        .btn-primary:hover {{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }}
+        .btn-secondary {{ background: #f1f5f9; color: #0f172a; }}
+        .btn-secondary:hover {{ background: #e2e8f0; }}
+        .file-status {{ margin-top: 1rem; padding: 0.5rem; border-radius: 6px; font-size: 0.9rem; }}
+        .file-status.success {{ background: #d1fae5; color: #065f46; }}
+        .button-group {{ display: flex; gap: 1rem; margin-top: 2rem; justify-content: center; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Upload Calculation Files (Optional)</h1>
+        <p>Auto-populate answers from your calculation PDFs</p>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <div class="info-box">
+                <strong>💡 Optional Step:</strong> Upload calculation files to automatically fill in technical details. You can skip this and enter information manually in the next step.
+            </div>
+
+            <form id="calcForm" method="POST" action="/api/retrofit-calcs" enctype="multipart/form-data">
+                {upload_boxes}
+                
+                <div class="button-group">
+                    <button type="button" class="btn btn-secondary" onclick="skipCalcs()">
+                        Skip - Enter Manually →
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        Upload & Continue →
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function setupFileInput(inputId, statusId) {{
+            const input = document.getElementById(inputId);
+            const status = document.getElementById(statusId);
+            
+            if (!input) return;
+            
+            input.onchange = function() {{
+                if (this.files.length > 0) {{
+                    status.style.display = 'block';
+                    status.className = 'file-status success';
+                    status.textContent = `✓ ${{this.files[0].name}} ready to upload`;
+                }}
+            }};
+        }}
+        
+        setupFileInput('solarCalcFile', 'solarCalcStatus');
+        setupFileInput('hpCalcFile', 'hpCalcStatus');
+        setupFileInput('eshCalcFile', 'eshCalcStatus');
+        
+        function skipCalcs() {{
+            window.location.href = '/tool/retrofit/questions';
+        }}
+        
+        document.getElementById('calcForm').onsubmit = async function(e) {{
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const btn = this.querySelector('button[type="submit"]');
+            btn.textContent = 'Processing...';
+            btn.disabled = true;
+            
+            try {{
+                const response = await fetch('/api/retrofit-calcs', {{
+                    method: 'POST',
+                    body: formData
+                }});
+                
+                if (response.ok) {{
+                    window.location.href = '/tool/retrofit/questions';
+                }} else {{
+                    alert('Error processing files. Please try again.');
+                    btn.textContent = 'Upload & Continue →';
+                    btn.disabled = false;
+                }}
+            }} catch (error) {{
+                alert('Error: ' + error.message);
+                btn.textContent = 'Upload & Continue →';
+                btn.disabled = false;
+            }}
+        }};
+    </script>
+</body>
+</html>
+    """
+    
+    return HTMLResponse(html)
+
+
+async def post_retrofit_calcs(request: Request):
+    """Process uploaded calculation files - STEP 2.5"""
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
+    
+    user_id = user_row["id"]
+    session_data = get_session_data(user_id)
+    
+    if not session_data:
+        return RedirectResponse("/tool/retrofit", status_code=303)
+    
+    try:
+        form = await request.form()
+        calc_data = {}
+        
+        # Process Solar PV calc
+        solar_calc_file = form.get("solar_calc_file")
+        if solar_calc_file and hasattr(solar_calc_file, 'read'):
+            solar_bytes = await solar_calc_file.read()
+            if len(solar_bytes) > 0:
+                solar_text = extract_text_from_pdf(solar_bytes)
+                calc_data['SOLAR_PV'] = parse_calculation_file(solar_text, 'solar')
+        
+        # Process Heat Pump calc
+        hp_calc_file = form.get("hp_calc_file")
+        if hp_calc_file and hasattr(hp_calc_file, 'read'):
+            hp_bytes = await hp_calc_file.read()
+            if len(hp_bytes) > 0:
+                hp_text = extract_text_from_pdf(hp_bytes)
+                calc_data['HEAT_PUMP'] = parse_calculation_file(hp_text, 'heatpump')
+        
+        # Process ESH calc
+        esh_calc_file = form.get("esh_calc_file")
+        if esh_calc_file and hasattr(esh_calc_file, 'read'):
+            esh_bytes = await esh_calc_file.read()
+            if len(esh_bytes) > 0:
+                esh_text = extract_text_from_pdf(esh_bytes)
+                calc_data['ESH'] = parse_calculation_file(esh_text, 'esh')
+        
+        # Store calc data in session
+        session_data['calc_data'] = calc_data
+        store_session_data(user_id, session_data)
+        
+        # Redirect to questions
+        return RedirectResponse("/tool/retrofit/questions", status_code=303)
+        
+    except Exception as e:
+        # If error, still proceed to questions (user can enter manually)
+        return RedirectResponse("/tool/retrofit/questions", status_code=303)
 
 def get_retrofit_questions_page(request: Request):
     """Show questions for selected measures - STEP 2"""
