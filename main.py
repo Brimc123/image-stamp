@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 
 # Import our modules
-from database import init_db
+from database import init_db, get_user_by_id
 from auth import (
     get_login_page, post_login,
     get_signup_page, post_signup,
@@ -72,6 +72,15 @@ async def root(request: Request):
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
+
+    # CRITICAL: Get FRESH user data from database (session has old data!)
+    try:
+        user_id = user_row["id"]
+        fresh_user = get_user_by_id(user_id)
+        if fresh_user:
+            user_row = fresh_user
+    except Exception:
+        pass
     
     # Get credits from database
     try:
