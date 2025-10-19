@@ -696,12 +696,279 @@ def get_retrofit_tool_page(request: Request):
     return HTMLResponse(html)
 
 
-async def post_retrofit_complete(request: Request):
-    """Complete workflow - generate final PDF"""
+# ==================== SESSION STORAGE ====================
+# Simple in-memory storage for multi-step form
+# In production, you might want to use Redis or database
+SESSION_STORAGE = {}
+
+def store_session_data(user_id: int, data: Dict):
+    """Store data for this user's session"""
+    SESSION_STORAGE[user_id] = data
+
+def get_session_data(user_id: int) -> Optional[Dict]:
+    """Retrieve data for this user's session"""
+    return SESSION_STORAGE.get(user_id)
+
+def clear_session_data(user_id: int):
+    """Clear session data after completion"""
+    if user_id in SESSION_STORAGE:
+        del SESSION_STORAGE[user_id]
+
+
+# ==================== STEP 1: PROCESS UPLOADED FILES ====================
+
+async def post_retrofit_process(request: Request):
+    """Process uploaded PDFs and extract data - STEP 1"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
+    
+    user_id = user_row["id"]
+    
+    try:
+        # Get form data
+        form = await request.form()
+        
+        # Get uploaded files
+        pas_file = form.get("pas_file")
+        elmhurst_file = form.get("elmhurst_file")
+        
+        if not pas_file or not elmhurst_file:
+            return HTMLResponse("<h1>Error</h1><p>Both PDF files are required</p><a href='/tool/retrofit'>Back</a>")
+        
+        # Read PDF files
+        pas_bytes = await pas_file.read()
+        elmhurst_bytes = await elmhurst_file.read()
+        
+        # Extract text from PDFs
+        pas_text = extract_text_from_pdf(pas_bytes)
+        elmhurst_text = extract_text_from_pdf(elmhurst_bytes)
+        
+        # Parse property data
+        extracted_data = extract_data_from_text(pas_text, elmhurst_text, "PAS Hub")
+        
+        # Get selected measures
+        selected_measures_json = form.get("selected_measures", "[]")
+        selected_measures = json.loads(selected_measures_json)
+        
+        # Get project info
+        project_name = form.get("project_name", "Untitled Project")
+        coordinator = form.get("coordinator", "")
+        property_address = form.get("property_address", extracted_data.get("address", ""))
+        
+        # Store everything in session
+        session_data = {
+            "project_name": project_name,
+            "coordinator": coordinator,
+            "property_address": property_address,
+            "extracted_data": extracted_data,
+            "selected_measures": selected_measures,
+            "pas_text": pas_text,
+            "elmhurst_text": elmhurst_text,
+            "current_measure_index": 0,
+            "answers": {}
+        }
+        
+        store_session_data(user_id, session_data)
+        
+        # Success! Return JSON response
+        return Response(
+            content=json.dumps({"success": True, "redirect": "/tool/retrofit/questions"}),
+            media_type="application/json"
+        )
+        
+    except Exception as e:
+        return Response(
+            content=json.dumps({"success": False, "error": str(e)}),
+            media_type="application/json",
+            status_code=500
+        )
 
+
+# ==================== STEP 2: QUESTIONS PAGE ====================
+
+def get_retrofit_questions_page(request: Request):
+    """Show questions for selected measures - STEP 2"""
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
+    
+    user_id = user_row["id"]
+    session_data = get_session_data(user_id)
+    
+    if not session_data:
+        return HTMLResponse("<h1>Session Expired</h1><p>Please start over</p><a href='/tool/retrofit'>Start Over</a>")
+    
+    selected_measures = session_data.get("selected_measures", [])
+    current_index = session_data.get("current_measure_index", 0)
+    extracted_data = session_data.get("extracted_data", {})
+    
+    if current_index >= len(selected_measures):
+        # All questions answered - go to review
+        return RedirectResponse("/tool/retrofit/review", status_code=303)
+    
+    current_measure_code = selected_measures[current_index]
+    current_measure = MEASURES[current_measure_code]
+    
+    # Build form HTML for this measure
+    questions_html = ""
+    for question in current_measure['questions']:
+        q_id = f"{current_measure_code}_{question['id']}"
+        
+        # Try to auto-populate
+        auto_value = ""
+        if question.get('auto_populate'):
+            if question['id'] == 'area':
+                auto_value = str(extracted_data.get('loft_area', ''))
+            elif question['id'] == 'existing':
+                auto_value = extracted_data.get('loft_insulation', '')
+            elif question['id'] == 'quantity':
+                auto_value = str(extracted_data.get('heated_rooms', ''))
+            elif question['id'] == 'width':
+                auto_value = extracted_data.get('cavity_width', '')
+        
+        if question['type'] == 'number':
+            unit = question.get('unit', '')
+            questions_html += f"""
+                <div class="form-group">
+                    <label>{question['label']}</label>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <input type="number" step="0.01" name="{q_id}" value="{auto_value}" required style="flex: 1;">
+                        <span style="color: #64748b; font-weight: 600;">{unit}</span>
+                    </div>
+                </div>
+            """
+        elif question['type'] == 'yesno':
+            questions_html += f"""
+                <div class="form-group">
+                    <label>{question['label']}</label>
+                    <select name="{q_id}" required>
+                        <option value="">Select...</option>
+                        <option value="Yes">Yes</option>
+                        <option value="No">No</option>
+                    </select>
+                </div>
+            """
+        else:  # text
+            questions_html += f"""
+                <div class="form-group">
+                    <label>{question['label']}</label>
+                    <input type="text" name="{q_id}" value="{auto_value}" required>
+                </div>
+            """
+    
+    progress = int((current_index / len(selected_measures)) * 100)
+    
+    html = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Questions - {current_measure['name']}</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #0f172a; }}
+        .header {{ background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 2rem; text-align: center; }}
+        .header h1 {{ font-size: 1.8rem; margin-bottom: 0.5rem; }}
+        .progress-bar {{ width: 100%; height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; overflow: hidden; margin-top: 1rem; }}
+        .progress-fill {{ height: 100%; background: #10b981; width: {progress}%; transition: width 0.3s; }}
+        .container {{ max-width: 800px; margin: 2rem auto; padding: 0 1rem; }}
+        .card {{ background: white; border-radius: 12px; padding: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+        .measure-header {{ text-align: center; margin-bottom: 2rem; }}
+        .measure-icon {{ font-size: 4rem; margin-bottom: 0.5rem; }}
+        .measure-name {{ font-size: 1.5rem; color: #0f172a; font-weight: 600; }}
+        .form-group {{ margin-bottom: 1.5rem; }}
+        label {{ display: block; font-weight: 600; margin-bottom: 0.5rem; color: #0f172a; }}
+        input, select {{ width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; }}
+        input:focus, select:focus {{ outline: none; border-color: #3b82f6; }}
+        .button-group {{ display: flex; gap: 1rem; margin-top: 2rem; }}
+        .btn {{ flex: 1; padding: 1rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }}
+        .btn-primary {{ background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; }}
+        .btn-primary:hover {{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }}
+        .btn-secondary {{ background: #f1f5f9; color: #0f172a; }}
+        .btn-secondary:hover {{ background: #e2e8f0; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏗️ Retrofit Design Questions</h1>
+        <p>Measure {current_index + 1} of {len(selected_measures)}</p>
+        <div class="progress-bar">
+            <div class="progress-fill"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <div class="measure-header">
+                <div class="measure-icon">{current_measure['icon']}</div>
+                <div class="measure-name">{current_measure['name']}</div>
+            </div>
+
+            <form method="POST" action="/api/retrofit-answer">
+                {questions_html}
+                
+                <div class="button-group">
+                    {f'<a href="/tool/retrofit" class="btn btn-secondary" style="text-decoration:none; text-align:center;">← Start Over</a>' if current_index == 0 else '<button type="button" onclick="history.back()" class="btn btn-secondary">← Previous</button>'}
+                    <button type="submit" class="btn btn-primary">
+                        {f'Next Measure →' if current_index < len(selected_measures) - 1 else 'Review & Generate →'}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
+    """
+    
+    return HTMLResponse(html)
+
+
+async def post_retrofit_answer(request: Request):
+    """Save answers and move to next measure"""
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
+    
+    user_id = user_row["id"]
+    session_data = get_session_data(user_id)
+    
+    if not session_data:
+        return RedirectResponse("/tool/retrofit", status_code=303)
+    
+    # Get form data
+    form = await request.form()
+    
+    # Save answers
+    current_index = session_data.get("current_measure_index", 0)
+    selected_measures = session_data.get("selected_measures", [])
+    current_measure_code = selected_measures[current_index]
+    
+    # Store answers for this measure
+    if "answers" not in session_data:
+        session_data["answers"] = {}
+    
+    session_data["answers"][current_measure_code] = dict(form)
+    
+    # Move to next measure
+    session_data["current_measure_index"] = current_index + 1
+    store_session_data(user_id, session_data)
+    
+    # Redirect to next question or review
+    return RedirectResponse("/tool/retrofit/questions", status_code=303)
+
+
+# ==================== FINAL: GENERATE PDF ====================
+
+async def post_retrofit_complete(request: Request):
+    """Generate final PDF - FINAL STEP"""
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
+    
+    user_id = user_row["id"]
+    
     # Check credits
     try:
         credits = float(user_row.get("credits", 0.0))
@@ -711,35 +978,45 @@ async def post_retrofit_complete(request: Request):
     if credits < RETROFIT_TOOL_COST:
         return HTMLResponse(f"<h1>Insufficient Credits</h1><p>Need £{RETROFIT_TOOL_COST}</p><a href='/billing'>Top Up</a>")
 
-    # Get form data
-    form = await request.form()
+    # Get session data
+    session_data = get_session_data(user_id)
+    
+    if not session_data:
+        return HTMLResponse("<h1>Session Expired</h1><a href='/tool/retrofit'>Start Over</a>")
     
     # Build design document
     design_doc = {
         "metadata": {
             "generated_date": datetime.now().isoformat(),
-            "format": form.get("format_type", "PAS Hub")
+            "project_name": session_data.get("project_name", ""),
+            "coordinator": session_data.get("coordinator", "")
         },
-        "property": json.loads(form.get("extracted_data", "{}")),
-        "calculations": json.loads(form.get("calc_data", "{}")),
+        "property": session_data.get("extracted_data", {}),
+        "calculations": {},
         "measures": []
     }
     
-    measures = json.loads(form.get("measures", "[]"))
-    for code in measures:
+    # Add measures with answers
+    selected_measures = session_data.get("selected_measures", [])
+    answers_data = session_data.get("answers", {})
+    
+    for code in selected_measures:
         measure_data = {
             "code": code,
             "name": MEASURES[code]['name'],
             "answers": []
         }
+        
+        measure_answers = answers_data.get(code, {})
         for question in MEASURES[code]['questions']:
             answer_key = f"{code}_{question['id']}"
-            answer = form.get(answer_key, "")
+            answer = measure_answers.get(answer_key, "")
             measure_data['answers'].append({
                 "question": question['label'],
                 "answer": str(answer),
                 "unit": question.get('unit', '')
             })
+        
         design_doc['measures'].append(measure_data)
     
     # Generate PDF
@@ -747,10 +1024,12 @@ async def post_retrofit_complete(request: Request):
         pdf_bytes = generate_pdf_design(design_doc)
         
         # Deduct credits
-        user_id = user_row["id"]
         new_balance = credits - RETROFIT_TOOL_COST
         update_user_credits(user_id, new_balance)
         add_transaction(user_id, -RETROFIT_TOOL_COST, "retrofit_design")
+        
+        # Clear session
+        clear_session_data(user_id)
         
         # Return PDF
         return Response(
