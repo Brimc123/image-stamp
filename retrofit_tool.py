@@ -498,27 +498,40 @@ def get_retrofit_tool_page(request: Request):
             <!-- STEP 1: Upload Files -->
             <div class="card">
                 <h2 class="section-title">Step 1: Upload Site Documents</h2>
-                <div class="upload-grid">
-                    <!-- PAS Hub -->
+                <p style="background: #eff6ff; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #3b82f6;">
+                    <strong>📋 Choose ONE format:</strong> Upload 2 PDFs from <strong>EITHER</strong> Elmhurst <strong>OR</strong> PAS Hub (not both)
+                </p>
+                
+                <div style="margin-bottom: 2rem;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Select your document format:</label>
+                    <select id="formatSelect" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; width: 100%;">
+                        <option value="">-- Select Format --</option>
+                        <option value="elmhurst">Elmhurst Energy</option>
+                        <option value="pashub">PAS Hub</option>
+                    </select>
+                </div>
+                
+                <div class="upload-grid" id="uploadGrid" style="display: none;">
+                    <!-- Site Notes -->
                     <div>
-                        <div class="upload-box" id="pasUploadBox">
+                        <div class="upload-box" id="siteNotesUploadBox">
                             <div class="upload-icon">📄</div>
-                            <div class="upload-label">PAS Hub Site Notes</div>
+                            <div class="upload-label" id="siteNotesLabel">Site Notes</div>
                             <div class="upload-hint">Click or drag PDF here</div>
-                            <input type="file" id="pasFile" name="pas_file" accept=".pdf">
+                            <input type="file" id="siteNotesFile" name="site_notes_file" accept=".pdf">
                         </div>
-                        <div id="pasStatus" class="file-status" style="display:none;"></div>
+                        <div id="siteNotesStatus" class="file-status" style="display:none;"></div>
                     </div>
                     
-                    <!-- Elmhurst -->
+                    <!-- Condition Report -->
                     <div>
-                        <div class="upload-box" id="elmhurstUploadBox">
+                        <div class="upload-box" id="conditionUploadBox">
                             <div class="upload-icon">📄</div>
-                            <div class="upload-label">Elmhurst Condition Report</div>
+                            <div class="upload-label" id="conditionLabel">Condition Report</div>
                             <div class="upload-hint">Click or drag PDF here</div>
-                            <input type="file" id="elmhurstFile" name="elmhurst_file" accept=".pdf">
+                            <input type="file" id="conditionFile" name="condition_file" accept=".pdf">
                         </div>
-                        <div id="elmhurstStatus" class="file-status" style="display:none;"></div>
+                        <div id="conditionStatus" class="file-status" style="display:none;"></div>
                     </div>
                 </div>
             </div>
@@ -569,6 +582,29 @@ def get_retrofit_tool_page(request: Request):
         // State
         let selectedMeasures = new Set();
         let extractedData = null;
+        let selectedFormat = "";
+        
+        // Format selection handler
+        document.getElementById('formatSelect').onchange = function() {{
+            selectedFormat = this.value;
+            const uploadGrid = document.getElementById('uploadGrid');
+            const siteNotesLabel = document.getElementById('siteNotesLabel');
+            const conditionLabel = document.getElementById('conditionLabel');
+            
+            if (selectedFormat) {{
+                uploadGrid.style.display = 'grid';
+                
+                if (selectedFormat === 'elmhurst') {{
+                    siteNotesLabel.textContent = 'Elmhurst Site Notes';
+                    conditionLabel.textContent = 'Elmhurst Condition Report';
+                }} else {{
+                    siteNotesLabel.textContent = 'PAS Hub Site Notes';
+                    conditionLabel.textContent = 'PAS Hub Condition Report';
+                }}
+            }} else {{
+                uploadGrid.style.display = 'none';
+            }}
+        }};
         
         // Populate measures grid
         const grid = document.getElementById('measuresGrid');
@@ -602,11 +638,12 @@ def get_retrofit_tool_page(request: Request):
         
         function updateContinueButton() {{
             const btn = document.getElementById('continueBtn');
-            const hasPas = document.getElementById('pasFile').files.length > 0;
-            const hasElmhurst = document.getElementById('elmhurstFile').files.length > 0;
+            const hasSiteNotes = document.getElementById('siteNotesFile').files.length > 0;
+            const hasCondition = document.getElementById('conditionFile').files.length > 0;
             const hasMeasures = selectedMeasures.size > 0;
+            const hasFormat = selectedFormat !== "";
             
-            btn.disabled = !(hasPas && hasElmhurst && hasMeasures);
+            btn.disabled = !(hasFormat && hasSiteNotes && hasCondition && hasMeasures);
         }}
         
         // File upload handlers
@@ -653,15 +690,16 @@ def get_retrofit_tool_page(request: Request):
             }}
         }}
         
-        setupUpload('pasUploadBox', 'pasFile', 'pasStatus');
-        setupUpload('elmhurstUploadBox', 'elmhurstFile', 'elmhurstStatus');
+        setupUpload('siteNotesUploadBox', 'siteNotesFile', 'siteNotesStatus');
+        setupUpload('conditionUploadBox', 'conditionFile', 'conditionStatus');
         
         // Continue button - submit form
         document.getElementById('continueBtn').onclick = async () => {{
             const formData = new FormData(document.getElementById('retrofitForm'));
             
-            // Add selected measures as JSON
+            // Add selected measures and format as JSON
             formData.append('selected_measures', JSON.stringify(Array.from(selectedMeasures)));
+            formData.append('format_type', selectedFormat);
             
             // Show loading
             const btn = document.getElementById('continueBtn');
@@ -729,23 +767,25 @@ async def post_retrofit_process(request: Request):
         # Get form data
         form = await request.form()
         
-        # Get uploaded files
-        pas_file = form.get("pas_file")
-        elmhurst_file = form.get("elmhurst_file")
+        # Get uploaded files (now with consistent naming)
+        site_notes_file = form.get("site_notes_file")
+        condition_file = form.get("condition_file")
+        format_type = form.get("format_type", "PAS Hub")
         
-        if not pas_file or not elmhurst_file:
+        if not site_notes_file or not condition_file:
             return HTMLResponse("<h1>Error</h1><p>Both PDF files are required</p><a href='/tool/retrofit'>Back</a>")
         
         # Read PDF files
-        pas_bytes = await pas_file.read()
-        elmhurst_bytes = await elmhurst_file.read()
+        site_notes_bytes = await site_notes_file.read()
+        condition_bytes = await condition_file.read()
         
         # Extract text from PDFs
-        pas_text = extract_text_from_pdf(pas_bytes)
-        elmhurst_text = extract_text_from_pdf(elmhurst_bytes)
+        site_notes_text = extract_text_from_pdf(site_notes_bytes)
+        condition_text = extract_text_from_pdf(condition_bytes)
         
-        # Parse property data
-        extracted_data = extract_data_from_text(pas_text, elmhurst_text, "PAS Hub")
+        # Parse property data - use format_type to determine which format
+        format_label = "PAS Hub" if format_type == "pashub" else "Elmhurst"
+        extracted_data = extract_data_from_text(site_notes_text, condition_text, format_label)
         
         # Get selected measures
         selected_measures_json = form.get("selected_measures", "[]")
@@ -763,8 +803,9 @@ async def post_retrofit_process(request: Request):
             "property_address": property_address,
             "extracted_data": extracted_data,
             "selected_measures": selected_measures,
-            "pas_text": pas_text,
-            "elmhurst_text": elmhurst_text,
+            "site_notes_text": site_notes_text,
+            "condition_text": condition_text,
+            "format_type": format_label,
             "current_measure_index": 0,
             "answers": {}
         }
