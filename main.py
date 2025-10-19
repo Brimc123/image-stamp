@@ -67,60 +67,84 @@ def logout_route():
 
 # ==================== DASHBOARD ====================
 
+
 @app.get("/")
 async def root(request: Request):
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
-    
-    email = user_row["email"]
-    user_is_admin = is_admin(request)
-    
+
+    # Always try to pull a FRESH copy from the database to avoid stale session values
+    fresh_row = None
+    try:
+        try:
+            from database import get_user_by_id, get_user_by_email, get_user_credits
+        except Exception:
+            get_user_by_id = get_user_by_email = get_user_credits = None
+
+        # Prefer an explicit credits getter if available
+        if get_user_credits and isinstance(user_row, dict) and "id" in user_row:
+            try:
+                fresh_credits = float(get_user_credits(user_row["id"]))
+                if fresh_credits is not None:
+                    if isinstance(user_row, dict):
+                        user_row["credits"] = fresh_credits
+            except Exception:
+                pass
+
+        # Next, try to replace the whole row from DB by id/email
+        if (not isinstance(user_row, dict)) or ("credits" not in user_row):
+            if get_user_by_id and isinstance(user_row, dict) and "id" in user_row:
+                fresh_row = get_user_by_id(user_row["id"])
+            elif get_user_by_email and isinstance(user_row, dict) and "email" in user_row:
+                fresh_row = get_user_by_email(user_row["email"])
+            if isinstance(fresh_row, dict):
+                user_row = fresh_row
+    except Exception:
+        pass
+
+    # Safe numeric credits
     try:
         credits = float(user_row.get("credits", 0.0))
     except Exception:
         credits = 0.0
-    
+
     try:
-        has_timestamp_access = user_row["timestamp_tool_access"] == 1
-    except (KeyError, TypeError):
+        has_timestamp_access = user_row.get("timestamp_tool_access", 1) == 1
+    except Exception:
         has_timestamp_access = True
-    
+
     try:
-        has_retrofit_access = user_row["retrofit_tool_access"] == 1
-    except (KeyError, TypeError):
+        has_retrofit_access = user_row.get("retrofit_tool_access", 1) == 1
+    except Exception:
         has_retrofit_access = True
-    
-    # Admin card (only show to admin)
-    admin_card_html = ""
-    if user_is_admin:
-        admin_card_html = """
+
+    user_is_admin = is_admin(request)
+
+    admin_card_html = """
             <div class="tool-card admin-card">
                 <h2>Admin Panel</h2>
                 <p>Manage users, suspensions, and view all billing.</p>
                 <a href="/admin" class="tool-button">Open Admin</a>
             </div>
-        """
-    
-    # Timestamp tool card
+    """ if user_is_admin else ""
+
     timestamp_card = f"""
         <div class="tool-card {'disabled-card' if not has_timestamp_access else ''}">
             <h2>Timestamp Tool</h2>
             <p>Add timestamps to multiple images with custom date ranges and cropping options.</p>
-            {'<a href="/tool/timestamp" class="tool-button">Open Tool</a>' if has_timestamp_access else '<span class="disabled-text">Access Suspended</span>'}
+            {('<a href="/tool/timestamp" class="tool-button">Open Tool</a>') if has_timestamp_access else '<span class="disabled-text">Access Suspended</span>'}
         </div>
     """
-    
-    # Retrofit tool card
+
     retrofit_card = f"""
         <div class="tool-card {'disabled-card' if not has_retrofit_access else ''}">
             <h2>Retrofit Design Tool</h2>
             <p>Generate PAS 2035 compliant retrofit designs with automated questioning.</p>
-            {'<a href="/tool/retrofit" class="tool-button">Open Tool</a>' if has_retrofit_access else '<span class="disabled-text">Access Suspended</span>'}
+            {('<a href="/tool/retrofit" class="tool-button">Open Tool</a>') if has_retrofit_access else '<span class="disabled-text">Access Suspended</span>'}
         </div>
     """
-    
-    # Billing card
+
     billing_card_html = """
         <div class="tool-card">
             <h2>Billing & Credits</h2>
@@ -128,7 +152,7 @@ async def root(request: Request):
             <a href="/billing" class="tool-button">View Billing</a>
         </div>
     """
-    
+
     html_content = f"""
 <!DOCTYPE html>
 <html>
@@ -219,21 +243,13 @@ async def root(request: Request):
             font-weight: 600;
             transition: transform 0.2s;
         }}
-        .tool-button:hover {{
-            transform: scale(1.05);
-        }}
+        .tool-button:hover {{ transform: scale(1.05); }}
         .admin-card {{
             border: 3px solid #f39c12;
             background: linear-gradient(135deg, #fff9e6 0%, #ffe6cc 100%);
         }}
-        .disabled-card {{
-            opacity: 0.5;
-            background: #f5f5f5;
-        }}
-        .disabled-text {{
-            color: #e74c3c;
-            font-weight: 600;
-        }}
+        .disabled-card {{ opacity: 0.5; background: #f5f5f5; }}
+        .disabled-text {{ color: #e74c3c; font-weight: 600; }}
     </style>
 </head>
 <body>
