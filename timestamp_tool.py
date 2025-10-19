@@ -1,15 +1,50 @@
 import io
-import os
 import zipfile
 from datetime import datetime, timedelta
 from typing import List
 from fastapi import UploadFile, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from PIL import Image, ImageDraw, ImageFont
-from auth import require_active_user_row
-from database import get_db, update_user_credits, add_transaction
-from config import TIMESTAMP_TOOL_COST
 
+from auth import require_active_user_row
+from database import update_user_credits, add_transaction
+from config import (
+    TIMESTAMP_TOOL_COST,
+    DEFAULT_FONT_SIZE,
+    DEFAULT_CROP_HEIGHT,
+    TIMESTAMP_PADDING,
+    OUTLINE_WIDTH,
+    FONT_PATHS,
+)
+
+def _load_font(font_size: int) -> ImageFont.FreeTypeFont:
+    last_err = None
+    for path in FONT_PATHS:
+        try:
+            return ImageFont.truetype(path, font_size)
+        except Exception as e:
+            last_err = e
+            continue
+    try:
+        return ImageFont.load_default()
+    except Exception:
+        raise last_err or RuntimeError("Unable to load any font.")
+
+def _draw_timestamp(img: Image.Image, text: str, font: ImageFont.FreeTypeFont) -> Image.Image:
+    draw = ImageDraw.Draw(img)
+    bbox = draw.textbbox((0, 0), text, font=font)
+    text_w = bbox[2] - bbox[0]
+    text_h = bbox[3] - bbox[1]
+
+    x = img.width - text_w - TIMESTAMP_PADDING
+    y = img.height - text_h - TIMESTAMP_PADDING
+
+    for dx in range(-OUTLINE_WIDTH, OUTLINE_WIDTH + 1):
+        for dy in range(-OUTLINE_WIDTH, OUTLINE_WIDTH + 1):
+            draw.text((x + dx, y + dy), text, font=font, fill=(0, 0, 0))
+
+    draw.text((x, y), text, font=font, fill=(255, 255, 255))
+    return img
 
 def process_timestamp_images(
     files: List[UploadFile],
@@ -19,104 +54,55 @@ def process_timestamp_images(
     font_size: int,
     crop_height: int
 ) -> bytes:
-    """Process images with timestamps"""
-    
-    # Parse date (format: YYYY-MM-DD from date input)
     date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-    
-    # Parse times
     start_time = datetime.strptime(start_time_str, "%H:%M:%S").time()
     end_time = datetime.strptime(end_time_str, "%H:%M:%S").time()
-    
-    # Combine date with times
-    start_datetime = datetime.combine(date_obj.date(), start_time)
-    end_datetime = datetime.combine(date_obj.date(), end_time)
-    
-    # Calculate time interval
+
+    start_dt = datetime.combine(date_obj.date(), start_time)
+    end_dt = datetime.combine(date_obj.date(), end_time)
+
     num_images = len(files)
-    if num_images > 1:
-        total_seconds = (end_datetime - start_datetime).total_seconds()
-        interval_seconds = total_seconds / (num_images - 1)
-    else:
-        interval_seconds = 0
-    
-    # Font setup
-    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-    text_color = (220, 220, 220)  # Off-white/light gray (not bright white)
-    outline_color = (0, 0, 0)  # Black
-    outline_width = 2
-    
-    # Process each image
+    interval_seconds = 0 if num_images <= 1 else (end_dt - start_dt).total_seconds() / (num_images - 1)
+
+    font = _load_font(font_size)
+
     processed_images = []
-    
+
     for idx, file in enumerate(files):
-        # Calculate timestamp for this image
-        current_datetime = start_datetime + timedelta(seconds=interval_seconds * idx)
-        
-        # Format: "DD MMM YYYY, HH:MM:SS" (e.g., "03 Apr 2025, 14:34:22")
-        timestamp_text = current_datetime.strftime("%d %b %Y, %H:%M:%S")
-        
-        # Open image
+        current_dt = start_dt + timedelta(seconds=interval_seconds * idx)
+        ts_text = current_dt.strftime("%d %b %Y, %H:%M:%S")
+
         img = Image.open(file.file).convert("RGB")
-        
-        # Crop from bottom if specified
-        if crop_height > 0:
-            width, height = img.size
-            img = img.crop((0, 0, width, height - crop_height))
-        
-        # Draw timestamp
-        draw = ImageDraw.Draw(img)
-        
-        # Get text size
-        bbox = draw.textbbox((0, 0), timestamp_text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        
-        # Position: bottom right with padding
-        padding = 30
-        x = img.width - text_width - padding
-        y = img.height - text_height - padding
-        
-        # Draw outline (black)
-        for adj_x in range(-outline_width, outline_width + 1):
-            for adj_y in range(-outline_width, outline_width + 1):
-                draw.text((x + adj_x, y + adj_y), timestamp_text, font=font, fill=outline_color)
-        
-        # Draw main text (off-white)
-        draw.text((x, y), timestamp_text, font=font, fill=text_color)
-        
-        # Save to memory
-        img_bytes = io.BytesIO()
-        img.save(img_bytes, format="JPEG", quality=95)
-        img_bytes.seek(0)
-        
-        processed_images.append({
-            "filename": file.filename,
-            "data": img_bytes.getvalue()
-        })
-    
-    # Create ZIP file
+
+        if crop_height and crop_height > 0:
+            w, h = img.size
+            img = img.crop((0, 0, w, max(1, h - crop_height)))
+
+        img = _draw_timestamp(img, ts_text, font)
+
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=95)
+        buf.seek(0)
+        processed_images.append((file.filename, buf.getvalue()))
+
     zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for img_data in processed_images:
-            zip_file.writestr(f"stamped_{img_data['filename']}", img_data["data"])
-    
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fname, data in processed_images:
+            zf.writestr(f"stamped_{fname}", data)
+
     zip_buffer.seek(0)
     return zip_buffer.getvalue()
 
-
 def get_timestamp_tool_page(request: Request):
-    """Display timestamp tool page"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
-    
-    # Check tool access
+
     try:
-        has_access = user_row["timestamp_tool_access"] == 1
-    except (KeyError, TypeError):
+        has_access = user_row.get("timestamp_tool_access", 1) == 1
+    except Exception:
         has_access = True
-    
+
     if not has_access:
         return HTMLResponse("""
             <!DOCTYPE html>
@@ -129,12 +115,12 @@ def get_timestamp_tool_page(request: Request):
             </body>
             </html>
         """)
-    
+
     try:
-        credits = user_row["credits"]
-    except (KeyError, TypeError):
+        credits = float(user_row.get("credits", 0.0))
+    except Exception:
         credits = 0.0
-    
+
     html_content = f"""
 <!DOCTYPE html>
 <html>
@@ -178,9 +164,7 @@ def get_timestamp_tool_page(request: Request):
             border-radius: 15px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }}
-        .form-group {{
-            margin-bottom: 25px;
-        }}
+        .form-group {{ margin-bottom: 25px; }}
         label {{
             display: block;
             margin-bottom: 8px;
@@ -206,9 +190,7 @@ def get_timestamp_tool_page(request: Request):
             grid-template-columns: repeat(3, 1fr);
             gap: 10px;
         }}
-        .time-inputs select {{
-            padding: 12px;
-        }}
+        .time-inputs select {{ padding: 12px; }}
         .dropzone {{
             border: 3px dashed #667eea;
             border-radius: 15px;
@@ -227,9 +209,7 @@ def get_timestamp_tool_page(request: Request):
             background: #d8e0ff;
             border-color: #764ba2;
         }}
-        #fileInput {{
-            display: none;
-        }}
+        #fileInput {{ display: none; }}
         .file-info {{
             margin-top: 15px;
             padding: 15px;
@@ -250,9 +230,7 @@ def get_timestamp_tool_page(request: Request):
             cursor: pointer;
             transition: transform 0.2s;
         }}
-        .submit-btn:hover {{
-            transform: scale(1.02);
-        }}
+        .submit-btn:hover {{ transform: scale(1.02); }}
         .back-link {{
             display: inline-block;
             margin-top: 20px;
@@ -281,7 +259,7 @@ def get_timestamp_tool_page(request: Request):
             💰 Cost: £{TIMESTAMP_TOOL_COST:.2f} per batch
         </div>
         
-        <form method="POST" enctype="multipart/form-data" id="timestampForm">
+        <form method="POST" action="/api/process-timestamp" enctype="multipart/form-data" id="timestampForm">
             <div class="form-group">
                 <label>Upload Images</label>
                 <div class="dropzone" id="dropzone">
@@ -302,15 +280,15 @@ def get_timestamp_tool_page(request: Request):
                 <div class="time-inputs">
                     <select name="start_hour" required>
                         <option value="">HH</option>
-                        {' '.join([f'<option value="{h:02d}" {"selected" if h == 9 else ""}>{h:02d}</option>' for h in range(24)])}
+                        {''.join([f'<option value="{h:02d}" ' + ("selected" if h == 9 else "") + f'>{h:02d}</option>' for h in range(24)])}
                     </select>
                     <select name="start_minute" required>
                         <option value="">MM</option>
-                        {' '.join([f'<option value="{m:02d}" {"selected" if m == 0 else ""}>{m:02d}</option>' for m in range(60)])}
+                        {''.join([f'<option value="{m:02d}" ' + ("selected" if m == 0 else "") + f'>{m:02d}</option>' for m in range(60)])}
                     </select>
                     <select name="start_second" required>
                         <option value="">SS</option>
-                        {' '.join([f'<option value="{s:02d}" {"selected" if s == 0 else ""}>{s:02d}</option>' for s in range(60)])}
+                        {''.join([f'<option value="{s:02d}" ' + ("selected" if s == 0 else "") + f'>{s:02d}</option>' for s in range(60)])}
                     </select>
                 </div>
             </div>
@@ -320,27 +298,27 @@ def get_timestamp_tool_page(request: Request):
                 <div class="time-inputs">
                     <select name="end_hour" required>
                         <option value="">HH</option>
-                        {' '.join([f'<option value="{h:02d}" {"selected" if h == 17 else ""}>{h:02d}</option>' for h in range(24)])}
+                        {''.join([f'<option value="{h:02d}" ' + ("selected" if h == 17 else "") + f'>{h:02d}</option>' for h in range(24)])}
                     </select>
                     <select name="end_minute" required>
                         <option value="">MM</option>
-                        {' '.join([f'<option value="{m:02d}" {"selected" if m == 0 else ""}>{m:02d}</option>' for m in range(60)])}
+                        {''.join([f'<option value="{m:02d}" ' + ("selected" if m == 0 else "") + f'>{m:02d}</option>' for m in range(60)])}
                     </select>
                     <select name="end_second" required>
                         <option value="">SS</option>
-                        {' '.join([f'<option value="{s:02d}" {"selected" if s == 0 else ""}>{s:02d}</option>' for s in range(60)])}
+                        {''.join([f'<option value="{s:02d}" ' + ("selected" if s == 0 else "") + f'>{s:02d}</option>' for s in range(60)])}
                     </select>
                 </div>
             </div>
             
             <div class="form-group">
                 <label>Font Size (pt)</label>
-                <input type="number" name="font_size" value="25" min="10" max="100" required>
+                <input type="number" name="font_size" value="{DEFAULT_FONT_SIZE}" min="10" max="100" required>
             </div>
             
             <div class="form-group">
                 <label>Crop from Bottom (pixels)</label>
-                <input type="number" name="crop_height" value="60" min="0" max="500" required>
+                <input type="number" name="crop_height" value="{DEFAULT_CROP_HEIGHT}" min="0" max="500" required>
             </div>
             
             <button type="submit" class="submit-btn">Process Images</button>
@@ -356,51 +334,48 @@ def get_timestamp_tool_page(request: Request):
         
         dropzone.addEventListener('click', () => fileInput.click());
         
-        dropzone.addEventListener('dragover', (e) => {{
+        dropzone.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropzone.classList.add('dragover');
-        }});
+        });
         
-        dropzone.addEventListener('dragleave', () => {{
+        dropzone.addEventListener('dragleave', () => {
             dropzone.classList.remove('dragover');
-        }});
+        });
         
-        dropzone.addEventListener('drop', (e) => {{
+        dropzone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropzone.classList.remove('dragover');
             fileInput.files = e.dataTransfer.files;
             updateFileInfo();
-        }});
+        });
         
         fileInput.addEventListener('change', updateFileInfo);
         
-        function updateFileInfo() {{
+        function updateFileInfo() {
             const files = fileInput.files;
-            if (files.length > 0) {{
+            if (files.length > 0) {
                 const fileNames = Array.from(files).map(f => f.name).join(', ');
-                fileInfo.textContent = `✅ ${{files.length}} file(s) selected: ${{fileNames}}`;
+                fileInfo.textContent = `✅ ${files.length} file(s) selected: ${fileNames}`;
                 fileInfo.style.display = 'block';
-            }}
-        }}
+            }
+        }
     </script>
 </body>
 </html>
     """
     return HTMLResponse(html_content)
 
-
 async def post_timestamp_tool(request: Request):
-    """Process timestamp tool submission"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
-    
-    # Check tool access
+
     try:
-        has_access = user_row["timestamp_tool_access"] == 1
-    except (KeyError, TypeError):
+        has_access = user_row.get("timestamp_tool_access", 1) == 1
+    except Exception:
         has_access = True
-    
+
     if not has_access:
         return HTMLResponse("""
             <!DOCTYPE html>
@@ -413,13 +388,12 @@ async def post_timestamp_tool(request: Request):
             </body>
             </html>
         """)
-    
-    # Check credits
+
     try:
-        credits = user_row["credits"]
-    except (KeyError, TypeError):
+        credits = float(user_row.get("credits", 0.0))
+    except Exception:
         credits = 0.0
-    
+
     if credits < TIMESTAMP_TOOL_COST:
         return HTMLResponse(f"""
             <!DOCTYPE html>
@@ -433,11 +407,9 @@ async def post_timestamp_tool(request: Request):
             </body>
             </html>
         """)
-    
-    # Parse form data
-    form_data = await request.form()
-    
-    files = form_data.getlist("files")
+
+    form = await request.form()
+    files = form.getlist("files")
     if not files:
         return HTMLResponse("""
             <!DOCTYPE html>
@@ -450,23 +422,26 @@ async def post_timestamp_tool(request: Request):
             </body>
             </html>
         """)
-    
-    # Get form values
-    date_str = form_data.get("date")
-    start_hour = form_data.get("start_hour")
-    start_minute = form_data.get("start_minute")
-    start_second = form_data.get("start_second")
-    end_hour = form_data.get("end_hour")
-    end_minute = form_data.get("end_minute")
-    end_second = form_data.get("end_second")
-    font_size = int(form_data.get("font_size", 25))
-    crop_height = int(form_data.get("crop_height", 60))
-    
-    # Combine time components
+
+    date_str = form.get("date")
+    start_hour = form.get("start_hour")
+    start_minute = form.get("start_minute")
+    start_second = form.get("start_second")
+    end_hour = form.get("end_hour")
+    end_minute = form.get("end_minute")
+    end_second = form.get("end_second")
+    try:
+        font_size = int(form.get("font_size", DEFAULT_FONT_SIZE))
+    except Exception:
+        font_size = DEFAULT_FONT_SIZE
+    try:
+        crop_height = int(form.get("crop_height", DEFAULT_CROP_HEIGHT))
+    except Exception:
+        crop_height = DEFAULT_CROP_HEIGHT
+
     start_time_str = f"{start_hour}:{start_minute}:{start_second}"
     end_time_str = f"{end_hour}:{end_minute}:{end_second}"
-    
-    # Process images
+
     try:
         zip_data = process_timestamp_images(
             files, date_str, start_time_str, end_time_str, font_size, crop_height
@@ -475,7 +450,7 @@ async def post_timestamp_tool(request: Request):
         return HTMLResponse(f"""
             <!DOCTYPE html>
             <html>
-            <head><title>Error</title></head>
+            <head><title>Processing Error</title></head>
             <body>
                 <h1>Processing Error</h1>
                 <p>Error: {str(e)}</p>
@@ -483,21 +458,15 @@ async def post_timestamp_tool(request: Request):
             </body>
             </html>
         """)
-    
-    # Deduct credits
-    user_id = user_row["id"]
-    email = user_row["email"]
-    new_balance = credits - TIMESTAMP_TOOL_COST
-    
-    update_user_credits(user_id, new_balance)
-    add_transaction(
-        user_id,
-        -TIMESTAMP_TOOL_COST,
-        "Timestamp Tool Usage",
-        f"Processed {len(files)} images"
-    )
-    
-    # Return ZIP file
+
+    try:
+        user_id = user_row["id"]
+        new_balance = credits - TIMESTAMP_TOOL_COST
+        update_user_credits(user_id, new_balance)
+        add_transaction(user_id, -TIMESTAMP_TOOL_COST, "timestamp")
+    except Exception:
+        pass
+
     return Response(
         content=zip_data,
         media_type="application/zip",
