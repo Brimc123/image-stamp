@@ -27,6 +27,10 @@ from timestamp_tool import (
     get_timestamp_tool_page,
     post_timestamp_tool
 )
+from retrofit_tool import (
+    get_retrofit_tool_page,
+    post_retrofit_complete
+)
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -300,21 +304,12 @@ async def process_timestamp(request: Request):
 # ==================== RETROFIT TOOL ROUTES ====================
 
 @app.get("/tool/retrofit")
-def retrofit_placeholder(request: Request):
-    user_row = require_active_user_row(request)
-    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
-        return user_row
-    
-    return HTMLResponse("""
-        <!DOCTYPE html>
-        <html>
-        <head><title>Retrofit Tool - Coming Soon</title></head>
-        <body>
-            <h1>Retrofit Tool - Coming in Phase 4</h1>
-            <a href="/">Back to Dashboard</a>
-        </body>
-        </html>
-    """)
+def retrofit_tool_page(request: Request):
+    return get_retrofit_tool_page(request)
+
+@app.post("/api/retrofit-complete")
+async def process_retrofit_complete(request: Request):
+    return await post_retrofit_complete(request)
 
 # ==================== HEALTH CHECK ====================
 
