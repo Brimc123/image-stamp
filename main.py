@@ -29,6 +29,9 @@ from timestamp_tool import (
 )
 from retrofit_tool import (
     get_retrofit_tool_page,
+    post_retrofit_process,
+    get_retrofit_questions_page,
+    post_retrofit_answer,
     post_retrofit_complete
 )
 
@@ -306,6 +309,18 @@ async def process_timestamp(request: Request):
 @app.get("/tool/retrofit")
 def retrofit_tool_page(request: Request):
     return get_retrofit_tool_page(request)
+
+@app.post("/api/retrofit-process")
+async def process_retrofit_files(request: Request):
+    return await post_retrofit_process(request)
+
+@app.get("/tool/retrofit/questions")
+def retrofit_questions(request: Request):
+    return get_retrofit_questions_page(request)
+
+@app.post("/api/retrofit-answer")
+async def save_retrofit_answer(request: Request):
+    return await post_retrofit_answer(request)
 
 @app.post("/api/retrofit-complete")
 async def process_retrofit_complete(request: Request):
