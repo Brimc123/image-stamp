@@ -16,9 +16,12 @@ def get_billing_page(request: Request):
     
     user_id = user_row["id"]
     
+    # FIXED: Calculate credits from transactions (same as dashboard)
     try:
-        credits = user_row["credits"]
-    except (KeyError, TypeError):
+        txs = get_user_transactions(user_id)
+        # Sum all amounts (TOPUP positive, tool usage negative)
+        credits = float(sum(t.get('amount', 0.0) for t in txs))
+    except Exception:
         credits = 0.0
     
     # Get transactions
@@ -296,17 +299,10 @@ def post_topup(request: Request, amount: float = Form(...)):
     
     user_id = user_row["id"]
     
-    try:
-        current_credits = user_row["credits"]
-    except (KeyError, TypeError):
-        current_credits = 0.0
+    # FIXED: Don't update credits column, just add transaction
+    # The system calculates credits from transactions automatically
     
-    new_credits = current_credits + amount
-    
-    # Update credits
-    update_user_credits(user_id, new_credits)
-    
-    # Add transaction
+    # Add transaction (positive amount for top-up)
     add_transaction(user_id, amount, "topup")
     
     return HTMLResponse("""
