@@ -18,8 +18,9 @@ TIMESTAMP_PADDING = 30
 OUTLINE_WIDTH = 3
 
 # Font paths (in order of preference)
+# CHANGED: Using Regular weight fonts instead of Bold
 FONT_PATHS = [
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-    "C:\\Windows\\Fonts\\arialbd.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # CHANGED: Removed "-Bold"
+    "/System/Library/Fonts/Supplemental/Arial.ttf",  # CHANGED: Removed " Bold"
+    "C:\\Windows\\Fonts\\arial.ttf",  # CHANGED: Changed from arialbd.ttf to arial.ttf
 ]
