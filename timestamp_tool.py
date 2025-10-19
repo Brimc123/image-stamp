@@ -327,39 +327,39 @@ def get_timestamp_tool_page(request: Request):
         <a href="/" class="back-link">← Back to Dashboard</a>
     </div>
     
-    <script>
+        <script>
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
         const fileInfo = document.getElementById('fileInfo');
         
         dropzone.addEventListener('click', () => fileInput.click());
         
-        dropzone.addEventListener('dragover', (e) => {
+        dropzone.addEventListener('dragover', (e) => {{
             e.preventDefault();
             dropzone.classList.add('dragover');
-        });
+        }});
         
-        dropzone.addEventListener('dragleave', () => {
+        dropzone.addEventListener('dragleave', () => {{
             dropzone.classList.remove('dragover');
-        });
+        }});
         
-        dropzone.addEventListener('drop', (e) => {
+        dropzone.addEventListener('drop', (e) => {{
             e.preventDefault();
             dropzone.classList.remove('dragover');
             fileInput.files = e.dataTransfer.files;
             updateFileInfo();
-        });
+        }});
         
         fileInput.addEventListener('change', updateFileInfo);
         
-        function updateFileInfo() {
+        function updateFileInfo() {{
             const files = fileInput.files;
-            if (files.length > 0) {
+            if (files.length > 0) {{
                 const fileNames = Array.from(files).map(f => f.name).join(', ');
-                fileInfo.textContent = `✅ ${files.length} file(s) selected: ${fileNames}`;
+                fileInfo.textContent = '✅ ' + files.length + ' file(s) selected: ' + fileNames;
                 fileInfo.style.display = 'block';
-            }
-        }
+            }}
+        }}
     </script>
 </body>
 </html>
