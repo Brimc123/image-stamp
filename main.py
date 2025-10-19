@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 
 # Import our modules
-from database import init_db, get_user_transactions
+from database import init_db, get_user_by_id
 from auth import (
     get_login_page, post_login,
     get_signup_page, post_signup,
@@ -25,7 +25,7 @@ from admin import (
 )
 from timestamp_tool import (
     get_timestamp_tool_page,
-    process_timestamp_images
+    post_timestamp_tool
 )
 
 # Initialize FastAPI app
@@ -67,55 +67,24 @@ def logout_route():
 
 # ==================== DASHBOARD ====================
 
-
 @app.get("/")
 async def root(request: Request):
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
 
-    # Always try to pull a FRESH copy from the database to avoid stale session values
-    fresh_row = None
+    # Get fresh user data from database
     try:
-        try:
-            from database import get_user_by_id, get_user_by_email, get_user_credits
-        except Exception:
-            get_user_by_id = get_user_by_email = get_user_credits = None
-
-        # Prefer an explicit credits getter if available
-        if get_user_credits and isinstance(user_row, dict) and "id" in user_row:
-            try:
-                fresh_credits = float(get_user_credits(user_row["id"]))
-                if fresh_credits is not None:
-                    if isinstance(user_row, dict):
-                        user_row["credits"] = fresh_credits
-            except Exception:
-                pass
-
-        # Next, try to replace the whole row from DB by id/email
-        if (not isinstance(user_row, dict)) or ("credits" not in user_row):
-            if get_user_by_id and isinstance(user_row, dict) and "id" in user_row:
-                fresh_row = get_user_by_id(user_row["id"])
-            elif get_user_by_email and isinstance(user_row, dict) and "email" in user_row:
-                fresh_row = get_user_by_email(user_row["email"])
-            if isinstance(fresh_row, dict):
-                user_row = fresh_row
+        user_id = user_row["id"]
+        fresh_user = get_user_by_id(user_id)
+        if fresh_user:
+            user_row = fresh_user
     except Exception:
         pass
-
-    # Safe numeric credits (prefer computing from transactions to avoid stale session)
+    
+    # Get credits from database
     try:
-        user_id = user_row.get("id") if isinstance(user_row, dict) else None
-        credits = None
-        if user_id is not None:
-            try:
-                txs = get_user_transactions(user_id)
-                # Sum all amounts (TOPUP positive, tool usage negative)
-                credits = float(sum(t.get('amount', 0.0) for t in txs))
-            except Exception:
-                credits = None
-        if credits is None:
-            credits = float(user_row.get("credits", 0.0))
+        credits = float(user_row.get("credits", 0.0))
     except Exception:
         credits = 0.0
 
@@ -325,16 +294,8 @@ def timestamp_tool_page(request: Request):
     return get_timestamp_tool_page(request)
 
 @app.post("/api/process-timestamp")
-async def process_timestamp(
-    request: Request,
-    files: List[UploadFile] = File(...),
-    date_text: str = Form(...),
-    start_time: str = Form(...),
-    end_time: str = Form(...),
-    font_size: int = Form(...),
-    crop_height: int = Form(...)
-):
-    return await process_timestamp_images(request, files, date_text, start_time, end_time, font_size, crop_height)
+async def process_timestamp(request: Request):
+    return await post_timestamp_tool(request)
 
 # ==================== RETROFIT TOOL ROUTES ====================
 
