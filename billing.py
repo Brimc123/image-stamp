@@ -299,10 +299,18 @@ def post_topup(request: Request, amount: float = Form(...)):
     
     user_id = user_row["id"]
     
-    # FIXED: Don't update credits column, just add transaction
-    # The system calculates credits from transactions automatically
+    # Calculate current credits from transactions
+    try:
+        txs = get_user_transactions(user_id)
+        current_credits = float(sum(t.get('amount', 0.0) for t in txs))
+    except Exception:
+        current_credits = 0.0
     
-    # Add transaction (positive amount for top-up)
+    # Calculate new balance
+    new_credits = current_credits + amount
+    
+    # Update BOTH: database column AND add transaction
+    update_user_credits(user_id, new_credits)
     add_transaction(user_id, amount, "topup")
     
     return HTMLResponse("""
