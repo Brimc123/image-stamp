@@ -1,5 +1,6 @@
 """
-Retrofit Design Tool - FIXED: Drag & Drop Calcs + Auto-Population
+Retrofit Design Tool - WITH MEASURE SHEET FALLBACK
+Priority: Site Notes > Calc PDFs > Measure Sheet
 """
 
 import io
@@ -18,12 +19,10 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
-# Import from your existing AutoDate modules
 from auth import require_active_user_row
 from database import update_user_credits, add_transaction
 
-# Cost configuration
-RETROFIT_TOOL_COST = 10.0  # £10 per design
+RETROFIT_TOOL_COST = 10.0
 
 # ==================== MEASURES CONFIGURATION ====================
 
@@ -34,8 +33,8 @@ MEASURES = {
         "icon": "🏠",
         "requires_calc": False,
         "questions": [
-            {"id": "area", "label": "M2 Area being treated", "type": "number", "unit": "m²", "auto_populate": True},
-            {"id": "existing", "label": "Existing Loft insulation Thickness", "type": "text", "auto_populate": True}
+            {"id": "area", "label": "M2 Area being treated", "type": "number", "unit": "m²", "auto_populate": True, "measure_sheet_key": "area"},
+            {"id": "existing", "label": "Existing Loft insulation Thickness", "type": "text", "auto_populate": True, "measure_sheet_key": "existing"}
         ]
     },
     "ESH": {
@@ -44,9 +43,9 @@ MEASURES = {
         "icon": "🔌",
         "requires_calc": True,
         "questions": [
-            {"id": "manufacturer", "label": "Manufacturer", "type": "text", "auto_populate": True, "calc_key": "manufacturer"},
-            {"id": "calc", "label": "Heat Demand Calculator included Y/N?", "type": "yesno", "auto_populate": False},
-            {"id": "model", "label": "Model numbers", "type": "text", "auto_populate": True, "calc_key": "models"}
+            {"id": "manufacturer", "label": "Manufacturer", "type": "text", "auto_populate": True, "calc_key": "manufacturer", "measure_sheet_key": "manufacturer"},
+            {"id": "calc", "label": "Heat Demand Calculator included Y/N?", "type": "yesno", "auto_populate": False, "measure_sheet_key": "calc"},
+            {"id": "model", "label": "Model numbers", "type": "text", "auto_populate": True, "calc_key": "models", "measure_sheet_key": "model"}
         ]
     },
     "PRT": {
@@ -55,7 +54,7 @@ MEASURES = {
         "icon": "🌡️",
         "requires_calc": False,
         "questions": [
-            {"id": "model", "label": "Make and model being installed", "type": "text", "auto_populate": False}
+            {"id": "model", "label": "Make and model being installed", "type": "text", "auto_populate": False, "measure_sheet_key": "model"}
         ]
     },
     "TRV": {
@@ -64,8 +63,8 @@ MEASURES = {
         "icon": "🎚️",
         "requires_calc": False,
         "questions": [
-            {"id": "model", "label": "Make and model being installed", "type": "text", "auto_populate": False},
-            {"id": "quantity", "label": "Number of TRV's being installed", "type": "number", "auto_populate": True}
+            {"id": "model", "label": "Make and model being installed", "type": "text", "auto_populate": False, "measure_sheet_key": "model"},
+            {"id": "quantity", "label": "Number of TRV's being installed", "type": "number", "auto_populate": True, "measure_sheet_key": "quantity"}
         ]
     },
     "GAS_BOILER": {
@@ -74,9 +73,9 @@ MEASURES = {
         "icon": "🔥",
         "requires_calc": True,
         "questions": [
-            {"id": "model", "label": "Make and model being installed", "type": "text", "auto_populate": False},
-            {"id": "size", "label": "Boiler KW size req", "type": "number", "unit": "KW", "auto_populate": False},
-            {"id": "calc", "label": "Heat Demand Calculator included Y/N?", "type": "yesno", "auto_populate": False}
+            {"id": "model", "label": "Make and model being installed", "type": "text", "auto_populate": False, "measure_sheet_key": "model"},
+            {"id": "size", "label": "Boiler KW size req", "type": "number", "unit": "KW", "auto_populate": False, "measure_sheet_key": "size"},
+            {"id": "calc", "label": "Heat Demand Calculator included Y/N?", "type": "yesno", "auto_populate": False, "measure_sheet_key": "calc"}
         ]
     },
     "HEAT_PUMP": {
@@ -85,9 +84,9 @@ MEASURES = {
         "icon": "♨️",
         "requires_calc": True,
         "questions": [
-            {"id": "model", "label": "Make and model being installed", "type": "text", "auto_populate": True, "calc_key": "model"},
-            {"id": "size", "label": "Heat pump size req (KW)", "type": "number", "unit": "KW", "auto_populate": True, "calc_key": "heatPumpSize"},
-            {"id": "calc", "label": "Heat Demand Calculator included Y/N?", "type": "yesno", "auto_populate": False}
+            {"id": "model", "label": "Make and model being installed", "type": "text", "auto_populate": True, "calc_key": "model", "measure_sheet_key": "model"},
+            {"id": "size", "label": "Heat pump size req (KW)", "type": "number", "unit": "KW", "auto_populate": True, "calc_key": "heatPumpSizeNumeric", "measure_sheet_key": "size"},
+            {"id": "calc", "label": "Heat Demand Calculator included Y/N?", "type": "yesno", "auto_populate": False, "measure_sheet_key": "calc"}
         ]
     },
     "SOLAR_PV": {
@@ -96,9 +95,9 @@ MEASURES = {
         "icon": "☀️",
         "requires_calc": True,
         "questions": [
-            {"id": "model", "label": "Make and model being installed", "type": "text", "auto_populate": True, "calc_key": "model"},
-            {"id": "size", "label": "System size (KW)", "type": "number", "unit": "KW", "auto_populate": True, "calc_key": "systemSizeNumeric"},
-            {"id": "calc", "label": "Solar PV Calculations included?", "type": "yesno", "auto_populate": False}
+            {"id": "model", "label": "Make and model being installed", "type": "text", "auto_populate": True, "calc_key": "model", "measure_sheet_key": "model"},
+            {"id": "size", "label": "System size (KW)", "type": "number", "unit": "KW", "auto_populate": True, "calc_key": "systemSizeNumeric", "measure_sheet_key": "size"},
+            {"id": "calc", "label": "Solar PV Calculations included?", "type": "yesno", "auto_populate": False, "measure_sheet_key": "calc"}
         ]
     },
     "IWI": {
@@ -107,8 +106,8 @@ MEASURES = {
         "icon": "🗂️",
         "requires_calc": False,
         "questions": [
-            {"id": "area", "label": "M2 Area being treated", "type": "number", "unit": "m²", "auto_populate": True},
-            {"id": "omitted", "label": "Rooms being omitted from Install?", "type": "text", "auto_populate": False}
+            {"id": "area", "label": "M2 Area being treated", "type": "number", "unit": "m²", "auto_populate": True, "measure_sheet_key": "area"},
+            {"id": "omitted", "label": "Rooms being omitted from Install?", "type": "text", "auto_populate": False, "measure_sheet_key": "omitted"}
         ]
     },
     "CWI": {
@@ -117,9 +116,9 @@ MEASURES = {
         "icon": "🧱",
         "requires_calc": False,
         "questions": [
-            {"id": "area", "label": "M2 Area being treated", "type": "number", "unit": "m²", "auto_populate": True},
-            {"id": "width", "label": "Cavity width", "type": "text", "auto_populate": True},
-            {"id": "product", "label": "CWI Product being used", "type": "text", "auto_populate": False}
+            {"id": "area", "label": "M2 Area being treated", "type": "number", "unit": "m²", "auto_populate": True, "measure_sheet_key": "area"},
+            {"id": "width", "label": "Cavity width", "type": "text", "auto_populate": True, "measure_sheet_key": "width"},
+            {"id": "product", "label": "CWI Product being used", "type": "text", "auto_populate": False, "measure_sheet_key": "product"}
         ]
     },
     "RIR": {
@@ -128,7 +127,7 @@ MEASURES = {
         "icon": "🏠",
         "requires_calc": False,
         "questions": [
-            {"id": "area", "label": "M2 Area being treated", "type": "number", "unit": "m²", "auto_populate": True}
+            {"id": "area", "label": "M2 Area being treated", "type": "number", "unit": "m²", "auto_populate": True, "measure_sheet_key": "area"}
         ]
     }
 }
@@ -145,6 +144,145 @@ def extract_text_from_pdf(pdf_file_bytes: bytes) -> str:
         return text
     except Exception as e:
         raise Exception(f"Error reading PDF: {str(e)}")
+
+
+def parse_measure_sheet(sheet_text: str) -> Dict:
+    """Parse Measure Design Data Collection Sheet - FALLBACK SOURCE"""
+    data = {}
+    
+    # Structure: Each measure section followed by its fields
+    measure_sections = {
+        "LOFT": ["M2 Area being treated", "Existing Loft insulation Thickness"],
+        "ESH": ["Manufacturer", "Heat Demand Calculator included", "Model numbers"],
+        "PRT": ["Make and model being installed"],
+        "TRV": ["Make and model being installed", "Number of TRV"],
+        "GAS_BOILER": ["Make and model being installed", "Boiler KW size req", "Heat Demand Calculator included"],
+        "HEAT_PUMP": ["Make and model being installed", "Heat pump size req", "Heat Demand Calculator included"],
+        "SOLAR_PV": ["Make and model being installed", "System size", "Solar PV Calculations included"],
+        "IWI": ["M2 Area being treated", "Rooms being omitted"],
+        "CWI": ["M2 Area being treated", "Cavity width", "CWI Product being used"],
+        "RIR": ["M2 Area being treated"]
+    }
+    
+    for measure_code, fields in measure_sections.items():
+        data[measure_code] = {}
+        
+        # Find measure section
+        measure_match = re.search(rf'{measure_code}\s+(.*?)(?=\n[A-Z]{{2,}}|\Z)', sheet_text, re.DOTALL | re.IGNORECASE)
+        if not measure_match:
+            continue
+            
+        section_text = measure_match.group(1)
+        
+        # Extract field values
+        if measure_code == "LOFT":
+            # "M2 Area being treated 18.24"
+            area_match = re.search(r'M2 Area being treated\s+([0-9.]+)', section_text, re.IGNORECASE)
+            if area_match:
+                data[measure_code]['area'] = area_match.group(1)
+            
+            # "Existing Loft insulation Thickness 100"
+            existing_match = re.search(r'Existing Loft insulation Thickness\s+([0-9]+)', section_text, re.IGNORECASE)
+            if existing_match:
+                data[measure_code]['existing'] = f"{existing_match.group(1)}mm"
+        
+        elif measure_code == "ESH":
+            # Extract manufacturer, calc Y/N, model
+            mfr_match = re.search(r'Manufacturer\s+([^\n]+)', section_text, re.IGNORECASE)
+            if mfr_match and mfr_match.group(1).strip():
+                data[measure_code]['manufacturer'] = mfr_match.group(1).strip()
+            
+            calc_match = re.search(r'Heat Demand Calculator included Y/N\?\s+([YN])', section_text, re.IGNORECASE)
+            if calc_match:
+                data[measure_code]['calc'] = 'Yes' if calc_match.group(1).upper() == 'Y' else 'No'
+            
+            model_match = re.search(r'Model numbers\s+([^\n]+)', section_text, re.IGNORECASE)
+            if model_match and model_match.group(1).strip():
+                data[measure_code]['model'] = model_match.group(1).strip()
+        
+        elif measure_code == "PRT":
+            model_match = re.search(r'Make and model being installed\s+([^\n]+)', section_text, re.IGNORECASE)
+            if model_match and model_match.group(1).strip():
+                data[measure_code]['model'] = model_match.group(1).strip()
+        
+        elif measure_code == "TRV":
+            model_match = re.search(r'Make and model being installed\s+([^\n]+)', section_text, re.IGNORECASE)
+            if model_match and model_match.group(1).strip():
+                data[measure_code]['model'] = model_match.group(1).strip()
+            
+            qty_match = re.search(r'Number of TRV.*?([0-9]+)', section_text, re.IGNORECASE)
+            if qty_match:
+                data[measure_code]['quantity'] = qty_match.group(1)
+        
+        elif measure_code == "GAS_BOILER":
+            model_match = re.search(r'Make and model being installed\s+([^\n]+)', section_text, re.IGNORECASE)
+            if model_match and model_match.group(1).strip():
+                data[measure_code]['model'] = model_match.group(1).strip()
+            
+            size_match = re.search(r'Boiler KW size req\s+([0-9.]+)', section_text, re.IGNORECASE)
+            if size_match:
+                data[measure_code]['size'] = size_match.group(1)
+            
+            calc_match = re.search(r'Heat Demand Calculator included Y/N\?\s+([YN])', section_text, re.IGNORECASE)
+            if calc_match:
+                data[measure_code]['calc'] = 'Yes' if calc_match.group(1).upper() == 'Y' else 'No'
+        
+        elif measure_code == "HEAT_PUMP":
+            # "Make and model being installed Daiken Altherma Class 8"
+            model_match = re.search(r'Make and model being installed\s+([^\n]+?)(?=\s*\n|Heat pump)', section_text, re.IGNORECASE)
+            if model_match and model_match.group(1).strip():
+                data[measure_code]['model'] = model_match.group(1).strip()
+            
+            # "Heat pump size req (KW) 8"
+            size_match = re.search(r'Heat pump size req.*?([0-9.]+)', section_text, re.IGNORECASE)
+            if size_match:
+                data[measure_code]['size'] = size_match.group(1)
+            
+            # "Heat Demand Calculator included Y/N? Y"
+            calc_match = re.search(r'Heat Demand Calculator included Y/N\?\s+([YN])', section_text, re.IGNORECASE)
+            if calc_match:
+                data[measure_code]['calc'] = 'Yes' if calc_match.group(1).upper() == 'Y' else 'No'
+        
+        elif measure_code == "SOLAR_PV":
+            # "Make and model being installed InstaGen 435w"
+            model_match = re.search(r'Make and model being installed\s+([^\n]+?)(?=\s*\n|System size)', section_text, re.IGNORECASE)
+            if model_match and model_match.group(1).strip():
+                data[measure_code]['model'] = model_match.group(1).strip()
+            
+            # "System size (KW) 4.35"
+            size_match = re.search(r'System size.*?([0-9.]+)', section_text, re.IGNORECASE)
+            if size_match:
+                data[measure_code]['size'] = size_match.group(1)
+            
+            # "Solar PV Calculations included? Y"
+            calc_match = re.search(r'Solar PV Calculations included\?\s+([YN])', section_text, re.IGNORECASE)
+            if calc_match:
+                data[measure_code]['calc'] = 'Yes' if calc_match.group(1).upper() == 'Y' else 'No'
+        
+        elif measure_code in ["IWI", "RIR"]:
+            area_match = re.search(r'M2 Area being treated\s+([0-9.]+)', section_text, re.IGNORECASE)
+            if area_match:
+                data[measure_code]['area'] = area_match.group(1)
+            
+            if measure_code == "IWI":
+                omitted_match = re.search(r'Rooms being omitted from Install\?\s+([^\n]+)', section_text, re.IGNORECASE)
+                if omitted_match and omitted_match.group(1).strip():
+                    data[measure_code]['omitted'] = omitted_match.group(1).strip()
+        
+        elif measure_code == "CWI":
+            area_match = re.search(r'M2 Area being treated\s+([0-9.]+)', section_text, re.IGNORECASE)
+            if area_match:
+                data[measure_code]['area'] = area_match.group(1)
+            
+            width_match = re.search(r'Cavity width\s+([^\n]+)', section_text, re.IGNORECASE)
+            if width_match and width_match.group(1).strip():
+                data[measure_code]['width'] = width_match.group(1).strip()
+            
+            product_match = re.search(r'CWI Product being used\s+([^\n]+)', section_text, re.IGNORECASE)
+            if product_match and product_match.group(1).strip():
+                data[measure_code]['product'] = product_match.group(1).strip()
+    
+    return data
 
 
 def extract_data_from_text(site_notes_text: str, condition_report_text: str, format_type: str) -> Dict:
@@ -248,7 +386,7 @@ def extract_data_from_text(site_notes_text: str, condition_report_text: str, for
 
 
 def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
-    """Parse calculation PDFs - ENHANCED for Solar PV, Heat Pump, and ESH"""
+    """Parse calculation PDFs"""
     
     if calc_type == 'solar':
         data = {
@@ -261,7 +399,6 @@ def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
             "annualGeneration": ""
         }
         
-        # System size (kWp)
         size_patterns = [
             r'Installed capacity.*?([0-9.]+)\s*kWp',
             r'(\d+\.?\d*)\s*kWp',
@@ -277,7 +414,6 @@ def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
                 data["systemSize"] = f"{data['systemSizeNumeric']} kWp"
                 break
         
-        # Panel manufacturer and model
         panel_patterns = [
             r'(\d+)\s+([A-Za-z\s]+)\s+(\d+W)',
             r'([A-Za-z]+)\s+([A-Za-z0-9\s]+)\s+(\d+W)',
@@ -295,13 +431,11 @@ def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
                     data["model"] = f"{groups[0].strip()} {groups[1].strip()} {groups[2]}"
                 break
         
-        # Panel quantity (if not found above)
         if data["quantity"] == 0:
             qty_match = re.search(r'Quantty\s+(\d+)', calc_text, re.IGNORECASE)
             if qty_match:
                 data["quantity"] = int(qty_match.group(1))
         
-        # Inverter
         inverter_patterns = [
             r'(SolaX|Growatt|Solis|Fronius|SMA)\s+([A-Z0-9\-\s]+)\s+(\d+\.?\d*)\s*kW',
             r'Inverter.*?([A-Za-z]+\s+[A-Z0-9\-\s]+)',
@@ -312,7 +446,6 @@ def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
                 data["inverter"] = inverter_match.group(0).strip()
                 break
         
-        # Annual generation
         gen_patterns = [
             r'Estimated output.*?(\d+)\s*kWh',
             r'Annual.*?generation.*?(\d+)\s*kWh',
@@ -336,7 +469,6 @@ def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
             "annualHeatDemand": ""
         }
         
-        # Heat pump size (kW)
         capacity_patterns = [
             r'Capacity\s*@\s*design.*?(\d+\.?\d*)\s*kW',
             r'Heat pump size.*?(\d+\.?\d*)\s*kW',
@@ -349,17 +481,14 @@ def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
                 data["heatPumpSize"] = f"{capacity_match.group(1)} kW"
                 break
         
-        # SCOP
         scop_match = re.search(r'SCOP\s+(\d+\.?\d*)', calc_text, re.IGNORECASE)
         if scop_match:
             data["scop"] = scop_match.group(1)
         
-        # Annual heat demand
         demand_match = re.search(r'Demand\s+kWh/yr\s+(\d+)', calc_text, re.IGNORECASE)
         if demand_match:
             data["annualHeatDemand"] = f"{demand_match.group(1)} kWh"
         
-        # Manufacturer (try to find common brands)
         manufacturers = ['Mitsubishi', 'Daikin', 'Vaillant', 'Samsung', 'LG', 'Grant', 'Nibe']
         for mfr in manufacturers:
             if re.search(mfr, calc_text, re.IGNORECASE):
@@ -377,7 +506,6 @@ def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
             "totalKW": 0
         }
         
-        # Extract heater models and quantities
         heater_patterns = [
             r'(ECOHHR\d+|PH\d+|CCB\d+)',
         ]
@@ -422,7 +550,6 @@ def generate_pdf_design(design_doc: Dict) -> bytes:
     elements = []
     styles = getSampleStyleSheet()
     
-    # Colors
     primary_blue = colors.HexColor('#0F172A')
     accent_blue = colors.HexColor('#3B82F6')
     accent_green = colors.HexColor('#10B981')
@@ -430,13 +557,11 @@ def generate_pdf_design(design_doc: Dict) -> bytes:
     mid_bg = colors.HexColor('#E2E8F0')
     text_mid = colors.HexColor('#475569')
     
-    # Styles
     title_style = ParagraphStyle('Title', parent=styles['Title'], fontSize=32, textColor=primary_blue, spaceAfter=6, alignment=TA_CENTER, fontName='Helvetica-Bold', leading=38)
     subtitle_style = ParagraphStyle('Subtitle', parent=styles['Title'], fontSize=26, textColor=primary_blue, spaceAfter=24, alignment=TA_CENTER, fontName='Helvetica-Bold', leading=32)
     h1_style = ParagraphStyle('H1', parent=styles['Heading1'], fontSize=20, textColor=primary_blue, spaceAfter=16, spaceBefore=20, fontName='Helvetica-Bold', leading=24)
     body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=10.5, textColor=text_mid, spaceAfter=10, leading=16, alignment=TA_LEFT)
     
-    # COVER PAGE
     elements.append(Spacer(1, 1.2*inch))
     elements.append(Paragraph("RETROFIT DESIGN", title_style))
     elements.append(Paragraph("& INSTALLATION PLAN", subtitle_style))
@@ -472,7 +597,6 @@ def generate_pdf_design(design_doc: Dict) -> bytes:
     elements.append(Paragraph(summary_text, body_style))
     elements.append(PageBreak())
     
-    # MEASURES
     for idx, measure in enumerate(design_doc['measures'], 1):
         elements.append(Paragraph(f"{idx}. {measure['name'].upper()}", h1_style))
         
@@ -526,7 +650,7 @@ def clear_session_data(user_id: int):
 # ==================== ROUTES ====================
 
 def get_retrofit_tool_page(request: Request):
-    """Entry point - upload page"""
+    """Entry point - upload page WITH MEASURE SHEET"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -562,18 +686,21 @@ def get_retrofit_tool_page(request: Request):
         .section-title {{ font-size: 1.5rem; color: #0f172a; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 3px solid #3b82f6; }}
         
         .upload-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; }}
+        .upload-grid-three {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 2rem; }}
         .upload-box {{ border: 3px dashed #cbd5e1; border-radius: 12px; padding: 2rem; text-align: center; transition: all 0.3s; cursor: pointer; background: #f8fafc; }}
         .upload-box:hover {{ border-color: #3b82f6; background: #eff6ff; }}
         .upload-box.drag-over {{ border-color: #10b981; background: #ecfdf5; }}
+        .upload-box.optional {{ border-style: dotted; border-width: 2px; opacity: 0.8; }}
         .upload-icon {{ font-size: 3rem; margin-bottom: 1rem; }}
         .upload-label {{ font-size: 1.1rem; font-weight: 600; color: #0f172a; margin-bottom: 0.5rem; }}
         .upload-hint {{ font-size: 0.9rem; color: #64748b; }}
+        .optional-badge {{ display: inline-block; background: #f59e0b; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; margin-top: 0.5rem; }}
         input[type="file"] {{ display: none; }}
         
         .form-row {{ display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }}
         .form-group {{ margin-bottom: 1rem; }}
         label {{ display: block; font-weight: 600; margin-bottom: 0.5rem; color: #0f172a; }}
-        input[type="text"], input[type="date"], select {{ width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; transition: border-color 0.3s; }}
+        input[type="text"], select {{ width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; transition: border-color 0.3s; }}
         input:focus, select:focus {{ outline: none; border-color: #3b82f6; }}
         
         .measures-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }}
@@ -593,10 +720,9 @@ def get_retrofit_tool_page(request: Request):
         
         .file-status {{ margin-top: 1rem; padding: 0.5rem; border-radius: 6px; font-size: 0.9rem; }}
         .file-status.success {{ background: #d1fae5; color: #065f46; }}
-        .file-status.error {{ background: #fee2e2; color: #991b1b; }}
         
         @media (max-width: 768px) {{
-            .upload-grid, .form-row {{ grid-template-columns: 1fr; }}
+            .upload-grid, .upload-grid-three, .form-row {{ grid-template-columns: 1fr; }}
             .measures-grid {{ grid-template-columns: 1fr; }}
         }}
     </style>
@@ -614,7 +740,8 @@ def get_retrofit_tool_page(request: Request):
             <div class="card">
                 <h2 class="section-title">Step 1: Upload Site Documents</h2>
                 <p style="background: #eff6ff; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #3b82f6;">
-                    <strong>📋 Choose ONE format:</strong> Upload 2 PDFs from <strong>EITHER</strong> Elmhurst <strong>OR</strong> PAS Hub (not both)
+                    <strong>📋 Required:</strong> Upload 2 PDFs from <strong>EITHER</strong> Elmhurst <strong>OR</strong> PAS Hub<br>
+                    <strong>💡 Optional:</strong> Upload Measure Data Collection Sheet as fallback source
                 </p>
                 
                 <div style="margin-bottom: 2rem;">
@@ -632,318 +759,6 @@ def get_retrofit_tool_page(request: Request):
                             <div class="upload-icon">📄</div>
                             <div class="upload-label" id="siteNotesLabel">Site Notes</div>
                             <div class="upload-hint">Click or drag PDF here</div>
-                            <input type="file" id="siteNotesFile" name="site_notes_file" accept=".pdf">
-                        </div>
-                        <div id="siteNotesStatus" class="file-status" style="display:none;"></div>
-                    </div>
-                    
-                    <div>
-                        <div class="upload-box" id="conditionUploadBox">
-                            <div class="upload-icon">📄</div>
-                            <div class="upload-label" id="conditionLabel">Condition Report</div>
-                            <div class="upload-hint">Click or drag PDF here</div>
-                            <input type="file" id="conditionFile" name="condition_file" accept=".pdf">
-                        </div>
-                        <div id="conditionStatus" class="file-status" style="display:none;"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2 class="section-title">Step 2: Project Information</h2>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Project Name</label>
-                        <input type="text" name="project_name" required placeholder="e.g., Smith Residence Retrofit">
-                    </div>
-                    <div class="form-group">
-                        <label>Retrofit Coordinator</label>
-                        <input type="text" name="coordinator" required placeholder="Your name">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Property Address</label>
-                    <input type="text" id="propertyAddress" name="property_address" required placeholder="Will auto-populate from documents">
-                </div>
-            </div>
-
-            <div class="card">
-                <h2 class="section-title">Step 3: Select Retrofit Measures</h2>
-                <div class="measures-grid" id="measuresGrid"></div>
-            </div>
-
-            <div class="card" style="text-align: center;">
-                <button type="button" class="btn btn-primary" id="continueBtn" disabled>
-                    Continue to Questions →
-                </button>
-                <a href="/" class="btn btn-secondary" style="display: inline-block; margin-left: 1rem; text-decoration: none;">
-                    ← Back to Dashboard
-                </a>
-            </div>
-        </form>
-    </div>
-
-    <script>
-        const measures = {json.dumps(MEASURES)};
-        let selectedMeasures = new Set();
-        let selectedFormat = "";
-        
-        document.getElementById('formatSelect').onchange = function() {{
-            selectedFormat = this.value;
-            const uploadGrid = document.getElementById('uploadGrid');
-            const siteNotesLabel = document.getElementById('siteNotesLabel');
-            const conditionLabel = document.getElementById('conditionLabel');
-            
-            if (selectedFormat) {{
-                uploadGrid.style.display = 'grid';
-                if (selectedFormat === 'elmhurst') {{
-                    siteNotesLabel.textContent = 'Elmhurst Site Notes';
-                    conditionLabel.textContent = 'Elmhurst Condition Report';
-                }} else {{
-                    siteNotesLabel.textContent = 'PAS Hub Site Notes';
-                    conditionLabel.textContent = 'PAS Hub Condition Report';
-                }}
-            }} else {{
-                uploadGrid.style.display = 'none';
-            }}
-        }};
-        
-        const grid = document.getElementById('measuresGrid');
-        Object.keys(measures).forEach(code => {{
-            const m = measures[code];
-            const card = document.createElement('div');
-            card.className = 'measure-card';
-            card.innerHTML = `
-                <div class="measure-icon">${{m.icon}}</div>
-                <div class="measure-name">${{m.name}}</div>
-                <input type="checkbox" class="measure-checkbox" name="measures[]" value="${{code}}" id="m_${{code}}">
-            `;
-            card.onclick = () => {{
-                const checkbox = document.getElementById(`m_${{code}}`);
-                checkbox.checked = !checkbox.checked;
-                if (checkbox.checked) {{
-                    selectedMeasures.add(code);
-                    card.classList.add('selected');
-                }} else {{
-                    selectedMeasures.delete(code);
-                    card.classList.remove('selected');
-                }}
-                updateContinueButton();
-            }};
-            grid.appendChild(card);
-        }});
-        
-        function updateContinueButton() {{
-            const btn = document.getElementById('continueBtn');
-            const hasSiteNotes = document.getElementById('siteNotesFile').files.length > 0;
-            const hasCondition = document.getElementById('conditionFile').files.length > 0;
-            const hasMeasures = selectedMeasures.size > 0;
-            const hasFormat = selectedFormat !== "";
-            btn.disabled = !(hasFormat && hasSiteNotes && hasCondition && hasMeasures);
-        }}
-        
-        function setupUpload(boxId, inputId, statusId) {{
-            const box = document.getElementById(boxId);
-            const input = document.getElementById(inputId);
-            const status = document.getElementById(statusId);
-            
-            box.onclick = () => input.click();
-            
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(event => {{
-                box.addEventListener(event, e => {{ e.preventDefault(); e.stopPropagation(); }});
-            }});
-            
-            ['dragenter', 'dragover'].forEach(event => {{
-                box.addEventListener(event, () => box.classList.add('drag-over'));
-            }});
-            
-            ['dragleave', 'drop'].forEach(event => {{
-                box.addEventListener(event, () => box.classList.remove('drag-over'));
-            }});
-            
-            box.addEventListener('drop', e => {{
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {{
-                    input.files = files;
-                    handleFileSelect(input, status);
-                }}
-            }});
-            
-            input.onchange = () => handleFileSelect(input, status);
-        }}
-        
-        function handleFileSelect(input, status) {{
-            if (input.files.length > 0) {{
-                const file = input.files[0];
-                status.style.display = 'block';
-                status.className = 'file-status success';
-                status.textContent = `✓ ${{file.name}} uploaded`;
-                updateContinueButton();
-            }}
-        }}
-        
-        setupUpload('siteNotesUploadBox', 'siteNotesFile', 'siteNotesStatus');
-        setupUpload('conditionUploadBox', 'conditionFile', 'conditionStatus');
-        
-        document.getElementById('continueBtn').onclick = async () => {{
-            const formData = new FormData(document.getElementById('retrofitForm'));
-            formData.append('selected_measures', JSON.stringify(Array.from(selectedMeasures)));
-            formData.append('format_type', selectedFormat);
-            
-            const btn = document.getElementById('continueBtn');
-            btn.textContent = 'Processing...';
-            btn.disabled = true;
-            
-            try {{
-                const response = await fetch('/api/retrofit-process', {{
-                    method: 'POST',
-                    body: formData
-                }});
-                
-                if (response.ok) {{
-                    window.location.href = '/tool/retrofit/calcs';
-                }} else {{
-                    alert('Error processing files. Please try again.');
-                    btn.textContent = 'Continue to Questions →';
-                    btn.disabled = false;
-                }}
-            }} catch (error) {{
-                alert('Error: ' + error.message);
-                btn.textContent = 'Continue to Questions →';
-                btn.disabled = false;
-            }}
-        }};
-    </script>
-</body>
-</html>
-    """
-    
-    return HTMLResponse(html)
-
-
-async def post_retrofit_process(request: Request):
-    """Process uploaded PDFs and extract data"""
-    user_row = require_active_user_row(request)
-    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
-        return user_row
-    
-    user_id = user_row["id"]
-    
-    try:
-        form = await request.form()
-        
-        site_notes_file = form.get("site_notes_file")
-        condition_file = form.get("condition_file")
-        format_type = form.get("format_type", "PAS Hub")
-        
-        if not site_notes_file or not condition_file:
-            return HTMLResponse("<h1>Error</h1><p>Both PDF files are required</p><a href='/tool/retrofit'>Back</a>")
-        
-        site_notes_bytes = await site_notes_file.read()
-        condition_bytes = await condition_file.read()
-        
-        site_notes_text = extract_text_from_pdf(site_notes_bytes)
-        condition_text = extract_text_from_pdf(condition_bytes)
-        
-        format_label = "PAS Hub" if format_type == "pashub" else "Elmhurst"
-        extracted_data = extract_data_from_text(site_notes_text, condition_text, format_label)
-        
-        selected_measures_json = form.get("selected_measures", "[]")
-        selected_measures = json.loads(selected_measures_json)
-        
-        project_name = form.get("project_name", "Untitled Project")
-        coordinator = form.get("coordinator", "")
-        property_address = form.get("property_address", extracted_data.get("address", ""))
-        
-        session_data = {
-            "project_name": project_name,
-            "coordinator": coordinator,
-            "property_address": property_address,
-            "extracted_data": extracted_data,
-            "selected_measures": selected_measures,
-            "site_notes_text": site_notes_text,
-            "condition_text": condition_text,
-            "format_type": format_label,
-            "current_measure_index": 0,
-            "answers": {},
-            "calc_data": {}
-        }
-        
-        store_session_data(user_id, session_data)
-        
-        return Response(
-            content=json.dumps({"success": True, "redirect": "/tool/retrofit/calcs"}),
-            media_type="application/json"
-        )
-        
-    except Exception as e:
-        return Response(
-            content=json.dumps({"success": False, "error": str(e)}),
-            media_type="application/json",
-            status_code=500
-        )
-
-
-def get_calc_upload_page(request: Request):
-    """Show calc upload page with DRAG & DROP - STEP 2.5"""
-    user_row = require_active_user_row(request)
-    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
-        return user_row
-    
-    user_id = user_row["id"]
-    session_data = get_session_data(user_id)
-    
-    if not session_data:
-        return RedirectResponse("/tool/retrofit", status_code=303)
-    
-    selected_measures = session_data.get("selected_measures", [])
-    
-    needs_solar = "SOLAR_PV" in selected_measures
-    needs_heatpump = "HEAT_PUMP" in selected_measures
-    needs_esh = "ESH" in selected_measures
-    
-    if not (needs_solar or needs_heatpump or needs_esh):
-        return RedirectResponse("/tool/retrofit/questions", status_code=303)
-    
-    # Build upload boxes with DRAG & DROP
-    upload_boxes = ""
-    
-    if needs_solar:
-        upload_boxes += """
-            <div>
-                <div class="upload-box" id="solarCalcBox" data-input="solarCalcFile">
-                    <div class="calc-icon">☀️</div>
-                    <h3>Solar PV Calculation</h3>
-                    <p style="color: #64748b; margin: 1rem 0;">Upload PDF to auto-populate system size, panels, inverter</p>
-                    <div class="upload-hint">Click or drag PDF here</div>
-                    <input type="file" id="solarCalcFile" name="solar_calc_file" accept=".pdf" style="display: none;">
-                </div>
-                <div id="solarCalcStatus" class="file-status" style="display:none;"></div>
-            </div>
-        """
-    
-    if needs_heatpump:
-        upload_boxes += """
-            <div>
-                <div class="upload-box" id="hpCalcBox" data-input="hpCalcFile">
-                    <div class="calc-icon">♨️</div>
-                    <h3>Heat Pump Calculation</h3>
-                    <p style="color: #64748b; margin: 1rem 0;">Upload PDF to auto-populate size, SCOP, heat demand</p>
-                    <div class="upload-hint">Click or drag PDF here</div>
-                    <input type="file" id="hpCalcFile" name="hp_calc_file" accept=".pdf" style="display: none;">
-                </div>
-                <div id="hpCalcStatus" class="file-status" style="display:none;"></div>
-            </div>
-        """
-    
-    if needs_esh:
-        upload_boxes += """
-            <div>
-                <div class="upload-box" id="eshCalcBox" data-input="eshCalcFile">
-                    <div class="calc-icon">🔌</div>
-                    <h3>Electric Storage Heater Calculation</h3>
-                    <p style="color: #64748b; margin: 1rem 0;">Upload PDF to auto-populate manufacturer, models</p>
-                    <div class="upload-hint">Click or drag PDF here</div>
                     <input type="file" id="eshCalcFile" name="esh_calc_file" accept=".pdf" style="display: none;">
                 </div>
                 <div id="eshCalcStatus" class="file-status" style="display:none;"></div>
@@ -994,7 +809,7 @@ def get_calc_upload_page(request: Request):
     <div class="container">
         <div class="card">
             <div class="info-box">
-                <strong>💡 Optional Step:</strong> Upload calculation files to automatically fill in technical details. You can skip this and enter information manually in the next step.
+                <strong>💡 Optional Step:</strong> Upload calculation files to automatically fill in technical details. Skip if you don't have calc files - the Measure Sheet will be used as fallback.
             </div>
 
             <form id="calcForm" method="POST" enctype="multipart/form-data">
@@ -1015,7 +830,6 @@ def get_calc_upload_page(request: Request):
     </div>
 
     <script>
-        // Setup drag & drop for each upload box
         function setupUpload(boxId, inputId, statusId) {{
             const box = document.getElementById(boxId);
             const input = document.getElementById(inputId);
@@ -1094,7 +908,7 @@ def get_calc_upload_page(request: Request):
 
 
 async def post_retrofit_calcs(request: Request):
-    """Process uploaded calculation files - STEP 2.5"""
+    """Process uploaded calculation files"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -1109,7 +923,6 @@ async def post_retrofit_calcs(request: Request):
         form = await request.form()
         calc_data = {}
         
-        # Process Solar PV calc
         solar_calc_file = form.get("solar_calc_file")
         if solar_calc_file and hasattr(solar_calc_file, 'read'):
             solar_bytes = await solar_calc_file.read()
@@ -1117,7 +930,6 @@ async def post_retrofit_calcs(request: Request):
                 solar_text = extract_text_from_pdf(solar_bytes)
                 calc_data['SOLAR_PV'] = parse_calculation_file(solar_text, 'solar')
         
-        # Process Heat Pump calc
         hp_calc_file = form.get("hp_calc_file")
         if hp_calc_file and hasattr(hp_calc_file, 'read'):
             hp_bytes = await hp_calc_file.read()
@@ -1125,7 +937,6 @@ async def post_retrofit_calcs(request: Request):
                 hp_text = extract_text_from_pdf(hp_bytes)
                 calc_data['HEAT_PUMP'] = parse_calculation_file(hp_text, 'heatpump')
         
-        # Process ESH calc
         esh_calc_file = form.get("esh_calc_file")
         if esh_calc_file and hasattr(esh_calc_file, 'read'):
             esh_bytes = await esh_calc_file.read()
@@ -1133,7 +944,6 @@ async def post_retrofit_calcs(request: Request):
                 esh_text = extract_text_from_pdf(esh_bytes)
                 calc_data['ESH'] = parse_calculation_file(esh_text, 'esh')
         
-        # Store calc data in session
         session_data['calc_data'] = calc_data
         store_session_data(user_id, session_data)
         
@@ -1144,7 +954,7 @@ async def post_retrofit_calcs(request: Request):
 
 
 def get_retrofit_questions_page(request: Request):
-    """Show questions with AUTO-POPULATED data from calcs - FIXED!"""
+    """Show questions with 3-TIER AUTO-POPULATION: Site Notes > Calc PDFs > Measure Sheet"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -1158,7 +968,8 @@ def get_retrofit_questions_page(request: Request):
     selected_measures = session_data.get("selected_measures", [])
     current_index = session_data.get("current_measure_index", 0)
     extracted_data = session_data.get("extracted_data", {})
-    calc_data = session_data.get("calc_data", {})  # ⭐ GET CALC DATA
+    calc_data = session_data.get("calc_data", {})
+    measure_sheet_data = session_data.get("measure_sheet_data", {})  # ⭐ GET MEASURE SHEET
     
     if current_index >= len(selected_measures):
         return RedirectResponse("/tool/retrofit/review", status_code=303)
@@ -1166,39 +977,62 @@ def get_retrofit_questions_page(request: Request):
     current_measure_code = selected_measures[current_index]
     current_measure = MEASURES[current_measure_code]
     
-    # ⭐ GET CALC DATA FOR THIS SPECIFIC MEASURE
     measure_calc_data = calc_data.get(current_measure_code, {})
+    measure_sheet_measure_data = measure_sheet_data.get(current_measure_code, {})  # ⭐ GET MEASURE SHEET FOR THIS MEASURE
     
-    # Build form HTML for this measure with AUTO-POPULATED values
+    # Track which source provided data
+    data_source = ""
+    
     questions_html = ""
     for question in current_measure['questions']:
         q_id = f"{current_measure_code}_{question['id']}"
         
-        # ⭐ TRY TO AUTO-POPULATE FROM BOTH EXTRACTED DATA AND CALC DATA
+        # ⭐ 3-TIER PRIORITY: Site Notes > Calc PDFs > Measure Sheet
         auto_value = ""
+        source = ""
         
-        # First check if this question has calc data
-        if question.get('auto_populate') and question.get('calc_key'):
+        # TIER 1: Try extracted data from Site Notes first
+        if question.get('auto_populate'):
+            if question['id'] == 'area':
+                if extracted_data.get('loft_area'):
+                    auto_value = str(extracted_data.get('loft_area', ''))
+                    source = "Site Notes"
+            elif question['id'] == 'existing':
+                if extracted_data.get('loft_insulation'):
+                    auto_value = extracted_data.get('loft_insulation', '')
+                    source = "Site Notes"
+            elif question['id'] == 'quantity':
+                if extracted_data.get('heated_rooms'):
+                    auto_value = str(extracted_data.get('heated_rooms', ''))
+                    source = "Site Notes"
+            elif question['id'] == 'width':
+                if extracted_data.get('cavity_width'):
+                    auto_value = extracted_data.get('cavity_width', '')
+                    source = "Site Notes"
+        
+        # TIER 2: Try calc data if no site notes data
+        if not auto_value and question.get('calc_key'):
             calc_key = question['calc_key']
             if calc_key in measure_calc_data:
                 calc_value = measure_calc_data[calc_key]
                 if isinstance(calc_value, (int, float)):
                     auto_value = str(calc_value)
-                elif isinstance(calc_value, str):
+                    source = "Calculation PDF"
+                elif isinstance(calc_value, str) and calc_value:
                     auto_value = calc_value
+                    source = "Calculation PDF"
         
-        # If no calc data, try extracted data
-        if not auto_value and question.get('auto_populate'):
-            if question['id'] == 'area':
-                auto_value = str(extracted_data.get('loft_area', ''))
-            elif question['id'] == 'existing':
-                auto_value = extracted_data.get('loft_insulation', '')
-            elif question['id'] == 'quantity':
-                auto_value = str(extracted_data.get('heated_rooms', ''))
-            elif question['id'] == 'width':
-                auto_value = extracted_data.get('cavity_width', '')
-            elif question['id'] == 'manufacturer':
-                auto_value = measure_calc_data.get('manufacturer', '')
+        # TIER 3: Try measure sheet as fallback
+        if not auto_value and question.get('measure_sheet_key'):
+            sheet_key = question['measure_sheet_key']
+            if sheet_key in measure_sheet_measure_data:
+                sheet_value = measure_sheet_measure_data[sheet_key]
+                if sheet_value:
+                    auto_value = str(sheet_value)
+                    source = "Measure Sheet"
+        
+        if source and not data_source:
+            data_source = source
         
         if question['type'] == 'number':
             unit = question.get('unit', '')
@@ -1212,13 +1046,15 @@ def get_retrofit_questions_page(request: Request):
                 </div>
             """
         elif question['type'] == 'yesno':
+            selected_yes = 'selected' if auto_value == 'Yes' else ''
+            selected_no = 'selected' if auto_value == 'No' else ''
             questions_html += f"""
                 <div class="form-group">
                     <label>{question['label']}</label>
                     <select name="{q_id}" required>
                         <option value="">Select...</option>
-                        <option value="Yes">Yes</option>
-                        <option value="No">No</option>
+                        <option value="Yes" {selected_yes}>Yes</option>
+                        <option value="No" {selected_no}>No</option>
                     </select>
                 </div>
             """
@@ -1232,14 +1068,27 @@ def get_retrofit_questions_page(request: Request):
     
     progress = int((current_index / len(selected_measures)) * 100)
     
-    # Show debug info if calc data was found
+    # Show data source indicator
     debug_info = ""
-    if measure_calc_data:
-        debug_info = f"""
-            <div style="background: #d1fae5; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #10b981;">
-                <strong>✓ Calculation data found!</strong> Fields have been auto-populated from your uploaded PDF.
-            </div>
-        """
+    if data_source:
+        if data_source == "Calculation PDF":
+            debug_info = f"""
+                <div style="background: #d1fae5; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #10b981;">
+                    <strong>✓ Auto-populated from Calculation PDF</strong>
+                </div>
+            """
+        elif data_source == "Measure Sheet":
+            debug_info = f"""
+                <div style="background: #fef3c7; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #f59e0b;">
+                    <strong>✓ Auto-populated from Measure Sheet (fallback)</strong>
+                </div>
+            """
+        elif data_source == "Site Notes":
+            debug_info = f"""
+                <div style="background: #dbeafe; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">
+                    <strong>✓ Auto-populated from Site Notes</strong>
+                </div>
+            """
     
     html = f"""
 <!DOCTYPE html>
@@ -1339,7 +1188,7 @@ async def post_retrofit_answer(request: Request):
 
 
 async def post_retrofit_complete(request: Request):
-    """Generate final PDF - FINAL STEP"""
+    """Generate final PDF"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -1409,4 +1258,346 @@ async def post_retrofit_complete(request: Request):
             }
         )
     except Exception as e:
-        return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p><a href='/tool/retrofit'>Try Again</a>")
+        return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p><a href='/tool/retrofit'>Try Again</a>") PDF here</div>
+                            <input type="file" id="siteNotesFile" name="site_notes_file" accept=".pdf">
+                        </div>
+                        <div id="siteNotesStatus" class="file-status" style="display:none;"></div>
+                    </div>
+                    
+                    <div>
+                        <div class="upload-box" id="conditionUploadBox">
+                            <div class="upload-icon">📄</div>
+                            <div class="upload-label" id="conditionLabel">Condition Report</div>
+                            <div class="upload-hint">Click or drag PDF here</div>
+                            <input type="file" id="conditionFile" name="condition_file" accept=".pdf">
+                        </div>
+                        <div id="conditionStatus" class="file-status" style="display:none;"></div>
+                    </div>
+                </div>
+                
+                <div id="measureSheetSection" style="display: none; margin-top: 1rem;">
+                    <div style="text-align: center; margin-bottom: 1rem;">
+                        <div class="upload-box optional" id="measureSheetUploadBox" style="max-width: 500px; margin: 0 auto;">
+                            <div class="upload-icon">📊</div>
+                            <div class="upload-label">Measure Data Collection Sheet</div>
+                            <div class="upload-hint">Optional fallback source - Click or drag PDF here</div>
+                            <span class="optional-badge">OPTIONAL</span>
+                            <input type="file" id="measureSheetFile" name="measure_sheet_file" accept=".pdf">
+                        </div>
+                        <div id="measureSheetStatus" class="file-status" style="display:none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2 class="section-title">Step 2: Project Information</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Project Name</label>
+                        <input type="text" name="project_name" required placeholder="e.g., Smith Residence Retrofit">
+                    </div>
+                    <div class="form-group">
+                        <label>Retrofit Coordinator</label>
+                        <input type="text" name="coordinator" required placeholder="Your name">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Property Address</label>
+                    <input type="text" id="propertyAddress" name="property_address" required placeholder="Will auto-populate from documents">
+                </div>
+            </div>
+
+            <div class="card">
+                <h2 class="section-title">Step 3: Select Retrofit Measures</h2>
+                <div class="measures-grid" id="measuresGrid"></div>
+            </div>
+
+            <div class="card" style="text-align: center;">
+                <button type="button" class="btn btn-primary" id="continueBtn" disabled>
+                    Continue to Questions →
+                </button>
+                <a href="/" class="btn btn-secondary" style="display: inline-block; margin-left: 1rem; text-decoration: none;">
+                    ← Back to Dashboard
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        const measures = {json.dumps(MEASURES)};
+        let selectedMeasures = new Set();
+        let selectedFormat = "";
+        
+        document.getElementById('formatSelect').onchange = function() {{
+            selectedFormat = this.value;
+            const uploadGrid = document.getElementById('uploadGrid');
+            const measureSheetSection = document.getElementById('measureSheetSection');
+            const siteNotesLabel = document.getElementById('siteNotesLabel');
+            const conditionLabel = document.getElementById('conditionLabel');
+            
+            if (selectedFormat) {{
+                uploadGrid.style.display = 'grid';
+                measureSheetSection.style.display = 'block';
+                
+                if (selectedFormat === 'elmhurst') {{
+                    siteNotesLabel.textContent = 'Elmhurst Site Notes';
+                    conditionLabel.textContent = 'Elmhurst Condition Report';
+                }} else {{
+                    siteNotesLabel.textContent = 'PAS Hub Site Notes';
+                    conditionLabel.textContent = 'PAS Hub Condition Report';
+                }}
+            }} else {{
+                uploadGrid.style.display = 'none';
+                measureSheetSection.style.display = 'none';
+            }}
+        }};
+        
+        const grid = document.getElementById('measuresGrid');
+        Object.keys(measures).forEach(code => {{
+            const m = measures[code];
+            const card = document.createElement('div');
+            card.className = 'measure-card';
+            card.innerHTML = `
+                <div class="measure-icon">${{m.icon}}</div>
+                <div class="measure-name">${{m.name}}</div>
+                <input type="checkbox" class="measure-checkbox" name="measures[]" value="${{code}}" id="m_${{code}}">
+            `;
+            card.onclick = () => {{
+                const checkbox = document.getElementById(`m_${{code}}`);
+                checkbox.checked = !checkbox.checked;
+                if (checkbox.checked) {{
+                    selectedMeasures.add(code);
+                    card.classList.add('selected');
+                }} else {{
+                    selectedMeasures.delete(code);
+                    card.classList.remove('selected');
+                }}
+                updateContinueButton();
+            }};
+            grid.appendChild(card);
+        }});
+        
+        function updateContinueButton() {{
+            const btn = document.getElementById('continueBtn');
+            const hasSiteNotes = document.getElementById('siteNotesFile').files.length > 0;
+            const hasCondition = document.getElementById('conditionFile').files.length > 0;
+            const hasMeasures = selectedMeasures.size > 0;
+            const hasFormat = selectedFormat !== "";
+            btn.disabled = !(hasFormat && hasSiteNotes && hasCondition && hasMeasures);
+        }}
+        
+        function setupUpload(boxId, inputId, statusId, required = true) {{
+            const box = document.getElementById(boxId);
+            const input = document.getElementById(inputId);
+            const status = document.getElementById(statusId);
+            
+            box.onclick = () => input.click();
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(event => {{
+                box.addEventListener(event, e => {{ e.preventDefault(); e.stopPropagation(); }});
+            }});
+            
+            ['dragenter', 'dragover'].forEach(event => {{
+                box.addEventListener(event, () => box.classList.add('drag-over'));
+            }});
+            
+            ['dragleave', 'drop'].forEach(event => {{
+                box.addEventListener(event, () => box.classList.remove('drag-over'));
+            }});
+            
+            box.addEventListener('drop', e => {{
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {{
+                    input.files = files;
+                    handleFileSelect(input, status);
+                }}
+            }});
+            
+            input.onchange = () => handleFileSelect(input, status);
+        }}
+        
+        function handleFileSelect(input, status) {{
+            if (input.files.length > 0) {{
+                const file = input.files[0];
+                status.style.display = 'block';
+                status.className = 'file-status success';
+                status.textContent = `✓ ${{file.name}} uploaded`;
+                updateContinueButton();
+            }}
+        }}
+        
+        setupUpload('siteNotesUploadBox', 'siteNotesFile', 'siteNotesStatus');
+        setupUpload('conditionUploadBox', 'conditionFile', 'conditionStatus');
+        setupUpload('measureSheetUploadBox', 'measureSheetFile', 'measureSheetStatus', false);
+        
+        document.getElementById('continueBtn').onclick = async () => {{
+            const formData = new FormData(document.getElementById('retrofitForm'));
+            formData.append('selected_measures', JSON.stringify(Array.from(selectedMeasures)));
+            formData.append('format_type', selectedFormat);
+            
+            const btn = document.getElementById('continueBtn');
+            btn.textContent = 'Processing...';
+            btn.disabled = true;
+            
+            try {{
+                const response = await fetch('/api/retrofit-process', {{
+                    method: 'POST',
+                    body: formData
+                }});
+                
+                if (response.ok) {{
+                    window.location.href = '/tool/retrofit/calcs';
+                }} else {{
+                    alert('Error processing files. Please try again.');
+                    btn.textContent = 'Continue to Questions →';
+                    btn.disabled = false;
+                }}
+            }} catch (error) {{
+                alert('Error: ' + error.message);
+                btn.textContent = 'Continue to Questions →';
+                btn.disabled = false;
+            }}
+        }};
+    </script>
+</body>
+</html>
+    """
+    
+    return HTMLResponse(html)
+
+
+async def post_retrofit_process(request: Request):
+    """Process uploaded PDFs and extract data WITH MEASURE SHEET"""
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
+    
+    user_id = user_row["id"]
+    
+    try:
+        form = await request.form()
+        
+        site_notes_file = form.get("site_notes_file")
+        condition_file = form.get("condition_file")
+        measure_sheet_file = form.get("measure_sheet_file")  # ⭐ NEW
+        format_type = form.get("format_type", "PAS Hub")
+        
+        if not site_notes_file or not condition_file:
+            return HTMLResponse("<h1>Error</h1><p>Both PDF files are required</p><a href='/tool/retrofit'>Back</a>")
+        
+        site_notes_bytes = await site_notes_file.read()
+        condition_bytes = await condition_file.read()
+        
+        site_notes_text = extract_text_from_pdf(site_notes_bytes)
+        condition_text = extract_text_from_pdf(condition_bytes)
+        
+        format_label = "PAS Hub" if format_type == "pashub" else "Elmhurst"
+        extracted_data = extract_data_from_text(site_notes_text, condition_text, format_label)
+        
+        # ⭐ PARSE MEASURE SHEET IF PROVIDED
+        measure_sheet_data = {}
+        if measure_sheet_file and hasattr(measure_sheet_file, 'read'):
+            try:
+                measure_sheet_bytes = await measure_sheet_file.read()
+                if len(measure_sheet_bytes) > 0:
+                    measure_sheet_text = extract_text_from_pdf(measure_sheet_bytes)
+                    measure_sheet_data = parse_measure_sheet(measure_sheet_text)
+            except Exception:
+                pass  # If measure sheet fails, just continue without it
+        
+        selected_measures_json = form.get("selected_measures", "[]")
+        selected_measures = json.loads(selected_measures_json)
+        
+        project_name = form.get("project_name", "Untitled Project")
+        coordinator = form.get("coordinator", "")
+        property_address = form.get("property_address", extracted_data.get("address", ""))
+        
+        session_data = {
+            "project_name": project_name,
+            "coordinator": coordinator,
+            "property_address": property_address,
+            "extracted_data": extracted_data,
+            "selected_measures": selected_measures,
+            "site_notes_text": site_notes_text,
+            "condition_text": condition_text,
+            "format_type": format_label,
+            "current_measure_index": 0,
+            "answers": {},
+            "calc_data": {},
+            "measure_sheet_data": measure_sheet_data  # ⭐ STORE IT
+        }
+        
+        store_session_data(user_id, session_data)
+        
+        return Response(
+            content=json.dumps({"success": True, "redirect": "/tool/retrofit/calcs"}),
+            media_type="application/json"
+        )
+        
+    except Exception as e:
+        return Response(
+            content=json.dumps({"success": False, "error": str(e)}),
+            media_type="application/json",
+            status_code=500
+        )
+
+
+def get_calc_upload_page(request: Request):
+    """Show calc upload page with drag & drop"""
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
+        return user_row
+    
+    user_id = user_row["id"]
+    session_data = get_session_data(user_id)
+    
+    if not session_data:
+        return RedirectResponse("/tool/retrofit", status_code=303)
+    
+    selected_measures = session_data.get("selected_measures", [])
+    
+    needs_solar = "SOLAR_PV" in selected_measures
+    needs_heatpump = "HEAT_PUMP" in selected_measures
+    needs_esh = "ESH" in selected_measures
+    
+    if not (needs_solar or needs_heatpump or needs_esh):
+        return RedirectResponse("/tool/retrofit/questions", status_code=303)
+    
+    upload_boxes = ""
+    
+    if needs_solar:
+        upload_boxes += """
+            <div>
+                <div class="upload-box" id="solarCalcBox">
+                    <div class="calc-icon">☀️</div>
+                    <h3>Solar PV Calculation</h3>
+                    <p style="color: #64748b; margin: 1rem 0;">Upload PDF to auto-populate system size, panels, inverter</p>
+                    <div class="upload-hint">Click or drag PDF here</div>
+                    <input type="file" id="solarCalcFile" name="solar_calc_file" accept=".pdf" style="display: none;">
+                </div>
+                <div id="solarCalcStatus" class="file-status" style="display:none;"></div>
+            </div>
+        """
+    
+    if needs_heatpump:
+        upload_boxes += """
+            <div>
+                <div class="upload-box" id="hpCalcBox">
+                    <div class="calc-icon">♨️</div>
+                    <h3>Heat Pump Calculation</h3>
+                    <p style="color: #64748b; margin: 1rem 0;">Upload PDF to auto-populate size, SCOP, heat demand</p>
+                    <div class="upload-hint">Click or drag PDF here</div>
+                    <input type="file" id="hpCalcFile" name="hp_calc_file" accept=".pdf" style="display: none;">
+                </div>
+                <div id="hpCalcStatus" class="file-status" style="display:none;"></div>
+            </div>
+        """
+    
+    if needs_esh:
+        upload_boxes += """
+            <div>
+                <div class="upload-box" id="eshCalcBox">
+                    <div class="calc-icon">🔌</div>
+                    <h3>Electric Storage Heater Calculation</h3>
+                    <p style="color: #64748b; margin: 1rem 0;">Upload PDF to auto-populate manufacturer, models</p>
+                    <div class="upload-hint">Click or drag
