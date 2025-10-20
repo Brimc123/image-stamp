@@ -1,5 +1,5 @@
 """
-Retrofit Design Tool - WITH MEASURE SHEET FALLBACK
+Retrofit Design Tool - COMPLETE WITH MEASURE SHEET FALLBACK
 Priority: Site Notes > Calc PDFs > Measure Sheet
 """
 
@@ -150,7 +150,6 @@ def parse_measure_sheet(sheet_text: str) -> Dict:
     """Parse Measure Design Data Collection Sheet - FALLBACK SOURCE"""
     data = {}
     
-    # Structure: Each measure section followed by its fields
     measure_sections = {
         "LOFT": ["M2 Area being treated", "Existing Loft insulation Thickness"],
         "ESH": ["Manufacturer", "Heat Demand Calculator included", "Model numbers"],
@@ -167,27 +166,22 @@ def parse_measure_sheet(sheet_text: str) -> Dict:
     for measure_code, fields in measure_sections.items():
         data[measure_code] = {}
         
-        # Find measure section
         measure_match = re.search(rf'{measure_code}\s+(.*?)(?=\n[A-Z]{{2,}}|\Z)', sheet_text, re.DOTALL | re.IGNORECASE)
         if not measure_match:
             continue
             
         section_text = measure_match.group(1)
         
-        # Extract field values
         if measure_code == "LOFT":
-            # "M2 Area being treated 18.24"
             area_match = re.search(r'M2 Area being treated\s+([0-9.]+)', section_text, re.IGNORECASE)
             if area_match:
                 data[measure_code]['area'] = area_match.group(1)
             
-            # "Existing Loft insulation Thickness 100"
             existing_match = re.search(r'Existing Loft insulation Thickness\s+([0-9]+)', section_text, re.IGNORECASE)
             if existing_match:
                 data[measure_code]['existing'] = f"{existing_match.group(1)}mm"
         
         elif measure_code == "ESH":
-            # Extract manufacturer, calc Y/N, model
             mfr_match = re.search(r'Manufacturer\s+([^\n]+)', section_text, re.IGNORECASE)
             if mfr_match and mfr_match.group(1).strip():
                 data[measure_code]['manufacturer'] = mfr_match.group(1).strip()
@@ -228,33 +222,27 @@ def parse_measure_sheet(sheet_text: str) -> Dict:
                 data[measure_code]['calc'] = 'Yes' if calc_match.group(1).upper() == 'Y' else 'No'
         
         elif measure_code == "HEAT_PUMP":
-            # "Make and model being installed Daiken Altherma Class 8"
             model_match = re.search(r'Make and model being installed\s+([^\n]+?)(?=\s*\n|Heat pump)', section_text, re.IGNORECASE)
             if model_match and model_match.group(1).strip():
                 data[measure_code]['model'] = model_match.group(1).strip()
             
-            # "Heat pump size req (KW) 8"
             size_match = re.search(r'Heat pump size req.*?([0-9.]+)', section_text, re.IGNORECASE)
             if size_match:
                 data[measure_code]['size'] = size_match.group(1)
             
-            # "Heat Demand Calculator included Y/N? Y"
             calc_match = re.search(r'Heat Demand Calculator included Y/N\?\s+([YN])', section_text, re.IGNORECASE)
             if calc_match:
                 data[measure_code]['calc'] = 'Yes' if calc_match.group(1).upper() == 'Y' else 'No'
         
         elif measure_code == "SOLAR_PV":
-            # "Make and model being installed InstaGen 435w"
             model_match = re.search(r'Make and model being installed\s+([^\n]+?)(?=\s*\n|System size)', section_text, re.IGNORECASE)
             if model_match and model_match.group(1).strip():
                 data[measure_code]['model'] = model_match.group(1).strip()
             
-            # "System size (KW) 4.35"
             size_match = re.search(r'System size.*?([0-9.]+)', section_text, re.IGNORECASE)
             if size_match:
                 data[measure_code]['size'] = size_match.group(1)
             
-            # "Solar PV Calculations included? Y"
             calc_match = re.search(r'Solar PV Calculations included\?\s+([YN])', section_text, re.IGNORECASE)
             if calc_match:
                 data[measure_code]['calc'] = 'Yes' if calc_match.group(1).upper() == 'Y' else 'No'
@@ -303,7 +291,6 @@ def extract_data_from_text(site_notes_text: str, condition_report_text: str, for
         "number_of_storeys": "1"
     }
     
-    # ADDRESS
     postcode_match = re.search(r'([A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2})', combined_text, re.IGNORECASE)
     postcode = postcode_match.group(0).strip() if postcode_match else ""
     
@@ -325,7 +312,6 @@ def extract_data_from_text(site_notes_text: str, condition_report_text: str, for
     if not data["address"] and postcode:
         data["address"] = postcode
     
-    # PROPERTY TYPE
     is_bungalow = bool(re.search(r'Bungalow', combined_text, re.IGNORECASE))
     if re.search(r'Semi.*?[Dd]etached', combined_text, re.IGNORECASE):
         data["property_type"] = "Semi-Detached Bungalow" if is_bungalow else "Semi-Detached House"
@@ -338,7 +324,6 @@ def extract_data_from_text(site_notes_text: str, condition_report_text: str, for
     elif is_bungalow:
         data["property_type"] = "Bungalow"
     
-    # BUILD DATE
     age_range_match = re.search(r'(?:Age Range|Built)[:\s]+(19\d{2}|20\d{2})\s*-\s*(19\d{2}|20\d{2})', combined_text, re.IGNORECASE)
     if age_range_match:
         data["build_date"] = f"{age_range_match.group(1)} - {age_range_match.group(2)}"
@@ -347,7 +332,6 @@ def extract_data_from_text(site_notes_text: str, condition_report_text: str, for
         if date_match:
             data["build_date"] = date_match.group(1)
     
-    # WALL TYPE
     if re.search(r'Timber\s+frame', combined_text, re.IGNORECASE):
         data["wall_type"] = "Timber Frame"
     elif re.search(r'Cavity', combined_text, re.IGNORECASE):
@@ -355,29 +339,24 @@ def extract_data_from_text(site_notes_text: str, condition_report_text: str, for
     elif re.search(r'Solid', combined_text, re.IGNORECASE):
         data["wall_type"] = "Solid Wall"
     
-    # NUMBER OF STOREYS
     storey_match = re.search(r'(?:Number of storeys|Storeys)[:\s]+([0-9]+)', combined_text, re.IGNORECASE)
     if storey_match:
         data["number_of_storeys"] = storey_match.group(1)
     
-    # FLOOR AREA
     area_match = re.search(r'(?:Area|Floor\s+0)[:\s]+([0-9]+(?:\.[0-9]+)?)\s*(?:m|m2|m²)?', combined_text, re.IGNORECASE)
     if area_match:
         data["loft_area"] = float(area_match.group(1))
         data["wall_area"] = float(area_match.group(1))
     
-    # LOFT INSULATION
     if format_type == "PAS Hub":
         loft_match = re.search(r'(?:Roofs.*?Insulation Thickness|Insulation Thickness)[:\s]+([0-9]+)\s*mm', combined_text, re.IGNORECASE | re.DOTALL)
         if loft_match:
             data["loft_insulation"] = f"{loft_match.group(1)}mm"
     
-    # HEATED ROOMS
     heated_rooms_match = re.search(r'(?:HEATED rooms|Heated Habitable Rooms)[:\s]+([0-9]+)', combined_text, re.IGNORECASE)
     if heated_rooms_match:
         data["heated_rooms"] = int(heated_rooms_match.group(1))
     
-    # CAVITY WIDTH
     wall_thickness_match = re.search(r'Wall thickness[:\s]+([0-9]+)\s*mm', combined_text, re.IGNORECASE)
     if wall_thickness_match:
         data["cavity_width"] = f"{wall_thickness_match.group(1)}mm"
@@ -678,103 +657,6 @@ def get_retrofit_tool_page(request: Request):
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #0f172a; }}
-        .header {{ background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 2rem; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
-        .header h1 {{ font-size: 2rem; margin-bottom: 0.5rem; }}
-        .credits {{ background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 20px; display: inline-block; font-weight: 600; margin-top: 1rem; }}
-        .container {{ max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }}
-        .card {{ background: white; border-radius: 12px; padding: 2rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-        .section-title {{ font-size: 1.5rem; color: #0f172a; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 3px solid #3b82f6; }}
-        
-        .upload-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; }}
-        .upload-grid-three {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 2rem; }}
-        .upload-box {{ border: 3px dashed #cbd5e1; border-radius: 12px; padding: 2rem; text-align: center; transition: all 0.3s; cursor: pointer; background: #f8fafc; }}
-        .upload-box:hover {{ border-color: #3b82f6; background: #eff6ff; }}
-        .upload-box.drag-over {{ border-color: #10b981; background: #ecfdf5; }}
-        .upload-box.optional {{ border-style: dotted; border-width: 2px; opacity: 0.8; }}
-        .upload-icon {{ font-size: 3rem; margin-bottom: 1rem; }}
-        .upload-label {{ font-size: 1.1rem; font-weight: 600; color: #0f172a; margin-bottom: 0.5rem; }}
-        .upload-hint {{ font-size: 0.9rem; color: #64748b; }}
-        .optional-badge {{ display: inline-block; background: #f59e0b; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; margin-top: 0.5rem; }}
-        input[type="file"] {{ display: none; }}
-        
-        .form-row {{ display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }}
-        .form-group {{ margin-bottom: 1rem; }}
-        label {{ display: block; font-weight: 600; margin-bottom: 0.5rem; color: #0f172a; }}
-        input[type="text"], select {{ width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; transition: border-color 0.3s; }}
-        input:focus, select:focus {{ outline: none; border-color: #3b82f6; }}
-        
-        .measures-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }}
-        .measure-card {{ border: 2px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; text-align: center; cursor: pointer; transition: all 0.3s; background: white; }}
-        .measure-card:hover {{ border-color: #3b82f6; transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
-        .measure-card.selected {{ border-color: #10b981; background: #ecfdf5; }}
-        .measure-icon {{ font-size: 2.5rem; margin-bottom: 0.5rem; }}
-        .measure-name {{ font-weight: 600; color: #0f172a; }}
-        .measure-checkbox {{ display: none; }}
-        
-        .btn {{ padding: 1rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }}
-        .btn-primary {{ background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; }}
-        .btn-primary:hover {{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }}
-        .btn-primary:disabled {{ background: #cbd5e1; cursor: not-allowed; transform: none; }}
-        .btn-secondary {{ background: #f1f5f9; color: #0f172a; }}
-        .btn-secondary:hover {{ background: #e2e8f0; }}
-        
-        .file-status {{ margin-top: 1rem; padding: 0.5rem; border-radius: 6px; font-size: 0.9rem; }}
-        .file-status.success {{ background: #d1fae5; color: #065f46; }}
-        
-        @media (max-width: 768px) {{
-            .upload-grid, .upload-grid-three, .form-row {{ grid-template-columns: 1fr; }}
-            .measures-grid {{ grid-template-columns: 1fr; }}
-        }}
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>🏗️ Retrofit Design Tool</h1>
-        <p>PAS 2035 Compliant Design Documents</p>
-        <div class="credits">💳 Credits: £{credits:.2f}</div>
-    </div>
-
-    <div class="container">
-        <form id="retrofitForm" method="POST" enctype="multipart/form-data">
-            
-            <div class="card">
-                <h2 class="section-title">Step 1: Upload Site Documents</h2>
-                <p style="background: #eff6ff; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #3b82f6;">
-                    <strong>📋 Required:</strong> Upload 2 PDFs from <strong>EITHER</strong> Elmhurst <strong>OR</strong> PAS Hub<br>
-                    <strong>💡 Optional:</strong> Upload Measure Data Collection Sheet as fallback source
-                </p>
-                
-                <div style="margin-bottom: 2rem;">
-                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Select your document format:</label>
-                    <select id="formatSelect" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; width: 100%;">
-                        <option value="">-- Select Format --</option>
-                        <option value="elmhurst">Elmhurst Energy</option>
-                        <option value="pashub">PAS Hub</option>
-                    </select>
-                </div>
-                
-                <div class="upload-grid" id="uploadGrid" style="display: none;">
-                    <div>
-                        <div class="upload-box" id="siteNotesUploadBox">
-                            <div class="upload-icon">📄</div>
-                            <div class="upload-label" id="siteNotesLabel">Site Notes</div>
-                            <div class="upload-hint">Click or drag PDF here</div>
-                    <input type="file" id="eshCalcFile" name="esh_calc_file" accept=".pdf" style="display: none;">
-                </div>
-                <div id="eshCalcStatus" class="file-status" style="display:none;"></div>
-            </div>
-        """
-    
-    html = f"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upload Calculations - AutoDate</title>
-    <style>
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #0f172a; }}
         .header {{ background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 2rem; text-align: center; }}
         .header h1 {{ font-size: 1.8rem; margin-bottom: 0.5rem; }}
         .container {{ max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }}
@@ -954,7 +836,7 @@ async def post_retrofit_calcs(request: Request):
 
 
 def get_retrofit_questions_page(request: Request):
-    """Show questions with 3-TIER AUTO-POPULATION: Site Notes > Calc PDFs > Measure Sheet"""
+    """Show questions with 3-TIER AUTO-POPULATION"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -969,7 +851,7 @@ def get_retrofit_questions_page(request: Request):
     current_index = session_data.get("current_measure_index", 0)
     extracted_data = session_data.get("extracted_data", {})
     calc_data = session_data.get("calc_data", {})
-    measure_sheet_data = session_data.get("measure_sheet_data", {})  # ⭐ GET MEASURE SHEET
+    measure_sheet_data = session_data.get("measure_sheet_data", {})
     
     if current_index >= len(selected_measures):
         return RedirectResponse("/tool/retrofit/review", status_code=303)
@@ -978,20 +860,17 @@ def get_retrofit_questions_page(request: Request):
     current_measure = MEASURES[current_measure_code]
     
     measure_calc_data = calc_data.get(current_measure_code, {})
-    measure_sheet_measure_data = measure_sheet_data.get(current_measure_code, {})  # ⭐ GET MEASURE SHEET FOR THIS MEASURE
+    measure_sheet_measure_data = measure_sheet_data.get(current_measure_code, {})
     
-    # Track which source provided data
     data_source = ""
     
     questions_html = ""
     for question in current_measure['questions']:
         q_id = f"{current_measure_code}_{question['id']}"
         
-        # ⭐ 3-TIER PRIORITY: Site Notes > Calc PDFs > Measure Sheet
         auto_value = ""
         source = ""
         
-        # TIER 1: Try extracted data from Site Notes first
         if question.get('auto_populate'):
             if question['id'] == 'area':
                 if extracted_data.get('loft_area'):
@@ -1010,7 +889,6 @@ def get_retrofit_questions_page(request: Request):
                     auto_value = extracted_data.get('cavity_width', '')
                     source = "Site Notes"
         
-        # TIER 2: Try calc data if no site notes data
         if not auto_value and question.get('calc_key'):
             calc_key = question['calc_key']
             if calc_key in measure_calc_data:
@@ -1022,7 +900,6 @@ def get_retrofit_questions_page(request: Request):
                     auto_value = calc_value
                     source = "Calculation PDF"
         
-        # TIER 3: Try measure sheet as fallback
         if not auto_value and question.get('measure_sheet_key'):
             sheet_key = question['measure_sheet_key']
             if sheet_key in measure_sheet_measure_data:
@@ -1058,7 +935,7 @@ def get_retrofit_questions_page(request: Request):
                     </select>
                 </div>
             """
-        else:  # text
+        else:
             questions_html += f"""
                 <div class="form-group">
                     <label>{question['label']}</label>
@@ -1068,23 +945,22 @@ def get_retrofit_questions_page(request: Request):
     
     progress = int((current_index / len(selected_measures)) * 100)
     
-    # Show data source indicator
     debug_info = ""
     if data_source:
         if data_source == "Calculation PDF":
-            debug_info = f"""
+            debug_info = """
                 <div style="background: #d1fae5; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #10b981;">
                     <strong>✓ Auto-populated from Calculation PDF</strong>
                 </div>
             """
         elif data_source == "Measure Sheet":
-            debug_info = f"""
+            debug_info = """
                 <div style="background: #fef3c7; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #f59e0b;">
                     <strong>✓ Auto-populated from Measure Sheet (fallback)</strong>
                 </div>
             """
         elif data_source == "Site Notes":
-            debug_info = f"""
+            debug_info = """
                 <div style="background: #dbeafe; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">
                     <strong>✓ Auto-populated from Site Notes</strong>
                 </div>
@@ -1096,169 +972,87 @@ def get_retrofit_questions_page(request: Request):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Questions - {current_measure['name']}</title>
-    <style>
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #0f172a; }}
-        .header {{ background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 2rem; text-align: center; }}
-        .header h1 {{ font-size: 1.8rem; margin-bottom: 0.5rem; }}
-        .progress-bar {{ width: 100%; height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; overflow: hidden; margin-top: 1rem; }}
-        .progress-fill {{ height: 100%; background: #10b981; width: {progress}%; transition: width 0.3s; }}
-        .container {{ max-width: 800px; margin: 2rem auto; padding: 0 1rem; }}
-        .card {{ background: white; border-radius: 12px; padding: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-        .measure-header {{ text-align: center; margin-bottom: 2rem; }}
-        .measure-icon {{ font-size: 4rem; margin-bottom: 0.5rem; }}
-        .measure-name {{ font-size: 1.5rem; color: #0f172a; font-weight: 600; }}
-        .form-group {{ margin-bottom: 1.5rem; }}
+    <title>Questions - {current_measure['name']} background: #f8fafc; color: #0f172a; }}
+        .header {{ background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 2rem; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+        .header h1 {{ font-size: 2rem; margin-bottom: 0.5rem; }}
+        .credits {{ background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 20px; display: inline-block; font-weight: 600; margin-top: 1rem; }}
+        .container {{ max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }}
+        .card {{ background: white; border-radius: 12px; padding: 2rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+        .section-title {{ font-size: 1.5rem; color: #0f172a; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 3px solid #3b82f6; }}
+        
+        .upload-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; }}
+        .upload-box {{ border: 3px dashed #cbd5e1; border-radius: 12px; padding: 2rem; text-align: center; transition: all 0.3s; cursor: pointer; background: #f8fafc; }}
+        .upload-box:hover {{ border-color: #3b82f6; background: #eff6ff; }}
+        .upload-box.drag-over {{ border-color: #10b981; background: #ecfdf5; }}
+        .upload-box.optional {{ border-style: dotted; border-width: 2px; opacity: 0.8; }}
+        .upload-icon {{ font-size: 3rem; margin-bottom: 1rem; }}
+        .upload-label {{ font-size: 1.1rem; font-weight: 600; color: #0f172a; margin-bottom: 0.5rem; }}
+        .upload-hint {{ font-size: 0.9rem; color: #64748b; }}
+        .optional-badge {{ display: inline-block; background: #f59e0b; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; margin-top: 0.5rem; }}
+        input[type="file"] {{ display: none; }}
+        
+        .form-row {{ display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }}
+        .form-group {{ margin-bottom: 1rem; }}
         label {{ display: block; font-weight: 600; margin-bottom: 0.5rem; color: #0f172a; }}
-        input, select {{ width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; }}
+        input[type="text"], select {{ width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; transition: border-color 0.3s; }}
         input:focus, select:focus {{ outline: none; border-color: #3b82f6; }}
-        .button-group {{ display: flex; gap: 1rem; margin-top: 2rem; }}
-        .btn {{ flex: 1; padding: 1rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; text-decoration: none; text-align: center; display: block; }}
+        
+        .measures-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }}
+        .measure-card {{ border: 2px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; text-align: center; cursor: pointer; transition: all 0.3s; background: white; }}
+        .measure-card:hover {{ border-color: #3b82f6; transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+        .measure-card.selected {{ border-color: #10b981; background: #ecfdf5; }}
+        .measure-icon {{ font-size: 2.5rem; margin-bottom: 0.5rem; }}
+        .measure-name {{ font-weight: 600; color: #0f172a; }}
+        .measure-checkbox {{ display: none; }}
+        
+        .btn {{ padding: 1rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }}
         .btn-primary {{ background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; }}
         .btn-primary:hover {{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }}
+        .btn-primary:disabled {{ background: #cbd5e1; cursor: not-allowed; transform: none; }}
         .btn-secondary {{ background: #f1f5f9; color: #0f172a; }}
         .btn-secondary:hover {{ background: #e2e8f0; }}
+        
+        .file-status {{ margin-top: 1rem; padding: 0.5rem; border-radius: 6px; font-size: 0.9rem; }}
+        .file-status.success {{ background: #d1fae5; color: #065f46; }}
+        
+        @media (max-width: 768px) {{
+            .upload-grid, .form-row {{ grid-template-columns: 1fr; }}
+            .measures-grid {{ grid-template-columns: 1fr; }}
+        }}
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🏗️ Retrofit Design Questions</h1>
-        <p>Measure {current_index + 1} of {len(selected_measures)}</p>
-        <div class="progress-bar">
-            <div class="progress-fill"></div>
-        </div>
+        <h1>🏗️ Retrofit Design Tool</h1>
+        <p>PAS 2035 Compliant Design Documents</p>
+        <div class="credits">💳 Credits: £{credits:.2f}</div>
     </div>
 
     <div class="container">
-        <div class="card">
-            {debug_info}
+        <form id="retrofitForm" method="POST" enctype="multipart/form-data">
             
-            <div class="measure-header">
-                <div class="measure-icon">{current_measure['icon']}</div>
-                <div class="measure-name">{current_measure['name']}</div>
-            </div>
-
-            <form method="POST" action="/api/retrofit-answer">
-                {questions_html}
+            <div class="card">
+                <h2 class="section-title">Step 1: Upload Site Documents</h2>
+                <p style="background: #eff6ff; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #3b82f6;">
+                    <strong>📋 Required:</strong> Upload 2 PDFs from <strong>EITHER</strong> Elmhurst <strong>OR</strong> PAS Hub<br>
+                    <strong>💡 Optional:</strong> Upload Measure Data Collection Sheet as fallback source
+                </p>
                 
-                <div class="button-group">
-                    {f'<a href="/tool/retrofit" class="btn btn-secondary">← Start Over</a>' if current_index == 0 else '<button type="button" onclick="history.back()" class="btn btn-secondary">← Previous</button>'}
-                    <button type="submit" class="btn btn-primary">
-                        {f'Next Measure →' if current_index < len(selected_measures) - 1 else 'Review & Generate →'}
-                    </button>
+                <div style="margin-bottom: 2rem;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Select your document format:</label>
+                    <select id="formatSelect" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; width: 100%;">
+                        <option value="">-- Select Format --</option>
+                        <option value="elmhurst">Elmhurst Energy</option>
+                        <option value="pashub">PAS Hub</option>
+                    </select>
                 </div>
-            </form>
-        </div>
-    </div>
-</body>
-</html>
-    """
-    
-    return HTMLResponse(html)
-
-
-async def post_retrofit_answer(request: Request):
-    """Save answers and move to next measure"""
-    user_row = require_active_user_row(request)
-    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
-        return user_row
-    
-    user_id = user_row["id"]
-    session_data = get_session_data(user_id)
-    
-    if not session_data:
-        return RedirectResponse("/tool/retrofit", status_code=303)
-    
-    form = await request.form()
-    
-    current_index = session_data.get("current_measure_index", 0)
-    selected_measures = session_data.get("selected_measures", [])
-    current_measure_code = selected_measures[current_index]
-    
-    if "answers" not in session_data:
-        session_data["answers"] = {}
-    
-    session_data["answers"][current_measure_code] = dict(form)
-    
-    session_data["current_measure_index"] = current_index + 1
-    store_session_data(user_id, session_data)
-    
-    return RedirectResponse("/tool/retrofit/questions", status_code=303)
-
-
-async def post_retrofit_complete(request: Request):
-    """Generate final PDF"""
-    user_row = require_active_user_row(request)
-    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
-        return user_row
-    
-    user_id = user_row["id"]
-    
-    try:
-        credits = float(user_row.get("credits", 0.0))
-    except Exception:
-        credits = 0.0
-
-    if credits < RETROFIT_TOOL_COST:
-        return HTMLResponse(f"<h1>Insufficient Credits</h1><p>Need £{RETROFIT_TOOL_COST}</p><a href='/billing'>Top Up</a>")
-
-    session_data = get_session_data(user_id)
-    
-    if not session_data:
-        return HTMLResponse("<h1>Session Expired</h1><a href='/tool/retrofit'>Start Over</a>")
-    
-    design_doc = {
-        "metadata": {
-            "generated_date": datetime.now().isoformat(),
-            "project_name": session_data.get("project_name", ""),
-            "coordinator": session_data.get("coordinator", "")
-        },
-        "property": session_data.get("extracted_data", {}),
-        "calculations": {},
-        "measures": []
-    }
-    
-    selected_measures = session_data.get("selected_measures", [])
-    answers_data = session_data.get("answers", {})
-    
-    for code in selected_measures:
-        measure_data = {
-            "code": code,
-            "name": MEASURES[code]['name'],
-            "answers": []
-        }
-        
-        measure_answers = answers_data.get(code, {})
-        for question in MEASURES[code]['questions']:
-            answer_key = f"{code}_{question['id']}"
-            answer = measure_answers.get(answer_key, "")
-            measure_data['answers'].append({
-                "question": question['label'],
-                "answer": str(answer),
-                "unit": question.get('unit', '')
-            })
-        
-        design_doc['measures'].append(measure_data)
-    
-    try:
-        pdf_bytes = generate_pdf_design(design_doc)
-        
-        new_balance = credits - RETROFIT_TOOL_COST
-        update_user_credits(user_id, new_balance)
-        add_transaction(user_id, -RETROFIT_TOOL_COST, "retrofit_design")
-        
-        clear_session_data(user_id)
-        
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename=retrofit_design_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-            }
-        )
-    except Exception as e:
-        return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p><a href='/tool/retrofit'>Try Again</a>") PDF here</div>
+                
+                <div class="upload-grid" id="uploadGrid" style="display: none;">
+                    <div>
+                        <div class="upload-box" id="siteNotesUploadBox">
+                            <div class="upload-icon">📄</div>
+                            <div class="upload-label" id="siteNotesLabel">Site Notes</div>
+                            <div class="upload-hint">Click or drag PDF here</div>
                             <input type="file" id="siteNotesFile" name="site_notes_file" accept=".pdf">
                         </div>
                         <div id="siteNotesStatus" class="file-status" style="display:none;"></div>
@@ -1467,7 +1261,7 @@ async def post_retrofit_complete(request: Request):
 
 
 async def post_retrofit_process(request: Request):
-    """Process uploaded PDFs and extract data WITH MEASURE SHEET"""
+    """Process uploaded PDFs WITH MEASURE SHEET"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -1479,7 +1273,7 @@ async def post_retrofit_process(request: Request):
         
         site_notes_file = form.get("site_notes_file")
         condition_file = form.get("condition_file")
-        measure_sheet_file = form.get("measure_sheet_file")  # ⭐ NEW
+        measure_sheet_file = form.get("measure_sheet_file")
         format_type = form.get("format_type", "PAS Hub")
         
         if not site_notes_file or not condition_file:
@@ -1494,7 +1288,6 @@ async def post_retrofit_process(request: Request):
         format_label = "PAS Hub" if format_type == "pashub" else "Elmhurst"
         extracted_data = extract_data_from_text(site_notes_text, condition_text, format_label)
         
-        # ⭐ PARSE MEASURE SHEET IF PROVIDED
         measure_sheet_data = {}
         if measure_sheet_file and hasattr(measure_sheet_file, 'read'):
             try:
@@ -1503,7 +1296,7 @@ async def post_retrofit_process(request: Request):
                     measure_sheet_text = extract_text_from_pdf(measure_sheet_bytes)
                     measure_sheet_data = parse_measure_sheet(measure_sheet_text)
             except Exception:
-                pass  # If measure sheet fails, just continue without it
+                pass
         
         selected_measures_json = form.get("selected_measures", "[]")
         selected_measures = json.loads(selected_measures_json)
@@ -1524,7 +1317,7 @@ async def post_retrofit_process(request: Request):
             "current_measure_index": 0,
             "answers": {},
             "calc_data": {},
-            "measure_sheet_data": measure_sheet_data  # ⭐ STORE IT
+            "measure_sheet_data": measure_sheet_data
         }
         
         store_session_data(user_id, session_data)
@@ -1600,4 +1393,20 @@ def get_calc_upload_page(request: Request):
                     <div class="calc-icon">🔌</div>
                     <h3>Electric Storage Heater Calculation</h3>
                     <p style="color: #64748b; margin: 1rem 0;">Upload PDF to auto-populate manufacturer, models</p>
-                    <div class="upload-hint">Click or drag
+                    <div class="upload-hint">Click or drag PDF here</div>
+                    <input type="file" id="eshCalcFile" name="esh_calc_file" accept=".pdf" style="display: none;">
+                </div>
+                <div id="eshCalcStatus" class="file-status" style="display:none;"></div>
+            </div>
+        """
+    
+    html = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Calculations - AutoDate</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
