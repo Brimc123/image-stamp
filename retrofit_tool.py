@@ -1,6 +1,5 @@
 """
-Retrofit Design Tool - COMPLETE VERSION WITH FULL HTML
-Phases 1-5: All HTML forms restored from Phase 3
+Retrofit Design Tool - FIXED: Drag & Drop Calcs + Auto-Population
 """
 
 import io
@@ -45,9 +44,9 @@ MEASURES = {
         "icon": "🔌",
         "requires_calc": True,
         "questions": [
-            {"id": "manufacturer", "label": "Manufacturer", "type": "text", "auto_populate": False},
+            {"id": "manufacturer", "label": "Manufacturer", "type": "text", "auto_populate": True, "calc_key": "manufacturer"},
             {"id": "calc", "label": "Heat Demand Calculator included Y/N?", "type": "yesno", "auto_populate": False},
-            {"id": "model", "label": "Model numbers", "type": "text", "auto_populate": False}
+            {"id": "model", "label": "Model numbers", "type": "text", "auto_populate": True, "calc_key": "models"}
         ]
     },
     "PRT": {
@@ -86,8 +85,8 @@ MEASURES = {
         "icon": "♨️",
         "requires_calc": True,
         "questions": [
-            {"id": "model", "label": "Make and model being installed", "type": "text", "auto_populate": False},
-            {"id": "size", "label": "Heat pump size req (KW)", "type": "number", "unit": "KW", "auto_populate": False},
+            {"id": "model", "label": "Make and model being installed", "type": "text", "auto_populate": True, "calc_key": "model"},
+            {"id": "size", "label": "Heat pump size req (KW)", "type": "number", "unit": "KW", "auto_populate": True, "calc_key": "heatPumpSize"},
             {"id": "calc", "label": "Heat Demand Calculator included Y/N?", "type": "yesno", "auto_populate": False}
         ]
     },
@@ -97,8 +96,8 @@ MEASURES = {
         "icon": "☀️",
         "requires_calc": True,
         "questions": [
-            {"id": "model", "label": "Make and model being installed", "type": "text", "auto_populate": False},
-            {"id": "size", "label": "System size (KW)", "type": "number", "unit": "KW", "auto_populate": False},
+            {"id": "model", "label": "Make and model being installed", "type": "text", "auto_populate": True, "calc_key": "model"},
+            {"id": "size", "label": "System size (KW)", "type": "number", "unit": "KW", "auto_populate": True, "calc_key": "systemSizeNumeric"},
             {"id": "calc", "label": "Solar PV Calculations included?", "type": "yesno", "auto_populate": False}
         ]
     },
@@ -272,7 +271,7 @@ def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
             size_match = re.search(pattern, calc_text, re.IGNORECASE)
             if size_match:
                 if 'PV power' in pattern:
-                    data["systemSizeNumeric"] = float(size_match.group(1)) / 1000  # Convert W to kWp
+                    data["systemSizeNumeric"] = float(size_match.group(1)) / 1000
                 else:
                     data["systemSizeNumeric"] = float(size_match.group(1))
                 data["systemSize"] = f"{data['systemSizeNumeric']} kWp"
@@ -280,8 +279,8 @@ def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
         
         # Panel manufacturer and model
         panel_patterns = [
-            r'(\d+)\s+([A-Za-z\s]+)\s+(\d+W)',  # "10 Longi HiMo6 HTB 435W"
-            r'([A-Za-z]+)\s+([A-Za-z0-9\s]+)\s+(\d+W)',  # "Longi HiMo6 HTB 435W"
+            r'(\d+)\s+([A-Za-z\s]+)\s+(\d+W)',
+            r'([A-Za-z]+)\s+([A-Za-z0-9\s]+)\s+(\d+W)',
         ]
         for pattern in panel_patterns:
             panel_match = re.search(pattern, calc_text, re.IGNORECASE)
@@ -330,6 +329,7 @@ def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
     elif calc_type == 'heatpump':
         data = {
             "heatPumpSize": "",
+            "heatPumpSizeNumeric": 0,
             "manufacturer": "",
             "model": "",
             "scop": "",
@@ -345,6 +345,7 @@ def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
         for pattern in capacity_patterns:
             capacity_match = re.search(pattern, calc_text, re.IGNORECASE)
             if capacity_match:
+                data["heatPumpSizeNumeric"] = float(capacity_match.group(1))
                 data["heatPumpSize"] = f"{capacity_match.group(1)} kW"
                 break
         
@@ -363,6 +364,7 @@ def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
         for mfr in manufacturers:
             if re.search(mfr, calc_text, re.IGNORECASE):
                 data["manufacturer"] = mfr
+                data["model"] = f"{mfr} Heat Pump"
                 break
         
         return data
@@ -370,22 +372,25 @@ def parse_calculation_file(calc_text: str, calc_type: str) -> Dict:
     elif calc_type == 'esh':
         data = {
             "manufacturer": "Elnur",
-            "models": [],
+            "models": "",
             "totalHeaters": 0,
             "totalKW": 0
         }
         
         # Extract heater models and quantities
         heater_patterns = [
-            r'(ECOHHR\d+|PH\d+|CCB\d+).*?(\d+)',  # Model followed by quantity
+            r'(ECOHHR\d+|PH\d+|CCB\d+)',
         ]
         
+        models_list = []
         for pattern in heater_patterns:
             for match in re.finditer(pattern, calc_text):
                 model = match.group(1)
-                qty = int(match.group(2))
-                data["models"].append({"model": model, "quantity": qty})
-                data["totalHeaters"] += qty
+                if model not in models_list:
+                    models_list.append(model)
+                    data["totalHeaters"] += 1
+        
+        data["models"] = ", ".join(models_list) if models_list else "Elnur ESH"
         
         return data
     
@@ -504,10 +509,24 @@ def generate_pdf_design(design_doc: Dict) -> bytes:
     return buffer.getvalue()
 
 
-# ==================== FASTAPI ROUTES WITH COMPLETE HTML ====================
+# ==================== SESSION STORAGE ====================
+SESSION_STORAGE = {}
+
+def store_session_data(user_id: int, data: Dict):
+    SESSION_STORAGE[user_id] = data
+
+def get_session_data(user_id: int) -> Optional[Dict]:
+    return SESSION_STORAGE.get(user_id)
+
+def clear_session_data(user_id: int):
+    if user_id in SESSION_STORAGE:
+        del SESSION_STORAGE[user_id]
+
+
+# ==================== ROUTES ====================
 
 def get_retrofit_tool_page(request: Request):
-    """Entry point - COMPLETE upload page with full HTML"""
+    """Entry point - upload page"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -525,7 +544,6 @@ def get_retrofit_tool_page(request: Request):
     except Exception:
         credits = 0.0
 
-    # COMPLETE HTML FROM PHASE 3
     html = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -543,7 +561,6 @@ def get_retrofit_tool_page(request: Request):
         .card {{ background: white; border-radius: 12px; padding: 2rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
         .section-title {{ font-size: 1.5rem; color: #0f172a; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 3px solid #3b82f6; }}
         
-        /* Upload Areas */
         .upload-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; }}
         .upload-box {{ border: 3px dashed #cbd5e1; border-radius: 12px; padding: 2rem; text-align: center; transition: all 0.3s; cursor: pointer; background: #f8fafc; }}
         .upload-box:hover {{ border-color: #3b82f6; background: #eff6ff; }}
@@ -553,14 +570,12 @@ def get_retrofit_tool_page(request: Request):
         .upload-hint {{ font-size: 0.9rem; color: #64748b; }}
         input[type="file"] {{ display: none; }}
         
-        /* Project Info */
         .form-row {{ display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }}
         .form-group {{ margin-bottom: 1rem; }}
         label {{ display: block; font-weight: 600; margin-bottom: 0.5rem; color: #0f172a; }}
-        input[type="text"], input[type="date"] {{ width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; transition: border-color 0.3s; }}
-        input:focus {{ outline: none; border-color: #3b82f6; }}
+        input[type="text"], input[type="date"], select {{ width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; transition: border-color 0.3s; }}
+        input:focus, select:focus {{ outline: none; border-color: #3b82f6; }}
         
-        /* Measures Grid */
         .measures-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }}
         .measure-card {{ border: 2px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; text-align: center; cursor: pointer; transition: all 0.3s; background: white; }}
         .measure-card:hover {{ border-color: #3b82f6; transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
@@ -569,7 +584,6 @@ def get_retrofit_tool_page(request: Request):
         .measure-name {{ font-weight: 600; color: #0f172a; }}
         .measure-checkbox {{ display: none; }}
         
-        /* Buttons */
         .btn {{ padding: 1rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }}
         .btn-primary {{ background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; }}
         .btn-primary:hover {{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }}
@@ -597,7 +611,6 @@ def get_retrofit_tool_page(request: Request):
     <div class="container">
         <form id="retrofitForm" method="POST" enctype="multipart/form-data">
             
-            <!-- STEP 1: Upload Files -->
             <div class="card">
                 <h2 class="section-title">Step 1: Upload Site Documents</h2>
                 <p style="background: #eff6ff; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #3b82f6;">
@@ -614,7 +627,6 @@ def get_retrofit_tool_page(request: Request):
                 </div>
                 
                 <div class="upload-grid" id="uploadGrid" style="display: none;">
-                    <!-- Site Notes -->
                     <div>
                         <div class="upload-box" id="siteNotesUploadBox">
                             <div class="upload-icon">📄</div>
@@ -625,7 +637,6 @@ def get_retrofit_tool_page(request: Request):
                         <div id="siteNotesStatus" class="file-status" style="display:none;"></div>
                     </div>
                     
-                    <!-- Condition Report -->
                     <div>
                         <div class="upload-box" id="conditionUploadBox">
                             <div class="upload-icon">📄</div>
@@ -638,7 +649,6 @@ def get_retrofit_tool_page(request: Request):
                 </div>
             </div>
 
-            <!-- STEP 2: Project Information -->
             <div class="card">
                 <h2 class="section-title">Step 2: Project Information</h2>
                 <div class="form-row">
@@ -657,15 +667,11 @@ def get_retrofit_tool_page(request: Request):
                 </div>
             </div>
 
-            <!-- STEP 3: Select Measures -->
             <div class="card">
                 <h2 class="section-title">Step 3: Select Retrofit Measures</h2>
-                <div class="measures-grid" id="measuresGrid">
-                    <!-- JavaScript will populate measures -->
-                </div>
+                <div class="measures-grid" id="measuresGrid"></div>
             </div>
 
-            <!-- Submit Button -->
             <div class="card" style="text-align: center;">
                 <button type="button" class="btn btn-primary" id="continueBtn" disabled>
                     Continue to Questions →
@@ -678,15 +684,10 @@ def get_retrofit_tool_page(request: Request):
     </div>
 
     <script>
-        // Measures data
         const measures = {json.dumps(MEASURES)};
-        
-        // State
         let selectedMeasures = new Set();
-        let extractedData = null;
         let selectedFormat = "";
         
-        // Format selection handler
         document.getElementById('formatSelect').onchange = function() {{
             selectedFormat = this.value;
             const uploadGrid = document.getElementById('uploadGrid');
@@ -695,7 +696,6 @@ def get_retrofit_tool_page(request: Request):
             
             if (selectedFormat) {{
                 uploadGrid.style.display = 'grid';
-                
                 if (selectedFormat === 'elmhurst') {{
                     siteNotesLabel.textContent = 'Elmhurst Site Notes';
                     conditionLabel.textContent = 'Elmhurst Condition Report';
@@ -708,7 +708,6 @@ def get_retrofit_tool_page(request: Request):
             }}
         }};
         
-        // Populate measures grid
         const grid = document.getElementById('measuresGrid');
         Object.keys(measures).forEach(code => {{
             const m = measures[code];
@@ -719,24 +718,20 @@ def get_retrofit_tool_page(request: Request):
                 <div class="measure-name">${{m.name}}</div>
                 <input type="checkbox" class="measure-checkbox" name="measures[]" value="${{code}}" id="m_${{code}}">
             `;
-            card.onclick = () => toggleMeasure(code, card);
+            card.onclick = () => {{
+                const checkbox = document.getElementById(`m_${{code}}`);
+                checkbox.checked = !checkbox.checked;
+                if (checkbox.checked) {{
+                    selectedMeasures.add(code);
+                    card.classList.add('selected');
+                }} else {{
+                    selectedMeasures.delete(code);
+                    card.classList.remove('selected');
+                }}
+                updateContinueButton();
+            }};
             grid.appendChild(card);
         }});
-        
-        function toggleMeasure(code, card) {{
-            const checkbox = document.getElementById(`m_${{code}}`);
-            checkbox.checked = !checkbox.checked;
-            
-            if (checkbox.checked) {{
-                selectedMeasures.add(code);
-                card.classList.add('selected');
-            }} else {{
-                selectedMeasures.delete(code);
-                card.classList.remove('selected');
-            }}
-            
-            updateContinueButton();
-        }}
         
         function updateContinueButton() {{
             const btn = document.getElementById('continueBtn');
@@ -744,11 +739,9 @@ def get_retrofit_tool_page(request: Request):
             const hasCondition = document.getElementById('conditionFile').files.length > 0;
             const hasMeasures = selectedMeasures.size > 0;
             const hasFormat = selectedFormat !== "";
-            
             btn.disabled = !(hasFormat && hasSiteNotes && hasCondition && hasMeasures);
         }}
         
-        // File upload handlers
         function setupUpload(boxId, inputId, statusId) {{
             const box = document.getElementById(boxId);
             const input = document.getElementById(inputId);
@@ -757,10 +750,7 @@ def get_retrofit_tool_page(request: Request):
             box.onclick = () => input.click();
             
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(event => {{
-                box.addEventListener(event, e => {{
-                    e.preventDefault();
-                    e.stopPropagation();
-                }});
+                box.addEventListener(event, e => {{ e.preventDefault(); e.stopPropagation(); }});
             }});
             
             ['dragenter', 'dragover'].forEach(event => {{
@@ -795,15 +785,11 @@ def get_retrofit_tool_page(request: Request):
         setupUpload('siteNotesUploadBox', 'siteNotesFile', 'siteNotesStatus');
         setupUpload('conditionUploadBox', 'conditionFile', 'conditionStatus');
         
-        // Continue button - submit form
         document.getElementById('continueBtn').onclick = async () => {{
             const formData = new FormData(document.getElementById('retrofitForm'));
-            
-            // Add selected measures and format as JSON
             formData.append('selected_measures', JSON.stringify(Array.from(selectedMeasures)));
             formData.append('format_type', selectedFormat);
             
-            // Show loading
             const btn = document.getElementById('continueBtn');
             btn.textContent = 'Processing...';
             btn.disabled = true;
@@ -815,7 +801,6 @@ def get_retrofit_tool_page(request: Request):
                 }});
                 
                 if (response.ok) {{
-                    // Go to calc upload page (which will auto-skip if no calcs needed)
                     window.location.href = '/tool/retrofit/calcs';
                 }} else {{
                     alert('Error processing files. Please try again.');
@@ -836,29 +821,8 @@ def get_retrofit_tool_page(request: Request):
     return HTMLResponse(html)
 
 
-# ==================== SESSION STORAGE ====================
-# Simple in-memory storage for multi-step form
-# In production, you might want to use Redis or database
-SESSION_STORAGE = {}
-
-def store_session_data(user_id: int, data: Dict):
-    """Store data for this user's session"""
-    SESSION_STORAGE[user_id] = data
-
-def get_session_data(user_id: int) -> Optional[Dict]:
-    """Retrieve data for this user's session"""
-    return SESSION_STORAGE.get(user_id)
-
-def clear_session_data(user_id: int):
-    """Clear session data after completion"""
-    if user_id in SESSION_STORAGE:
-        del SESSION_STORAGE[user_id]
-
-
-# ==================== STEP 1: PROCESS UPLOADED FILES ====================
-
 async def post_retrofit_process(request: Request):
-    """Process uploaded PDFs and extract data - STEP 1"""
+    """Process uploaded PDFs and extract data"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -866,10 +830,8 @@ async def post_retrofit_process(request: Request):
     user_id = user_row["id"]
     
     try:
-        # Get form data
         form = await request.form()
         
-        # Get uploaded files (now with consistent naming)
         site_notes_file = form.get("site_notes_file")
         condition_file = form.get("condition_file")
         format_type = form.get("format_type", "PAS Hub")
@@ -877,28 +839,22 @@ async def post_retrofit_process(request: Request):
         if not site_notes_file or not condition_file:
             return HTMLResponse("<h1>Error</h1><p>Both PDF files are required</p><a href='/tool/retrofit'>Back</a>")
         
-        # Read PDF files
         site_notes_bytes = await site_notes_file.read()
         condition_bytes = await condition_file.read()
         
-        # Extract text from PDFs
         site_notes_text = extract_text_from_pdf(site_notes_bytes)
         condition_text = extract_text_from_pdf(condition_bytes)
         
-        # Parse property data - use format_type to determine which format
         format_label = "PAS Hub" if format_type == "pashub" else "Elmhurst"
         extracted_data = extract_data_from_text(site_notes_text, condition_text, format_label)
         
-        # Get selected measures
         selected_measures_json = form.get("selected_measures", "[]")
         selected_measures = json.loads(selected_measures_json)
         
-        # Get project info
         project_name = form.get("project_name", "Untitled Project")
         coordinator = form.get("coordinator", "")
         property_address = form.get("property_address", extracted_data.get("address", ""))
         
-        # Store everything in session
         session_data = {
             "project_name": project_name,
             "coordinator": coordinator,
@@ -909,12 +865,12 @@ async def post_retrofit_process(request: Request):
             "condition_text": condition_text,
             "format_type": format_label,
             "current_measure_index": 0,
-            "answers": {}
+            "answers": {},
+            "calc_data": {}
         }
         
         store_session_data(user_id, session_data)
         
-        # Success! Return JSON response
         return Response(
             content=json.dumps({"success": True, "redirect": "/tool/retrofit/calcs"}),
             media_type="application/json"
@@ -928,10 +884,8 @@ async def post_retrofit_process(request: Request):
         )
 
 
-# ==================== STEP 2.5: CALCULATION FILES UPLOAD (CONDITIONAL) ====================
-
 def get_calc_upload_page(request: Request):
-    """Show calc upload page if Solar PV, Heat Pump, or ESH selected - STEP 2.5"""
+    """Show calc upload page with DRAG & DROP - STEP 2.5"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -944,56 +898,54 @@ def get_calc_upload_page(request: Request):
     
     selected_measures = session_data.get("selected_measures", [])
     
-    # Check which calcs are needed
     needs_solar = "SOLAR_PV" in selected_measures
     needs_heatpump = "HEAT_PUMP" in selected_measures
     needs_esh = "ESH" in selected_measures
     
     if not (needs_solar or needs_heatpump or needs_esh):
-        # Skip this step - go straight to questions
         return RedirectResponse("/tool/retrofit/questions", status_code=303)
     
-    # Build upload boxes HTML
+    # Build upload boxes with DRAG & DROP
     upload_boxes = ""
     
     if needs_solar:
         upload_boxes += """
-            <div class="calc-upload-box">
-                <div class="calc-icon">☀️</div>
-                <h3>Solar PV Calculation</h3>
-                <p>Upload solar PV calculation PDF to auto-populate system size, panels, inverter, etc.</p>
-                <input type="file" id="solarCalcFile" name="solar_calc_file" accept=".pdf">
-                <button type="button" class="btn btn-secondary" onclick="document.getElementById('solarCalcFile').click()">
-                    Choose File
-                </button>
+            <div>
+                <div class="upload-box" id="solarCalcBox" data-input="solarCalcFile">
+                    <div class="calc-icon">☀️</div>
+                    <h3>Solar PV Calculation</h3>
+                    <p style="color: #64748b; margin: 1rem 0;">Upload PDF to auto-populate system size, panels, inverter</p>
+                    <div class="upload-hint">Click or drag PDF here</div>
+                    <input type="file" id="solarCalcFile" name="solar_calc_file" accept=".pdf" style="display: none;">
+                </div>
                 <div id="solarCalcStatus" class="file-status" style="display:none;"></div>
             </div>
         """
     
     if needs_heatpump:
         upload_boxes += """
-            <div class="calc-upload-box">
-                <div class="calc-icon">♨️</div>
-                <h3>Heat Pump Calculation</h3>
-                <p>Upload heat pump calculation PDF to auto-populate size, SCOP, heat demand, etc.</p>
-                <input type="file" id="hpCalcFile" name="hp_calc_file" accept=".pdf">
-                <button type="button" class="btn btn-secondary" onclick="document.getElementById('hpCalcFile').click()">
-                    Choose File
-                </button>
+            <div>
+                <div class="upload-box" id="hpCalcBox" data-input="hpCalcFile">
+                    <div class="calc-icon">♨️</div>
+                    <h3>Heat Pump Calculation</h3>
+                    <p style="color: #64748b; margin: 1rem 0;">Upload PDF to auto-populate size, SCOP, heat demand</p>
+                    <div class="upload-hint">Click or drag PDF here</div>
+                    <input type="file" id="hpCalcFile" name="hp_calc_file" accept=".pdf" style="display: none;">
+                </div>
                 <div id="hpCalcStatus" class="file-status" style="display:none;"></div>
             </div>
         """
     
     if needs_esh:
         upload_boxes += """
-            <div class="calc-upload-box">
-                <div class="calc-icon">🔌</div>
-                <h3>Electric Storage Heater Calculation</h3>
-                <p>Upload ESH calculation PDF to auto-populate manufacturer, models, quantities, etc.</p>
-                <input type="file" id="eshCalcFile" name="esh_calc_file" accept=".pdf">
-                <button type="button" class="btn btn-secondary" onclick="document.getElementById('eshCalcFile').click()">
-                    Choose File
-                </button>
+            <div>
+                <div class="upload-box" id="eshCalcBox" data-input="eshCalcFile">
+                    <div class="calc-icon">🔌</div>
+                    <h3>Electric Storage Heater Calculation</h3>
+                    <p style="color: #64748b; margin: 1rem 0;">Upload PDF to auto-populate manufacturer, models</p>
+                    <div class="upload-hint">Click or drag PDF here</div>
+                    <input type="file" id="eshCalcFile" name="esh_calc_file" accept=".pdf" style="display: none;">
+                </div>
                 <div id="eshCalcStatus" class="file-status" style="display:none;"></div>
             </div>
         """
@@ -1013,19 +965,24 @@ def get_calc_upload_page(request: Request):
         .container {{ max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }}
         .card {{ background: white; border-radius: 12px; padding: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
         .info-box {{ background: #eff6ff; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; border-left: 4px solid #3b82f6; }}
-        .calc-upload-box {{ border: 2px solid #e2e8f0; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; text-align: center; }}
-        .calc-icon {{ font-size: 3rem; margin-bottom: 1rem; }}
-        .calc-upload-box h3 {{ color: #0f172a; margin-bottom: 0.5rem; }}
-        .calc-upload-box p {{ color: #64748b; margin-bottom: 1rem; }}
-        input[type="file"] {{ display: none; }}
+        
+        .upload-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }}
+        .upload-box {{ border: 3px dashed #cbd5e1; border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.3s; background: #f8fafc; }}
+        .upload-box:hover {{ border-color: #3b82f6; background: #eff6ff; }}
+        .upload-box.drag-over {{ border-color: #10b981; background: #ecfdf5; }}
+        .calc-icon {{ font-size: 3rem; margin-bottom: 0.5rem; }}
+        .upload-box h3 {{ color: #0f172a; margin-bottom: 0.5rem; font-size: 1.1rem; }}
+        .upload-hint {{ font-size: 0.9rem; color: #64748b; margin-top: 1rem; }}
+        
         .btn {{ padding: 1rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }}
         .btn-primary {{ background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; }}
         .btn-primary:hover {{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }}
         .btn-secondary {{ background: #f1f5f9; color: #0f172a; }}
         .btn-secondary:hover {{ background: #e2e8f0; }}
+        
         .file-status {{ margin-top: 1rem; padding: 0.5rem; border-radius: 6px; font-size: 0.9rem; }}
         .file-status.success {{ background: #d1fae5; color: #065f46; }}
-        .button-group {{ display: flex; gap: 1rem; margin-top: 2rem; justify-content: center; }}
+        .button-group {{ display: flex; gap: 1rem; margin-top: 2rem; justify-content: center; flex-wrap: wrap; }}
     </style>
 </head>
 <body>
@@ -1040,11 +997,13 @@ def get_calc_upload_page(request: Request):
                 <strong>💡 Optional Step:</strong> Upload calculation files to automatically fill in technical details. You can skip this and enter information manually in the next step.
             </div>
 
-            <form id="calcForm" method="POST" action="/api/retrofit-calcs" enctype="multipart/form-data">
-                {upload_boxes}
+            <form id="calcForm" method="POST" enctype="multipart/form-data">
+                <div class="upload-grid">
+                    {upload_boxes}
+                </div>
                 
                 <div class="button-group">
-                    <button type="button" class="btn btn-secondary" onclick="skipCalcs()">
+                    <button type="button" class="btn btn-secondary" onclick="window.location.href='/tool/retrofit/questions'">
                         Skip - Enter Manually →
                     </button>
                     <button type="submit" class="btn btn-primary">
@@ -1056,28 +1015,50 @@ def get_calc_upload_page(request: Request):
     </div>
 
     <script>
-        function setupFileInput(inputId, statusId) {{
+        // Setup drag & drop for each upload box
+        function setupUpload(boxId, inputId, statusId) {{
+            const box = document.getElementById(boxId);
             const input = document.getElementById(inputId);
             const status = document.getElementById(statusId);
             
-            if (!input) return;
+            if (!box || !input) return;
             
-            input.onchange = function() {{
-                if (this.files.length > 0) {{
-                    status.style.display = 'block';
-                    status.className = 'file-status success';
-                    status.textContent = `✓ ${{this.files[0].name}} ready to upload`;
+            box.onclick = () => input.click();
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(event => {{
+                box.addEventListener(event, e => {{ e.preventDefault(); e.stopPropagation(); }});
+            }});
+            
+            ['dragenter', 'dragover'].forEach(event => {{
+                box.addEventListener(event, () => box.classList.add('drag-over'));
+            }});
+            
+            ['dragleave', 'drop'].forEach(event => {{
+                box.addEventListener(event, () => box.classList.remove('drag-over'));
+            }});
+            
+            box.addEventListener('drop', e => {{
+                const files = e.dataTransfer.files;
+                if (files.length > 0 && files[0].type === 'application/pdf') {{
+                    input.files = files;
+                    handleFileSelect(input, status);
                 }}
-            }};
+            }});
+            
+            input.onchange = () => handleFileSelect(input, status);
         }}
         
-        setupFileInput('solarCalcFile', 'solarCalcStatus');
-        setupFileInput('hpCalcFile', 'hpCalcStatus');
-        setupFileInput('eshCalcFile', 'eshCalcStatus');
-        
-        function skipCalcs() {{
-            window.location.href = '/tool/retrofit/questions';
+        function handleFileSelect(input, status) {{
+            if (input.files.length > 0) {{
+                status.style.display = 'block';
+                status.className = 'file-status success';
+                status.textContent = `✓ ${{input.files[0].name}} ready to upload`;
+            }}
         }}
+        
+        setupUpload('solarCalcBox', 'solarCalcFile', 'solarCalcStatus');
+        setupUpload('hpCalcBox', 'hpCalcFile', 'hpCalcStatus');
+        setupUpload('eshCalcBox', 'eshCalcFile', 'eshCalcStatus');
         
         document.getElementById('calcForm').onsubmit = async function(e) {{
             e.preventDefault();
@@ -1096,14 +1077,12 @@ def get_calc_upload_page(request: Request):
                 if (response.ok) {{
                     window.location.href = '/tool/retrofit/questions';
                 }} else {{
-                    alert('Error processing files. Please try again.');
-                    btn.textContent = 'Upload & Continue →';
-                    btn.disabled = false;
+                    alert('Error processing files. Continuing to questions.');
+                    window.location.href = '/tool/retrofit/questions';
                 }}
             }} catch (error) {{
-                alert('Error: ' + error.message);
-                btn.textContent = 'Upload & Continue →';
-                btn.disabled = false;
+                alert('Error: ' + error.message + ' - Continuing to questions.');
+                window.location.href = '/tool/retrofit/questions';
             }}
         }};
     </script>
@@ -1158,15 +1137,14 @@ async def post_retrofit_calcs(request: Request):
         session_data['calc_data'] = calc_data
         store_session_data(user_id, session_data)
         
-        # Redirect to questions
         return RedirectResponse("/tool/retrofit/questions", status_code=303)
         
     except Exception as e:
-        # If error, still proceed to questions (user can enter manually)
         return RedirectResponse("/tool/retrofit/questions", status_code=303)
 
+
 def get_retrofit_questions_page(request: Request):
-    """Show questions for selected measures - STEP 2"""
+    """Show questions with AUTO-POPULATED data from calcs - FIXED!"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -1180,22 +1158,37 @@ def get_retrofit_questions_page(request: Request):
     selected_measures = session_data.get("selected_measures", [])
     current_index = session_data.get("current_measure_index", 0)
     extracted_data = session_data.get("extracted_data", {})
+    calc_data = session_data.get("calc_data", {})  # ⭐ GET CALC DATA
     
     if current_index >= len(selected_measures):
-        # All questions answered - go to review
         return RedirectResponse("/tool/retrofit/review", status_code=303)
     
     current_measure_code = selected_measures[current_index]
     current_measure = MEASURES[current_measure_code]
     
-    # Build form HTML for this measure
+    # ⭐ GET CALC DATA FOR THIS SPECIFIC MEASURE
+    measure_calc_data = calc_data.get(current_measure_code, {})
+    
+    # Build form HTML for this measure with AUTO-POPULATED values
     questions_html = ""
     for question in current_measure['questions']:
         q_id = f"{current_measure_code}_{question['id']}"
         
-        # Try to auto-populate
+        # ⭐ TRY TO AUTO-POPULATE FROM BOTH EXTRACTED DATA AND CALC DATA
         auto_value = ""
-        if question.get('auto_populate'):
+        
+        # First check if this question has calc data
+        if question.get('auto_populate') and question.get('calc_key'):
+            calc_key = question['calc_key']
+            if calc_key in measure_calc_data:
+                calc_value = measure_calc_data[calc_key]
+                if isinstance(calc_value, (int, float)):
+                    auto_value = str(calc_value)
+                elif isinstance(calc_value, str):
+                    auto_value = calc_value
+        
+        # If no calc data, try extracted data
+        if not auto_value and question.get('auto_populate'):
             if question['id'] == 'area':
                 auto_value = str(extracted_data.get('loft_area', ''))
             elif question['id'] == 'existing':
@@ -1204,6 +1197,8 @@ def get_retrofit_questions_page(request: Request):
                 auto_value = str(extracted_data.get('heated_rooms', ''))
             elif question['id'] == 'width':
                 auto_value = extracted_data.get('cavity_width', '')
+            elif question['id'] == 'manufacturer':
+                auto_value = measure_calc_data.get('manufacturer', '')
         
         if question['type'] == 'number':
             unit = question.get('unit', '')
@@ -1237,6 +1232,15 @@ def get_retrofit_questions_page(request: Request):
     
     progress = int((current_index / len(selected_measures)) * 100)
     
+    # Show debug info if calc data was found
+    debug_info = ""
+    if measure_calc_data:
+        debug_info = f"""
+            <div style="background: #d1fae5; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #10b981;">
+                <strong>✓ Calculation data found!</strong> Fields have been auto-populated from your uploaded PDF.
+            </div>
+        """
+    
     html = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -1261,7 +1265,7 @@ def get_retrofit_questions_page(request: Request):
         input, select {{ width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; }}
         input:focus, select:focus {{ outline: none; border-color: #3b82f6; }}
         .button-group {{ display: flex; gap: 1rem; margin-top: 2rem; }}
-        .btn {{ flex: 1; padding: 1rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }}
+        .btn {{ flex: 1; padding: 1rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; text-decoration: none; text-align: center; display: block; }}
         .btn-primary {{ background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; }}
         .btn-primary:hover {{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }}
         .btn-secondary {{ background: #f1f5f9; color: #0f172a; }}
@@ -1279,6 +1283,8 @@ def get_retrofit_questions_page(request: Request):
 
     <div class="container">
         <div class="card">
+            {debug_info}
+            
             <div class="measure-header">
                 <div class="measure-icon">{current_measure['icon']}</div>
                 <div class="measure-name">{current_measure['name']}</div>
@@ -1288,7 +1294,7 @@ def get_retrofit_questions_page(request: Request):
                 {questions_html}
                 
                 <div class="button-group">
-                    {f'<a href="/tool/retrofit" class="btn btn-secondary" style="text-decoration:none; text-align:center;">← Start Over</a>' if current_index == 0 else '<button type="button" onclick="history.back()" class="btn btn-secondary">← Previous</button>'}
+                    {f'<a href="/tool/retrofit" class="btn btn-secondary">← Start Over</a>' if current_index == 0 else '<button type="button" onclick="history.back()" class="btn btn-secondary">← Previous</button>'}
                     <button type="submit" class="btn btn-primary">
                         {f'Next Measure →' if current_index < len(selected_measures) - 1 else 'Review & Generate →'}
                     </button>
@@ -1315,29 +1321,22 @@ async def post_retrofit_answer(request: Request):
     if not session_data:
         return RedirectResponse("/tool/retrofit", status_code=303)
     
-    # Get form data
     form = await request.form()
     
-    # Save answers
     current_index = session_data.get("current_measure_index", 0)
     selected_measures = session_data.get("selected_measures", [])
     current_measure_code = selected_measures[current_index]
     
-    # Store answers for this measure
     if "answers" not in session_data:
         session_data["answers"] = {}
     
     session_data["answers"][current_measure_code] = dict(form)
     
-    # Move to next measure
     session_data["current_measure_index"] = current_index + 1
     store_session_data(user_id, session_data)
     
-    # Redirect to next question or review
     return RedirectResponse("/tool/retrofit/questions", status_code=303)
 
-
-# ==================== FINAL: GENERATE PDF ====================
 
 async def post_retrofit_complete(request: Request):
     """Generate final PDF - FINAL STEP"""
@@ -1347,7 +1346,6 @@ async def post_retrofit_complete(request: Request):
     
     user_id = user_row["id"]
     
-    # Check credits
     try:
         credits = float(user_row.get("credits", 0.0))
     except Exception:
@@ -1356,13 +1354,11 @@ async def post_retrofit_complete(request: Request):
     if credits < RETROFIT_TOOL_COST:
         return HTMLResponse(f"<h1>Insufficient Credits</h1><p>Need £{RETROFIT_TOOL_COST}</p><a href='/billing'>Top Up</a>")
 
-    # Get session data
     session_data = get_session_data(user_id)
     
     if not session_data:
         return HTMLResponse("<h1>Session Expired</h1><a href='/tool/retrofit'>Start Over</a>")
     
-    # Build design document
     design_doc = {
         "metadata": {
             "generated_date": datetime.now().isoformat(),
@@ -1374,7 +1370,6 @@ async def post_retrofit_complete(request: Request):
         "measures": []
     }
     
-    # Add measures with answers
     selected_measures = session_data.get("selected_measures", [])
     answers_data = session_data.get("answers", {})
     
@@ -1397,19 +1392,15 @@ async def post_retrofit_complete(request: Request):
         
         design_doc['measures'].append(measure_data)
     
-    # Generate PDF
     try:
         pdf_bytes = generate_pdf_design(design_doc)
         
-        # Deduct credits
         new_balance = credits - RETROFIT_TOOL_COST
         update_user_credits(user_id, new_balance)
         add_transaction(user_id, -RETROFIT_TOOL_COST, "retrofit_design")
         
-        # Clear session
         clear_session_data(user_id)
         
-        # Return PDF
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
