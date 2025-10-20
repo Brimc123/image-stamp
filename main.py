@@ -29,12 +29,8 @@ from timestamp_tool import (
 )
 from retrofit_tool import (
     get_retrofit_tool_page,
-    post_retrofit_process,
     get_calc_upload_page,
-    post_retrofit_calcs,
-    get_retrofit_questions_page,
-    post_retrofit_answer,
-    post_retrofit_complete
+    get_retrofit_questions_page
 )
 
 # Initialize FastAPI app
@@ -310,31 +306,19 @@ async def process_timestamp(request: Request):
 
 @app.get("/tool/retrofit")
 def retrofit_tool_page(request: Request):
-    return get_retrofit_tool_page(request)
+    """Phase 1: Upload page"""
+    return HTMLResponse(get_retrofit_tool_page())
 
-@app.post("/api/retrofit-process")
-async def process_retrofit_files(request: Request):
-    return await post_retrofit_process(request)
+# Placeholder routes for phases we haven't built yet
+@app.get("/calc-upload")
+def calc_upload_placeholder(request: Request):
+    """Phase 2: Calc upload - PLACEHOLDER"""
+    return HTMLResponse("<h1>Phase 2: Coming soon...</h1>")
 
-@app.get("/tool/retrofit/calcs")
-def retrofit_calc_upload(request: Request):
-    return get_calc_upload_page(request)
-
-@app.post("/api/retrofit-calcs")
-async def process_retrofit_calcs(request: Request):
-    return await post_retrofit_calcs(request)
-
-@app.get("/tool/retrofit/questions")
-def retrofit_questions(request: Request):
-    return get_retrofit_questions_page(request)
-
-@app.post("/api/retrofit-answer")
-async def save_retrofit_answer(request: Request):
-    return await post_retrofit_answer(request)
-
-@app.post("/api/retrofit-complete")
-async def process_retrofit_complete(request: Request):
-    return await post_retrofit_complete(request)
+@app.get("/questions")
+def questions_placeholder(request: Request):
+    """Phase 3: Questions - PLACEHOLDER"""
+    return HTMLResponse("<h1>Phase 3: Coming soon...</h1>")
 
 # ==================== HEALTH CHECK ====================
 
