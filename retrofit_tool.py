@@ -629,7 +629,7 @@ def clear_session_data(user_id: int):
 # ==================== ROUTES ====================
 
 def get_retrofit_tool_page(request: Request):
-    """Entry point - upload page WITH MEASURE SHEET"""
+    """Entry point - upload page WITH MEASURE SHEET & VISUAL FORMAT SELECTION"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -657,328 +657,21 @@ def get_retrofit_tool_page(request: Request):
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #0f172a; }}
-        .header {{ background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 2rem; text-align: center; }}
-        .header h1 {{ font-size: 1.8rem; margin-bottom: 0.5rem; }}
-        .container {{ max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }}
-        .card {{ background: white; border-radius: 12px; padding: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-        .info-box {{ background: #eff6ff; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; border-left: 4px solid #3b82f6; }}
-        
-        .upload-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }}
-        .upload-box {{ border: 3px dashed #cbd5e1; border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.3s; background: #f8fafc; }}
-        .upload-box:hover {{ border-color: #3b82f6; background: #eff6ff; }}
-        .upload-box.drag-over {{ border-color: #10b981; background: #ecfdf5; }}
-        .calc-icon {{ font-size: 3rem; margin-bottom: 0.5rem; }}
-        .upload-box h3 {{ color: #0f172a; margin-bottom: 0.5rem; font-size: 1.1rem; }}
-        .upload-hint {{ font-size: 0.9rem; color: #64748b; margin-top: 1rem; }}
-        
-        .btn {{ padding: 1rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }}
-        .btn-primary {{ background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; }}
-        .btn-primary:hover {{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }}
-        .btn-secondary {{ background: #f1f5f9; color: #0f172a; }}
-        .btn-secondary:hover {{ background: #e2e8f0; }}
-        
-        .file-status {{ margin-top: 1rem; padding: 0.5rem; border-radius: 6px; font-size: 0.9rem; }}
-        .file-status.success {{ background: #d1fae5; color: #065f46; }}
-        .button-group {{ display: flex; gap: 1rem; margin-top: 2rem; justify-content: center; flex-wrap: wrap; }}
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>📊 Upload Calculation Files (Optional)</h1>
-        <p>Auto-populate answers from your calculation PDFs</p>
-    </div>
-
-    <div class="container">
-        <div class="card">
-            <div class="info-box">
-                <strong>💡 Optional Step:</strong> Upload calculation files to automatically fill in technical details. Skip if you don't have calc files - the Measure Sheet will be used as fallback.
-            </div>
-
-            <form id="calcForm" method="POST" enctype="multipart/form-data">
-                <div class="upload-grid">
-                    {upload_boxes}
-                </div>
-                
-                <div class="button-group">
-                    <button type="button" class="btn btn-secondary" onclick="window.location.href='/tool/retrofit/questions'">
-                        Skip - Enter Manually →
-                    </button>
-                    <button type="submit" class="btn btn-primary">
-                        Upload & Continue →
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <script>
-        function setupUpload(boxId, inputId, statusId) {{
-            const box = document.getElementById(boxId);
-            const input = document.getElementById(inputId);
-            const status = document.getElementById(statusId);
-            
-            if (!box || !input) return;
-            
-            box.onclick = () => input.click();
-            
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(event => {{
-                box.addEventListener(event, e => {{ e.preventDefault(); e.stopPropagation(); }});
-            }});
-            
-            ['dragenter', 'dragover'].forEach(event => {{
-                box.addEventListener(event, () => box.classList.add('drag-over'));
-            }});
-            
-            ['dragleave', 'drop'].forEach(event => {{
-                box.addEventListener(event, () => box.classList.remove('drag-over'));
-            }});
-            
-            box.addEventListener('drop', e => {{
-                const files = e.dataTransfer.files;
-                if (files.length > 0 && files[0].type === 'application/pdf') {{
-                    input.files = files;
-                    handleFileSelect(input, status);
-                }}
-            }});
-            
-            input.onchange = () => handleFileSelect(input, status);
-        }}
-        
-        function handleFileSelect(input, status) {{
-            if (input.files.length > 0) {{
-                status.style.display = 'block';
-                status.className = 'file-status success';
-                status.textContent = `✓ ${{input.files[0].name}} ready to upload`;
-            }}
-        }}
-        
-        setupUpload('solarCalcBox', 'solarCalcFile', 'solarCalcStatus');
-        setupUpload('hpCalcBox', 'hpCalcFile', 'hpCalcStatus');
-        setupUpload('eshCalcBox', 'eshCalcFile', 'eshCalcStatus');
-        
-        document.getElementById('calcForm').onsubmit = async function(e) {{
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const btn = this.querySelector('button[type="submit"]');
-            btn.textContent = 'Processing...';
-            btn.disabled = true;
-            
-            try {{
-                const response = await fetch('/api/retrofit-calcs', {{
-                    method: 'POST',
-                    body: formData
-                }});
-                
-                if (response.ok) {{
-                    window.location.href = '/tool/retrofit/questions';
-                }} else {{
-                    alert('Error processing files. Continuing to questions.');
-                    window.location.href = '/tool/retrofit/questions';
-                }}
-            }} catch (error) {{
-                alert('Error: ' + error.message + ' - Continuing to questions.');
-                window.location.href = '/tool/retrofit/questions';
-            }}
-        }};
-    </script>
-</body>
-</html>
-    """
-    
-    return HTMLResponse(html)
-
-
-async def post_retrofit_calcs(request: Request):
-    """Process uploaded calculation files"""
-    user_row = require_active_user_row(request)
-    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
-        return user_row
-    
-    user_id = user_row["id"]
-    session_data = get_session_data(user_id)
-    
-    if not session_data:
-        return RedirectResponse("/tool/retrofit", status_code=303)
-    
-    try:
-        form = await request.form()
-        calc_data = {}
-        
-        solar_calc_file = form.get("solar_calc_file")
-        if solar_calc_file and hasattr(solar_calc_file, 'read'):
-            solar_bytes = await solar_calc_file.read()
-            if len(solar_bytes) > 0:
-                solar_text = extract_text_from_pdf(solar_bytes)
-                calc_data['SOLAR_PV'] = parse_calculation_file(solar_text, 'solar')
-        
-        hp_calc_file = form.get("hp_calc_file")
-        if hp_calc_file and hasattr(hp_calc_file, 'read'):
-            hp_bytes = await hp_calc_file.read()
-            if len(hp_bytes) > 0:
-                hp_text = extract_text_from_pdf(hp_bytes)
-                calc_data['HEAT_PUMP'] = parse_calculation_file(hp_text, 'heatpump')
-        
-        esh_calc_file = form.get("esh_calc_file")
-        if esh_calc_file and hasattr(esh_calc_file, 'read'):
-            esh_bytes = await esh_calc_file.read()
-            if len(esh_bytes) > 0:
-                esh_text = extract_text_from_pdf(esh_bytes)
-                calc_data['ESH'] = parse_calculation_file(esh_text, 'esh')
-        
-        session_data['calc_data'] = calc_data
-        store_session_data(user_id, session_data)
-        
-        return RedirectResponse("/tool/retrofit/questions", status_code=303)
-        
-    except Exception as e:
-        return RedirectResponse("/tool/retrofit/questions", status_code=303)
-
-
-def get_retrofit_questions_page(request: Request):
-    """Show questions with 3-TIER AUTO-POPULATION"""
-    user_row = require_active_user_row(request)
-    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
-        return user_row
-    
-    user_id = user_row["id"]
-    session_data = get_session_data(user_id)
-    
-    if not session_data:
-        return HTMLResponse("<h1>Session Expired</h1><p>Please start over</p><a href='/tool/retrofit'>Start Over</a>")
-    
-    selected_measures = session_data.get("selected_measures", [])
-    current_index = session_data.get("current_measure_index", 0)
-    extracted_data = session_data.get("extracted_data", {})
-    calc_data = session_data.get("calc_data", {})
-    measure_sheet_data = session_data.get("measure_sheet_data", {})
-    
-    if current_index >= len(selected_measures):
-        return RedirectResponse("/tool/retrofit/review", status_code=303)
-    
-    current_measure_code = selected_measures[current_index]
-    current_measure = MEASURES[current_measure_code]
-    
-    measure_calc_data = calc_data.get(current_measure_code, {})
-    measure_sheet_measure_data = measure_sheet_data.get(current_measure_code, {})
-    
-    data_source = ""
-    
-    questions_html = ""
-    for question in current_measure['questions']:
-        q_id = f"{current_measure_code}_{question['id']}"
-        
-        auto_value = ""
-        source = ""
-        
-        if question.get('auto_populate'):
-            if question['id'] == 'area':
-                if extracted_data.get('loft_area'):
-                    auto_value = str(extracted_data.get('loft_area', ''))
-                    source = "Site Notes"
-            elif question['id'] == 'existing':
-                if extracted_data.get('loft_insulation'):
-                    auto_value = extracted_data.get('loft_insulation', '')
-                    source = "Site Notes"
-            elif question['id'] == 'quantity':
-                if extracted_data.get('heated_rooms'):
-                    auto_value = str(extracted_data.get('heated_rooms', ''))
-                    source = "Site Notes"
-            elif question['id'] == 'width':
-                if extracted_data.get('cavity_width'):
-                    auto_value = extracted_data.get('cavity_width', '')
-                    source = "Site Notes"
-        
-        if not auto_value and question.get('calc_key'):
-            calc_key = question['calc_key']
-            if calc_key in measure_calc_data:
-                calc_value = measure_calc_data[calc_key]
-                if isinstance(calc_value, (int, float)):
-                    auto_value = str(calc_value)
-                    source = "Calculation PDF"
-                elif isinstance(calc_value, str) and calc_value:
-                    auto_value = calc_value
-                    source = "Calculation PDF"
-        
-        if not auto_value and question.get('measure_sheet_key'):
-            sheet_key = question['measure_sheet_key']
-            if sheet_key in measure_sheet_measure_data:
-                sheet_value = measure_sheet_measure_data[sheet_key]
-                if sheet_value:
-                    auto_value = str(sheet_value)
-                    source = "Measure Sheet"
-        
-        if source and not data_source:
-            data_source = source
-        
-        if question['type'] == 'number':
-            unit = question.get('unit', '')
-            questions_html += f"""
-                <div class="form-group">
-                    <label>{question['label']}</label>
-                    <div style="display: flex; gap: 0.5rem; align-items: center;">
-                        <input type="number" step="0.01" name="{q_id}" value="{auto_value}" required style="flex: 1;">
-                        <span style="color: #64748b; font-weight: 600;">{unit}</span>
-                    </div>
-                </div>
-            """
-        elif question['type'] == 'yesno':
-            selected_yes = 'selected' if auto_value == 'Yes' else ''
-            selected_no = 'selected' if auto_value == 'No' else ''
-            questions_html += f"""
-                <div class="form-group">
-                    <label>{question['label']}</label>
-                    <select name="{q_id}" required>
-                        <option value="">Select...</option>
-                        <option value="Yes" {selected_yes}>Yes</option>
-                        <option value="No" {selected_no}>No</option>
-                    </select>
-                </div>
-            """
-        else:
-            questions_html += f"""
-                <div class="form-group">
-                    <label>{question['label']}</label>
-                    <input type="text" name="{q_id}" value="{auto_value}" required>
-                </div>
-            """
-    
-    progress = int((current_index / len(selected_measures)) * 100)
-    
-    debug_info = ""
-    if data_source:
-        if data_source == "Calculation PDF":
-            debug_info = """
-                <div style="background: #d1fae5; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #10b981;">
-                    <strong>✓ Auto-populated from Calculation PDF</strong>
-                </div>
-            """
-        elif data_source == "Measure Sheet":
-            debug_info = """
-                <div style="background: #fef3c7; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #f59e0b;">
-                    <strong>✓ Auto-populated from Measure Sheet (fallback)</strong>
-                </div>
-            """
-        elif data_source == "Site Notes":
-            debug_info = """
-                <div style="background: #dbeafe; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">
-                    <strong>✓ Auto-populated from Site Notes</strong>
-                </div>
-            """
-    
-    html = f"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Questions - {current_measure['name']} background: #f8fafc; color: #0f172a; }}
         .header {{ background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 2rem; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
         .header h1 {{ font-size: 2rem; margin-bottom: 0.5rem; }}
         .credits {{ background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 20px; display: inline-block; font-weight: 600; margin-top: 1rem; }}
         .container {{ max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }}
         .card {{ background: white; border-radius: 12px; padding: 2rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
         .section-title {{ font-size: 1.5rem; color: #0f172a; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 3px solid #3b82f6; }}
+        
+        .format-selector {{ display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }}
+        .format-card {{ border: 3px solid #e2e8f0; border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.3s; background: white; position: relative; }}
+        .format-card:hover {{ border-color: #3b82f6; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2); }}
+        .format-card.selected {{ border-color: #10b981; background: #ecfdf5; }}
+        .format-card.selected::before {{ content: "✓"; position: absolute; top: 1rem; right: 1rem; background: #10b981; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }}
+        .format-icon {{ font-size: 3rem; margin-bottom: 1rem; }}
+        .format-name {{ font-size: 1.25rem; font-weight: 600; color: #0f172a; margin-bottom: 0.5rem; }}
+        .format-desc {{ font-size: 0.9rem; color: #64748b; }}
         
         .upload-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; }}
         .upload-box {{ border: 3px dashed #cbd5e1; border-radius: 12px; padding: 2rem; text-align: center; transition: all 0.3s; cursor: pointer; background: #f8fafc; }}
@@ -1015,8 +708,10 @@ def get_retrofit_questions_page(request: Request):
         .file-status {{ margin-top: 1rem; padding: 0.5rem; border-radius: 6px; font-size: 0.9rem; }}
         .file-status.success {{ background: #d1fae5; color: #065f46; }}
         
+        .info-box {{ background: #eff6ff; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #3b82f6; }}
+        
         @media (max-width: 768px) {{
-            .upload-grid, .form-row {{ grid-template-columns: 1fr; }}
+            .upload-grid, .form-row, .format-selector {{ grid-template-columns: 1fr; }}
             .measures-grid {{ grid-template-columns: 1fr; }}
         }}
     </style>
@@ -1032,22 +727,33 @@ def get_retrofit_questions_page(request: Request):
         <form id="retrofitForm" method="POST" enctype="multipart/form-data">
             
             <div class="card">
-                <h2 class="section-title">Step 1: Upload Site Documents</h2>
-                <p style="background: #eff6ff; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #3b82f6;">
-                    <strong>📋 Required:</strong> Upload 2 PDFs from <strong>EITHER</strong> Elmhurst <strong>OR</strong> PAS Hub<br>
-                    <strong>💡 Optional:</strong> Upload Measure Data Collection Sheet as fallback source
-                </p>
-                
-                <div style="margin-bottom: 2rem;">
-                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Select your document format:</label>
-                    <select id="formatSelect" style="padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; width: 100%;">
-                        <option value="">-- Select Format --</option>
-                        <option value="elmhurst">Elmhurst Energy</option>
-                        <option value="pashub">PAS Hub</option>
-                    </select>
+                <h2 class="section-title">Step 1: Select Document Format</h2>
+                <div class="info-box">
+                    <strong>📋 Choose your format:</strong> Select whether you're uploading documents from Elmhurst or PAS Hub
                 </div>
                 
-                <div class="upload-grid" id="uploadGrid" style="display: none;">
+                <div class="format-selector">
+                    <div class="format-card" onclick="selectFormat('elmhurst')">
+                        <div class="format-icon">📊</div>
+                        <div class="format-name">Elmhurst Energy</div>
+                        <div class="format-desc">Elmhurst site notes & condition report</div>
+                    </div>
+                    <div class="format-card" onclick="selectFormat('pashub')">
+                        <div class="format-icon">📑</div>
+                        <div class="format-name">PAS Hub</div>
+                        <div class="format-desc">PAS Hub site notes & condition report</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card" id="uploadSection" style="display: none;">
+                <h2 class="section-title">Step 2: Upload Site Documents</h2>
+                <div class="info-box">
+                    <strong>📄 Required:</strong> Upload 2 PDFs (Site Notes + Condition Report)<br>
+                    <strong>💡 Optional:</strong> Upload Measure Data Collection Sheet as fallback source
+                </div>
+                
+                <div class="upload-grid">
                     <div>
                         <div class="upload-box" id="siteNotesUploadBox">
                             <div class="upload-icon">📄</div>
@@ -1069,22 +775,20 @@ def get_retrofit_questions_page(request: Request):
                     </div>
                 </div>
                 
-                <div id="measureSheetSection" style="display: none; margin-top: 1rem;">
-                    <div style="text-align: center; margin-bottom: 1rem;">
-                        <div class="upload-box optional" id="measureSheetUploadBox" style="max-width: 500px; margin: 0 auto;">
-                            <div class="upload-icon">📊</div>
-                            <div class="upload-label">Measure Data Collection Sheet</div>
-                            <div class="upload-hint">Optional fallback source - Click or drag PDF here</div>
-                            <span class="optional-badge">OPTIONAL</span>
-                            <input type="file" id="measureSheetFile" name="measure_sheet_file" accept=".pdf">
-                        </div>
-                        <div id="measureSheetStatus" class="file-status" style="display:none;"></div>
+                <div style="text-align: center; margin-top: 1rem;">
+                    <div class="upload-box optional" id="measureSheetUploadBox" style="max-width: 500px; margin: 0 auto;">
+                        <div class="upload-icon">📊</div>
+                        <div class="upload-label">Measure Data Collection Sheet</div>
+                        <div class="upload-hint">Optional fallback source - Click or drag PDF here</div>
+                        <span class="optional-badge">OPTIONAL</span>
+                        <input type="file" id="measureSheetFile" name="measure_sheet_file" accept=".pdf">
                     </div>
+                    <div id="measureSheetStatus" class="file-status" style="display:none;"></div>
                 </div>
             </div>
 
-            <div class="card">
-                <h2 class="section-title">Step 2: Project Information</h2>
+            <div class="card" id="projectSection" style="display: none;">
+                <h2 class="section-title">Step 3: Project Information</h2>
                 <div class="form-row">
                     <div class="form-group">
                         <label>Project Name</label>
@@ -1101,12 +805,12 @@ def get_retrofit_questions_page(request: Request):
                 </div>
             </div>
 
-            <div class="card">
-                <h2 class="section-title">Step 3: Select Retrofit Measures</h2>
+            <div class="card" id="measuresSection" style="display: none;">
+                <h2 class="section-title">Step 4: Select Retrofit Measures</h2>
                 <div class="measures-grid" id="measuresGrid"></div>
             </div>
 
-            <div class="card" style="text-align: center;">
+            <div class="card" id="buttonSection" style="display: none; text-align: center;">
                 <button type="button" class="btn btn-primary" id="continueBtn" disabled>
                     Continue to Questions →
                 </button>
@@ -1122,29 +826,35 @@ def get_retrofit_questions_page(request: Request):
         let selectedMeasures = new Set();
         let selectedFormat = "";
         
-        document.getElementById('formatSelect').onchange = function() {{
-            selectedFormat = this.value;
-            const uploadGrid = document.getElementById('uploadGrid');
-            const measureSheetSection = document.getElementById('measureSheetSection');
+        function selectFormat(format) {{
+            selectedFormat = format;
+            
+            // Update visual selection
+            document.querySelectorAll('.format-card').forEach(card => {{
+                card.classList.remove('selected');
+            }});
+            event.currentTarget.classList.add('selected');
+            
+            // Show upload section
+            document.getElementById('uploadSection').style.display = 'block';
+            document.getElementById('projectSection').style.display = 'block';
+            document.getElementById('measuresSection').style.display = 'block';
+            document.getElementById('buttonSection').style.display = 'block';
+            
+            // Update labels
             const siteNotesLabel = document.getElementById('siteNotesLabel');
             const conditionLabel = document.getElementById('conditionLabel');
             
-            if (selectedFormat) {{
-                uploadGrid.style.display = 'grid';
-                measureSheetSection.style.display = 'block';
-                
-                if (selectedFormat === 'elmhurst') {{
-                    siteNotesLabel.textContent = 'Elmhurst Site Notes';
-                    conditionLabel.textContent = 'Elmhurst Condition Report';
-                }} else {{
-                    siteNotesLabel.textContent = 'PAS Hub Site Notes';
-                    conditionLabel.textContent = 'PAS Hub Condition Report';
-                }}
+            if (format === 'elmhurst') {{
+                siteNotesLabel.textContent = 'Elmhurst Site Notes';
+                conditionLabel.textContent = 'Elmhurst Condition Report';
             }} else {{
-                uploadGrid.style.display = 'none';
-                measureSheetSection.style.display = 'none';
+                siteNotesLabel.textContent = 'PAS Hub Site Notes';
+                conditionLabel.textContent = 'PAS Hub Condition Report';
             }}
-        }};
+            
+            updateContinueButton();
+        }}
         
         const grid = document.getElementById('measuresGrid');
         Object.keys(measures).forEach(code => {{
@@ -1365,48 +1075,3 @@ def get_calc_upload_page(request: Request):
                     <div class="calc-icon">☀️</div>
                     <h3>Solar PV Calculation</h3>
                     <p style="color: #64748b; margin: 1rem 0;">Upload PDF to auto-populate system size, panels, inverter</p>
-                    <div class="upload-hint">Click or drag PDF here</div>
-                    <input type="file" id="solarCalcFile" name="solar_calc_file" accept=".pdf" style="display: none;">
-                </div>
-                <div id="solarCalcStatus" class="file-status" style="display:none;"></div>
-            </div>
-        """
-    
-    if needs_heatpump:
-        upload_boxes += """
-            <div>
-                <div class="upload-box" id="hpCalcBox">
-                    <div class="calc-icon">♨️</div>
-                    <h3>Heat Pump Calculation</h3>
-                    <p style="color: #64748b; margin: 1rem 0;">Upload PDF to auto-populate size, SCOP, heat demand</p>
-                    <div class="upload-hint">Click or drag PDF here</div>
-                    <input type="file" id="hpCalcFile" name="hp_calc_file" accept=".pdf" style="display: none;">
-                </div>
-                <div id="hpCalcStatus" class="file-status" style="display:none;"></div>
-            </div>
-        """
-    
-    if needs_esh:
-        upload_boxes += """
-            <div>
-                <div class="upload-box" id="eshCalcBox">
-                    <div class="calc-icon">🔌</div>
-                    <h3>Electric Storage Heater Calculation</h3>
-                    <p style="color: #64748b; margin: 1rem 0;">Upload PDF to auto-populate manufacturer, models</p>
-                    <div class="upload-hint">Click or drag PDF here</div>
-                    <input type="file" id="eshCalcFile" name="esh_calc_file" accept=".pdf" style="display: none;">
-                </div>
-                <div id="eshCalcStatus" class="file-status" style="display:none;"></div>
-            </div>
-        """
-    
-    html = f"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upload Calculations - AutoDate</title>
-    <style>
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
