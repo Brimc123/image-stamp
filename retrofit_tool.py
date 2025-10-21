@@ -1,6 +1,7 @@
 """
 Retrofit Design Tool - FIXED VERSION for main.py compatibility
 All import errors resolved - this will work with your existing main.py
+FIXED: Added drag-and-drop functionality for file uploads
 """
 
 import io
@@ -296,7 +297,7 @@ def generate_pdf_design(session_data: Dict) -> bytes:
 # =============================================================================
 
 def get_retrofit_tool_page(request: Request):
-    """Phase 1: Upload page with format selection"""
+    """Phase 1: Upload page with format selection - WITH DRAG AND DROP"""
     return HTMLResponse(f"""
     <!DOCTYPE html>
     <html>
@@ -328,6 +329,7 @@ def get_retrofit_tool_page(request: Request):
             }}
             .upload-box:hover {{ border-color: #3b82f6; background: #f8fafc; }}
             .upload-box.uploaded {{ border-color: #10b981; background: #ecfdf5; }}
+            .upload-box.dragover {{ border-color: #764ba2; background: #e8ebff; }}
             .measures-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }}
             .measure-card {{ 
                 border: 2px solid #e5e7eb; border-radius: 10px; padding: 15px; 
@@ -387,19 +389,19 @@ def get_retrofit_tool_page(request: Request):
                 <div class="card">
                     <h3>3. Upload Documents</h3>
                     <div class="upload-grid">
-                        <div class="upload-box" onclick="document.getElementById('siteNotes').click()">
+                        <div class="upload-box" id="siteNotesBox" onclick="document.getElementById('siteNotes').click()">
                             <div style="font-size: 24px; margin-bottom: 10px;">📋</div>
                             <h4>Site Notes</h4>
                             <p>Upload your site notes PDF</p>
                             <div id="siteNotesName"></div>
                         </div>
-                        <div class="upload-box" onclick="document.getElementById('conditionReport').click()">
+                        <div class="upload-box" id="conditionBox" onclick="document.getElementById('conditionReport').click()">
                             <div style="font-size: 24px; margin-bottom: 10px;">🏠</div>
                             <h4>Condition Report</h4>
                             <p>Upload condition report PDF</p>
                             <div id="conditionName"></div>
                         </div>
-                        <div class="upload-box" onclick="document.getElementById('measureSheet').click()">
+                        <div class="upload-box" id="measureBox" onclick="document.getElementById('measureSheet').click()">
                             <div style="font-size: 24px; margin-bottom: 10px;">📊</div>
                             <h4>Measure Sheet</h4>
                             <p>Upload measure data Excel file (optional)</p>
@@ -451,11 +453,43 @@ def get_retrofit_tool_page(request: Request):
             }}
             
             function setupUpload(inputId, boxId, nameId) {{
-                document.getElementById(inputId).addEventListener('change', function(e) {{
+                const inputEl = document.getElementById(inputId);
+                const boxEl = document.getElementById(boxId);
+                const nameEl = document.getElementById(nameId);
+                
+                // File input change event
+                inputEl.addEventListener('change', function(e) {{
                     const file = e.target.files[0];
                     if (file) {{
-                        document.getElementById(boxId).classList.add('uploaded');
-                        document.getElementById(nameId).textContent = file.name;
+                        boxEl.classList.add('uploaded');
+                        nameEl.textContent = file.name;
+                        checkFormComplete();
+                    }}
+                }});
+                
+                // Drag and drop events
+                boxEl.addEventListener('dragover', function(e) {{
+                    e.preventDefault();
+                    e.stopPropagation();
+                    boxEl.classList.add('dragover');
+                }});
+                
+                boxEl.addEventListener('dragleave', function(e) {{
+                    e.preventDefault();
+                    e.stopPropagation();
+                    boxEl.classList.remove('dragover');
+                }});
+                
+                boxEl.addEventListener('drop', function(e) {{
+                    e.preventDefault();
+                    e.stopPropagation();
+                    boxEl.classList.remove('dragover');
+                    
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {{
+                        inputEl.files = files;
+                        boxEl.classList.add('uploaded');
+                        nameEl.textContent = files[0].name;
                         checkFormComplete();
                     }}
                 }});
@@ -472,6 +506,7 @@ def get_retrofit_tool_page(request: Request):
                 document.getElementById('submitBtn').disabled = !(hasFormat && hasSiteNotes && hasCondition && hasMeasures && hasProjectName && hasCoordinator);
             }}
             
+            // Setup drag and drop for all three upload boxes
             setupUpload('siteNotes', 'siteNotesBox', 'siteNotesName');
             setupUpload('conditionReport', 'conditionBox', 'conditionName');
             setupUpload('measureSheet', 'measureBox', 'measureName');
@@ -498,8 +533,6 @@ def get_retrofit_tool_page(request: Request):
                     }}
                 }} catch (error) {{
                     alert('Error: ' + error.message);
-                    // Continue anyway for testing
-                    window.location.href = '/tool/retrofit/calcs';
                 }}
             }};
         </script>
