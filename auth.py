@@ -57,6 +57,56 @@ def get_current_user_row(request: Request) -> Optional[Dict]:
     return get_user_by_id(user_id)
 
 
+def is_admin(request: Request) -> bool:
+    """Check if current user is an admin"""
+    user_row = get_current_user_row(request)
+    if not user_row:
+        return False
+    return user_row.get("is_admin", 0) == 1
+
+
+def require_admin(request: Request):
+    """Require admin access, redirect if not admin"""
+    user_row = get_current_user_row(request)
+    
+    if not user_row:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    if user_row.get("is_admin", 0) != 1:
+        return HTMLResponse("""
+            <html>
+            <head>
+                <title>Access Denied</title>
+                <style>
+                    body {
+                        font-family: sans-serif;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        min-height: 100vh;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    }
+                    .error-box {
+                        background: white;
+                        padding: 3rem;
+                        border-radius: 20px;
+                        text-align: center;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="error-box">
+                    <h1>🚫 Access Denied</h1>
+                    <p>You need administrator privileges to access this page.</p>
+                    <a href="/">Back to Dashboard</a>
+                </div>
+            </body>
+            </html>
+        """)
+    
+    return user_row
+
+
 def require_active_user_row(request: Request):
     """Require an active user, redirect to login if not authenticated"""
     user_row = get_current_user_row(request)
@@ -249,15 +299,6 @@ def get_login_page(request: Request):
         
         .register-link a:hover {
             text-decoration: underline;
-        }
-        
-        .error-message {
-            background: #fee2e2;
-            color: #991b1b;
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            text-align: center;
         }
     </style>
 </head>
