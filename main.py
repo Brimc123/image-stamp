@@ -18,7 +18,7 @@ from database import (
     get_user_transactions, add_transaction
 )
 from admin import get_admin_page, post_admin_update_user
-from timestamp_tool import get_timestamp_tool_page, post_timestamp_process
+from timestamp_tool import get_timestamp_tool_page, post_timestamp_tool
 from retrofit_tool import (
     get_retrofit_tool_page, post_retrofit_process,
     get_calc_upload_page, post_calc_upload,
@@ -310,12 +310,9 @@ async def route_post_admin_update(
 def route_timestamp_tool(request: Request):
     return get_timestamp_tool_page(request)
 
-@app.post("/tool/timestamp/process")
-async def route_timestamp_process(
-    request: Request,
-    pdf_file: UploadFile = File(...)
-):
-    return await post_timestamp_process(request, pdf_file)
+@app.post("/api/process-timestamp")
+async def route_timestamp_process(request: Request):
+    return await post_timestamp_tool(request)
 
 
 # ==================== RETROFIT TOOL ROUTES ====================
