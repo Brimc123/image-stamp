@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 # Import modules
-from auth import require_login, require_admin, login_page, register_page, handle_login, handle_register, logout
+from auth import require_active_user_row, require_admin, login_page, register_page, handle_login, handle_register, logout
 from database import get_user_by_id, get_all_users, update_user_status, set_user_credits, update_user_tool_access
 from admin import get_admin_panel
 from billing import get_billing_page, get_topup_page, handle_topup
@@ -39,7 +39,7 @@ def ping():
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
     """Modern glassmorphism dashboard with integrated navigation"""
-    user_row = require_login(request)
+    user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
     
@@ -541,21 +541,21 @@ async def update_user(request: Request):
 
 @app.get("/billing", response_class=HTMLResponse)
 def route_billing(request: Request):
-    user_row = require_login(request)
+    user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
     return get_billing_page(user_row)
 
 @app.get("/billing/topup", response_class=HTMLResponse)
 def route_topup(request: Request):
-    user_row = require_login(request)
+    user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
     return get_topup_page(user_row)
 
 @app.post("/billing/topup")
 async def route_handle_topup(request: Request, amount: float = Form(...)):
-    user_row = require_login(request)
+    user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
     return await handle_topup(user_row, amount)
@@ -566,14 +566,14 @@ async def route_handle_topup(request: Request, amount: float = Form(...)):
 
 @app.get("/tool/timestamp", response_class=HTMLResponse)
 def route_timestamp_tool(request: Request):
-    user_row = require_login(request)
+    user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
     return get_timestamp_tool_page(request)
 
 @app.post("/tool/timestamp/process")
 async def route_timestamp_process(request: Request, images: list[UploadFile] = File(...)):
-    user_row = require_login(request)
+    user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
     return await process_timestamp_images(request, images)
@@ -584,7 +584,7 @@ async def route_timestamp_process(request: Request, images: list[UploadFile] = F
 
 @app.get("/tool/retrofit", response_class=HTMLResponse)
 def route_retrofit_tool(request: Request):
-    user_row = require_login(request)
+    user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
     return get_retrofit_tool_page(request)
