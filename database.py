@@ -145,6 +145,20 @@ def set_user_credits(user_id: int, amount: float):
     save_database(db)
 
 
+def update_user_tool_access(user_id: int, tool_name: str, has_access: bool):
+    """Update user's access to a specific tool"""
+    db = load_database()
+    users = db.get("users", [])
+    
+    for user in users:
+        if user.get("id") == user_id:
+            user[f"{tool_name}_access"] = 1 if has_access else 0
+            break
+    
+    db["users"] = users
+    save_database(db)
+
+
 # ==================== TRANSACTION FUNCTIONS ====================
 
 def get_user_transactions(user_id: int) -> List[Dict]:
