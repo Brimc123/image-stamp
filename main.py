@@ -1,334 +1,355 @@
-from fastapi import FastAPI, Form, Request, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.middleware.cors import CORSMiddleware
-from typing import List
+"""
+AutoDate Main Application - COMPLETE WORKING VERSION
+All routes, admin panel, login, tools integrated
+"""
 
-# Import our modules
-from database import init_db, get_user_by_id
+from fastapi import FastAPI, Request, Form, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
+import uvicorn
+
+# Import modules
 from auth import (
-    get_login_page, post_login,
-    get_signup_page, post_signup,
-    logout, require_active_user_row,
-    is_admin
+    get_login_page, post_login, post_logout, get_register_page, 
+    post_register, require_active_user_row
 )
-from billing import (
-    get_billing_page,
-    get_topup_page,
-    post_topup
+from database import (
+    get_all_users, update_user_status, update_user_credits,
+    get_user_transactions, add_transaction
 )
-from admin import (
-    get_admin_panel,
-    toggle_user_status,
-    toggle_timestamp_access,
-    toggle_retrofit_access,
-    get_admin_billing
-)
-from timestamp_tool import (
-    get_timestamp_tool_page,
-    post_timestamp_tool
-)
+from admin import get_admin_page, post_admin_update_user
+from timestamp_tool import get_timestamp_tool_page, post_timestamp_process
 from retrofit_tool import (
-    get_retrofit_tool_page,
-    get_calc_upload_page,
-    get_retrofit_questions_page
+    get_retrofit_tool_page, post_retrofit_process,
+    get_calc_upload_page, post_calc_upload,
+    get_questions_page, post_questions_submit,
+    get_pdf_download
 )
 
-# Initialize FastAPI app
-app = FastAPI()
+# Initialize FastAPI
+app = FastAPI(title="AutoDate Platform")
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ==================== HOMEPAGE ====================
 
-# Initialize database on startup
-init_db()
-
-# ==================== AUTH ROUTES ====================
-
-@app.get("/login")
-def login_page():
-    return get_login_page()
-
-@app.post("/login")
-def login(email: str = Form(...), password: str = Form(...)):
-    return post_login(email, password)
-
-@app.get("/signup")
-def signup_page():
-    return get_signup_page()
-
-@app.post("/signup")
-def signup(email: str = Form(...), password: str = Form(...)):
-    return post_signup(email, password)
-
-@app.get("/logout")
-def logout_route():
-    return logout()
-
-# ==================== DASHBOARD ====================
-
-@app.get("/")
-async def root(request: Request):
+@app.get("/", response_class=HTMLResponse)
+def homepage(request: Request):
+    """Main dashboard with tool cards"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
-
-    # CRITICAL: Get FRESH user data from database (session has old data!)
-    try:
-        user_id = user_row["id"]
-        fresh_user = get_user_by_id(user_id)
-        if fresh_user:
-            user_row = fresh_user
-    except Exception:
-        pass
     
-    # Get credits from database
-    try:
-        credits = float(user_row.get("credits", 0.0))
-    except Exception:
-        credits = 0.0
-
-    try:
-        has_timestamp_access = user_row.get("timestamp_tool_access", 1) == 1
-    except Exception:
-        has_timestamp_access = True
-
-    try:
-        has_retrofit_access = user_row.get("retrofit_tool_access", 1) == 1
-    except Exception:
-        has_retrofit_access = True
-
-    user_is_admin = is_admin(request)
-
-    admin_card_html = """
-            <div class="tool-card admin-card">
-                <h2>Admin Panel</h2>
-                <p>Manage users, suspensions, and view all billing.</p>
-                <a href="/admin" class="tool-button">Open Admin</a>
-            </div>
-    """ if user_is_admin else ""
-
-    timestamp_card = f"""
-        <div class="tool-card {'disabled-card' if not has_timestamp_access else ''}">
-            <h2>Timestamp Tool</h2>
-            <p>Add timestamps to multiple images with custom date ranges and cropping options.</p>
-            {('<a href="/tool/timestamp" class="tool-button">Open Tool</a>') if has_timestamp_access else '<span class="disabled-text">Access Suspended</span>'}
-        </div>
-    """
-
-    retrofit_card = f"""
-        <div class="tool-card {'disabled-card' if not has_retrofit_access else ''}">
-            <h2>Retrofit Design Tool</h2>
-            <p>Generate PAS 2035 compliant retrofit designs with automated questioning.</p>
-            {('<a href="/tool/retrofit" class="tool-button">Open Tool</a>') if has_retrofit_access else '<span class="disabled-text">Access Suspended</span>'}
-        </div>
-    """
-
-    billing_card_html = """
-        <div class="tool-card">
-            <h2>Billing & Credits</h2>
-            <p>Manage your account credits and view transaction history.</p>
-            <a href="/billing" class="tool-button">View Billing</a>
-        </div>
-    """
-
-    html_content = f"""
+    username = user_row.get("username", "User")
+    credits = float(user_row.get("credits", 0.0))
+    is_admin = user_row.get("is_admin", 0) == 1
+    
+    admin_link = '<a href="/admin" class="nav-link">👑 Admin Panel</a>' if is_admin else ''
+    
+    html = f"""
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Dashboard - AutoDate</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoDate - Dashboard</title>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        body {{ 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
+            padding: 2rem;
         }}
-        .header {{
-            background: white;
-            padding: 20px 40px;
+        
+        .navbar {{
+            background: rgba(255,255,255,0.95);
+            padding: 1rem 2rem;
             border-radius: 15px;
-            margin-bottom: 30px;
+            margin-bottom: 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }}
-        .header h1 {{
-            color: #333;
-            font-size: 32px;
+        
+        .nav-left {{ display: flex; align-items: center; gap: 2rem; }}
+        .logo {{ font-size: 1.5rem; font-weight: 800; color: #667eea; }}
+        .nav-link {{ 
+            text-decoration: none; 
+            color: #4a5568; 
+            font-weight: 600;
+            transition: color 0.3s;
         }}
+        .nav-link:hover {{ color: #667eea; }}
+        
         .user-info {{
             display: flex;
             align-items: center;
-            gap: 20px;
+            gap: 1.5rem;
         }}
+        
         .credits {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: white;
-            padding: 10px 20px;
+            padding: 0.5rem 1.5rem;
             border-radius: 25px;
             font-weight: 600;
-            font-size: 36pt;
+            font-size: 0.9rem;
         }}
-        .logout-btn {{
-            padding: 10px 25px;
-            background: #e74c3c;
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
+        
+        .username {{
             font-weight: 600;
-            transition: background 0.3s;
+            color: #1f2937;
         }}
-        .logout-btn:hover {{
-            background: #c0392b;
+        
+        .logout-btn {{
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 0.5rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
         }}
-        .tools-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            max-width: 1200px;
+        .logout-btn:hover {{ background: #dc2626; transform: translateY(-2px); }}
+        
+        .container {{
+            max-width: 1400px;
             margin: 0 auto;
         }}
-        .tool-card {{
-            background: white;
-            padding: 30px;
+        
+        .welcome {{
+            background: rgba(255,255,255,0.95);
+            padding: 2rem;
             border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            transition: transform 0.3s, box-shadow 0.3s;
+            margin-bottom: 2rem;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }}
+        
+        .welcome h1 {{
+            font-size: 2.5rem;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }}
+        
+        .welcome p {{
+            color: #6b7280;
+            font-size: 1.1rem;
+        }}
+        
+        .tools-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+        }}
+        
+        .tool-card {{
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            padding: 2.5rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }}
+        
         .tool-card:hover {{
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
         }}
-        .tool-card h2 {{
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 24px;
+        
+        .tool-icon {{
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            display: block;
         }}
-        .tool-card p {{
-            color: #666;
-            margin-bottom: 20px;
+        
+        .tool-title {{
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }}
+        
+        .tool-description {{
+            color: #6b7280;
+            font-size: 1rem;
             line-height: 1.6;
+            margin-bottom: 1rem;
         }}
-        .tool-button {{
+        
+        .tool-cost {{
             display: inline-block;
-            padding: 12px 30px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            text-decoration: none;
-            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
             font-weight: 600;
-            transition: transform 0.2s;
+            font-size: 0.9rem;
         }}
-        .tool-button:hover {{ transform: scale(1.05); }}
-        .admin-card {{
-            border: 3px solid #f39c12;
-            background: linear-gradient(135deg, #fff9e6 0%, #ffe6cc 100%);
+        
+        .tool-badge {{
+            display: inline-block;
+            background: #10b981;
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-left: 0.5rem;
         }}
-        .disabled-card {{ opacity: 0.5; background: #f5f5f5; }}
-        .disabled-text {{ color: #e74c3c; font-weight: 600; }}
+        
+        @media (max-width: 768px) {{
+            .tools-grid {{ grid-template-columns: 1fr; }}
+            .navbar {{ flex-direction: column; gap: 1rem; }}
+            .nav-left {{ flex-direction: column; }}
+        }}
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>AutoDate Dashboard</h1>
+    <div class="navbar">
+        <div class="nav-left">
+            <div class="logo">🤖 AutoDate</div>
+            <a href="/" class="nav-link">🏠 Dashboard</a>
+            {admin_link}
+        </div>
         <div class="user-info">
-            <div class="credits">£{credits:.2f}</div>
-            <a href="/logout" class="logout-btn">Logout</a>
+            <div class="username">👤 {username}</div>
+            <div class="credits">💳 £{credits:.2f}</div>
+            <form method="POST" action="/logout" style="margin: 0;">
+                <button type="submit" class="logout-btn">Logout</button>
+            </form>
         </div>
     </div>
-    
-    <div class="tools-grid">
-        {timestamp_card}
-        {retrofit_card}
-        {billing_card_html}
-        {admin_card_html}
+
+    <div class="container">
+        <div class="welcome">
+            <h1>Welcome back, {username}! 👋</h1>
+            <p>Choose a tool to get started with your project automation</p>
+        </div>
+
+        <div class="tools-grid">
+            <a href="/tool/timestamp" class="tool-card">
+                <span class="tool-icon">⏱️</span>
+                <div class="tool-title">Timestamp Tool</div>
+                <div class="tool-description">
+                    Generate professional timestamp documents from PDF schedules. 
+                    Perfect for construction projects and site management.
+                </div>
+                <span class="tool-cost">💰 £5.00 per use</span>
+            </a>
+
+            <a href="/tool/retrofit" class="tool-card">
+                <span class="tool-icon">🏗️</span>
+                <div class="tool-title">Retrofit Design Tool</div>
+                <div class="tool-description">
+                    Create PAS 2035 compliant retrofit design documents. 
+                    Extract data from site notes, condition reports, and calculations.
+                </div>
+                <span class="tool-cost">💰 £10.00 per use</span>
+                <span class="tool-badge">NEW</span>
+            </a>
+        </div>
     </div>
 </body>
 </html>
     """
-    return HTMLResponse(html_content)
+    return HTMLResponse(html)
 
-# ==================== BILLING ROUTES ====================
 
-@app.get("/billing")
-def billing_page(request: Request):
-    return get_billing_page(request)
+# ==================== AUTH ROUTES ====================
 
-@app.get("/topup")
-def topup_page(request: Request):
-    return get_topup_page(request)
+@app.get("/login", response_class=HTMLResponse)
+def route_get_login(request: Request):
+    return get_login_page(request)
 
-@app.post("/topup")
-def topup(request: Request, amount: float = Form(...)):
-    return post_topup(request, amount)
+@app.post("/login")
+async def route_post_login(request: Request, username: str = Form(...), password: str = Form(...)):
+    return await post_login(request, username, password)
+
+@app.post("/logout")
+def route_post_logout(request: Request):
+    return post_logout(request)
+
+@app.get("/register", response_class=HTMLResponse)
+def route_get_register(request: Request):
+    return get_register_page(request)
+
+@app.post("/register")
+async def route_post_register(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...)
+):
+    return await post_register(request, username, password, confirm_password)
+
 
 # ==================== ADMIN ROUTES ====================
 
-@app.get("/admin")
-def admin_page(request: Request):
-    return get_admin_panel(request)
+@app.get("/admin", response_class=HTMLResponse)
+def route_get_admin(request: Request):
+    return get_admin_page(request)
 
-@app.post("/admin/toggle-status")
-def admin_toggle_status(request: Request, user_id: int = Form(...), current_status: str = Form(...)):
-    return toggle_user_status(request, user_id, current_status)
+@app.post("/admin/update-user")
+async def route_post_admin_update(
+    request: Request,
+    user_id: int = Form(...),
+    action: str = Form(...),
+    credits: float = Form(None)
+):
+    return await post_admin_update_user(request, user_id, action, credits)
 
-@app.post("/admin/toggle-timestamp")
-def admin_toggle_timestamp(request: Request, user_id: int = Form(...), current_access: str = Form(...)):
-    return toggle_timestamp_access(request, user_id, current_access)
-
-@app.post("/admin/toggle-retrofit")
-def admin_toggle_retrofit(request: Request, user_id: int = Form(...), current_access: str = Form(...)):
-    return toggle_retrofit_access(request, user_id, current_access)
-
-@app.get("/admin/billing")
-def admin_billing_page(request: Request):
-    return get_admin_billing(request)
 
 # ==================== TIMESTAMP TOOL ROUTES ====================
 
-@app.get("/tool/timestamp")
-def timestamp_tool_page(request: Request):
+@app.get("/tool/timestamp", response_class=HTMLResponse)
+def route_timestamp_tool(request: Request):
     return get_timestamp_tool_page(request)
 
-@app.post("/api/process-timestamp")
-async def process_timestamp(request: Request):
-    return await post_timestamp_tool(request)
+@app.post("/tool/timestamp/process")
+async def route_timestamp_process(
+    request: Request,
+    pdf_file: UploadFile = File(...)
+):
+    return await post_timestamp_process(request, pdf_file)
+
 
 # ==================== RETROFIT TOOL ROUTES ====================
 
-@app.get("/tool/retrofit")
-def retrofit_tool_page(request: Request):
-    """Phase 1: Upload page"""
-    return HTMLResponse(get_retrofit_tool_page())
+@app.get("/tool/retrofit", response_class=HTMLResponse)
+def route_retrofit_tool(request: Request):
+    return get_retrofit_tool_page(request)
 
-# Placeholder routes for phases we haven't built yet
-@app.get("/calc-upload")
-def calc_upload_placeholder(request: Request):
-    """Phase 2: Calc upload - PLACEHOLDER"""
-    return HTMLResponse("<h1>Phase 2: Coming soon...</h1>")
+@app.post("/api/retrofit-process")
+async def route_retrofit_process(request: Request):
+    return await post_retrofit_process(request)
 
-@app.get("/questions")
-def questions_placeholder(request: Request):
-    """Phase 3: Questions - PLACEHOLDER"""
-    return HTMLResponse("<h1>Phase 3: Coming soon...</h1>")
+@app.get("/tool/retrofit/calcs", response_class=HTMLResponse)
+def route_retrofit_calcs(request: Request):
+    return get_calc_upload_page(request)
 
-# ==================== HEALTH CHECK ====================
+@app.post("/api/retrofit-calcs")
+async def route_retrofit_calcs_upload(request: Request):
+    return await post_calc_upload(request)
 
-@app.get("/api/ping")
-def ping():
-    """Health check for Render"""
-    return {"status": "ok"}
+@app.get("/tool/retrofit/questions", response_class=HTMLResponse)
+def route_retrofit_questions(request: Request):
+    return get_questions_page(request)
+
+@app.post("/api/retrofit-questions")
+async def route_retrofit_questions_submit(request: Request):
+    return await post_questions_submit(request)
+
+@app.get("/api/retrofit-pdf")
+def route_retrofit_pdf(request: Request):
+    return get_pdf_download(request)
+
 
 # ==================== RUN SERVER ====================
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
