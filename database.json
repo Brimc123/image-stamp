@@ -1,0 +1,16 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "brimc123@hotmail.com",
+      "password_hash": "a4f9064a8f9d3b33b5c93e3b2fd324b97a70b1d442698ba3586234662cde2266",
+      "is_admin": 1,
+      "is_active": 1,
+      "credits": 45.0,
+      "created_at": "2025-01-20T12:00:00",
+      "retrofit_tool_access": 1,
+      "timestamp_tool_access": 1
+    }
+  ],
+  "transactions": []
+}
