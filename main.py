@@ -1,6 +1,6 @@
 """
-AutoDate Main Application - STUNNING VISUAL REDESIGN
-Modern glassmorphism UI with integrated billing and better navigation
+AutoDate Main Application - WORKING VERSION WITH VISUAL UPGRADE
+Based on main (45).py with stunning new dashboard design
 """
 
 from fastapi import FastAPI, Request, Form, UploadFile, File
@@ -8,12 +8,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-# Import modules
-from auth import require_active_user_row, require_admin, get_login_page, get_register_page, handle_login, handle_register, handle_logout
+# Import modules - EXACTLY AS IN WORKING VERSION
+from auth import require_active_user_row, require_admin, get_login_page, get_register_page, post_login, post_register, post_logout
 from database import get_user_by_id, get_all_users, update_user_status, set_user_credits, update_user_tool_access
 from admin import get_admin_panel
-from billing import get_billing_page, get_topup_page, handle_topup
-from timestamp_tool import get_timestamp_tool_page, process_timestamp_images
+from billing import get_billing_page, get_topup_page, post_topup
+from timestamp_tool import get_timestamp_tool_page, post_timestamp_process
 from retrofit_tool import (
     get_retrofit_tool_page, 
     post_retrofit_process,
@@ -33,7 +33,7 @@ def ping():
     return {"status": "ok"}
 
 # ============================================================================
-# STUNNING DASHBOARD WITH GLASSMORPHISM
+# STUNNING DASHBOARD WITH GLASSMORPHISM - NEW DESIGN!
 # ============================================================================
 
 @app.get("/", response_class=HTMLResponse)
@@ -287,6 +287,8 @@ def dashboard(request: Request):
             position: relative;
             overflow: hidden;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            text-decoration: none;
+            display: block;
         }}
         
         .tool-card::before {{
@@ -430,31 +432,27 @@ def dashboard(request: Request):
         <!-- Tools Grid -->
         <div class="tools-grid">
             <!-- Timestamp Tool Card -->
-            <a href="/tool/timestamp" style="text-decoration: none;">
-                <div class="tool-card">
-                    <span class="tool-icon">⏱️</span>
-                    <h2 class="tool-title">Timestamp Tool</h2>
-                    <p class="tool-description">
-                        Generate professional timestamp documents from PDF schedules. Perfect for construction projects and site management. Add accurate date/time stamps to your images instantly.
-                    </p>
-                    <div class="tool-footer">
-                        <span class="tool-price">💰 £5.00 per use</span>
-                    </div>
+            <a href="/tool/timestamp" class="tool-card">
+                <span class="tool-icon">⏱️</span>
+                <h2 class="tool-title">Timestamp Tool</h2>
+                <p class="tool-description">
+                    Generate professional timestamp documents from PDF schedules. Perfect for construction projects and site management. Add accurate date/time stamps to your images instantly.
+                </p>
+                <div class="tool-footer">
+                    <span class="tool-price">💰 £5.00 per use</span>
                 </div>
             </a>
             
             <!-- Retrofit Design Tool Card -->
-            <a href="/tool/retrofit" style="text-decoration: none;">
-                <div class="tool-card">
-                    <span class="tool-icon">🏗️</span>
-                    <h2 class="tool-title">Retrofit Design Tool</h2>
-                    <p class="tool-description">
-                        Create PAS 2035 compliant retrofit design documents. Extract data from site notes, condition reports, and calculations. Reduce design time from 2-4 hours to 12-18 minutes.
-                    </p>
-                    <div class="tool-footer">
-                        <span class="tool-price">💰 £10.00 per use</span>
-                        <span class="new-badge">✨ New</span>
-                    </div>
+            <a href="/tool/retrofit" class="tool-card">
+                <span class="tool-icon">🏗️</span>
+                <h2 class="tool-title">Retrofit Design Tool</h2>
+                <p class="tool-description">
+                    Create PAS 2035 compliant retrofit design documents. Extract data from site notes, condition reports, and calculations. Reduce design time from 2-4 hours to 12-18 minutes.
+                </p>
+                <div class="tool-footer">
+                    <span class="tool-price">💰 £10.00 per use</span>
+                    <span class="new-badge">✨ New</span>
                 </div>
             </a>
         </div>
@@ -465,7 +463,7 @@ def dashboard(request: Request):
     return HTMLResponse(html)
 
 # ============================================================================
-# AUTH ROUTES
+# AUTH ROUTES - EXACTLY AS IN WORKING VERSION
 # ============================================================================
 
 @app.get("/login", response_class=HTMLResponse)
@@ -473,23 +471,23 @@ def route_login(request: Request):
     return get_login_page(request)
 
 @app.post("/login")
-async def route_handle_login(request: Request, username: str = Form(...), password: str = Form(...)):
-    return await handle_login(request, username, password)
+async def route_post_login(request: Request):
+    return await post_login(request)
 
 @app.get("/register", response_class=HTMLResponse)
 def route_register():
     return get_register_page()
 
 @app.post("/register")
-async def route_handle_register(username: str = Form(...), password: str = Form(...)):
-    return await handle_register(username, password)
+async def route_post_register(request: Request):
+    return await post_register(request)
 
 @app.post("/logout")
 def route_logout(request: Request):
-    return handle_logout(request)
+    return post_logout(request)
 
 # ============================================================================
-# ADMIN ROUTES
+# ADMIN ROUTES - EXACTLY AS IN WORKING VERSION
 # ============================================================================
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -536,7 +534,7 @@ async def update_user(request: Request):
         return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p><a href='/admin'>Back</a>")
 
 # ============================================================================
-# BILLING ROUTES
+# BILLING ROUTES - EXACTLY AS IN WORKING VERSION
 # ============================================================================
 
 @app.get("/billing", response_class=HTMLResponse)
@@ -554,14 +552,14 @@ def route_topup(request: Request):
     return get_topup_page(user_row)
 
 @app.post("/billing/topup")
-async def route_handle_topup(request: Request, amount: float = Form(...)):
+async def route_post_topup(request: Request):
     user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
-    return await handle_topup(user_row, amount)
+    return await post_topup(request, user_row)
 
 # ============================================================================
-# TIMESTAMP TOOL ROUTES
+# TIMESTAMP TOOL ROUTES - EXACTLY AS IN WORKING VERSION
 # ============================================================================
 
 @app.get("/tool/timestamp", response_class=HTMLResponse)
@@ -569,17 +567,17 @@ def route_timestamp_tool(request: Request):
     user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
-    return get_timestamp_tool_page(request)
+    return get_timestamp_tool_page(request, user_row)
 
 @app.post("/tool/timestamp/process")
-async def route_timestamp_process(request: Request, images: list[UploadFile] = File(...)):
+async def route_timestamp_process(request: Request):
     user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
-    return await process_timestamp_images(request, images)
+    return await post_timestamp_process(request, user_row)
 
 # ============================================================================
-# RETROFIT TOOL ROUTES
+# RETROFIT TOOL ROUTES - EXACTLY AS IN WORKING VERSION
 # ============================================================================
 
 @app.get("/tool/retrofit", response_class=HTMLResponse)
