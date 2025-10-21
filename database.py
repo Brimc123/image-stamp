@@ -1,5 +1,5 @@
 """
-Database Module - COMPLETE WORKING VERSION
+Database Module - WITH DEBUG LOGGING
 Handles all database operations with JSON file storage
 """
 
@@ -16,11 +16,14 @@ DB_FILE = "database.json"
 def init_database():
     """Initialize database file if it doesn't exist"""
     if not os.path.exists(DB_FILE):
+        print(f"⚠️ Creating new database file: {DB_FILE}")
         default_db = {
             "users": [],
             "transactions": []
         }
         save_database(default_db)
+    else:
+        print(f"✅ Database file exists: {DB_FILE}")
 
 
 def load_database() -> Dict:
@@ -28,8 +31,11 @@ def load_database() -> Dict:
     init_database()
     try:
         with open(DB_FILE, 'r') as f:
-            return json.load(f)
-    except Exception:
+            db = json.load(f)
+            print(f"📂 Loaded database with {len(db.get('users', []))} users")
+            return db
+    except Exception as e:
+        print(f"❌ Error loading database: {e}")
         return {"users": [], "transactions": []}
 
 
@@ -37,6 +43,7 @@ def save_database(db: Dict):
     """Save database to JSON file"""
     with open(DB_FILE, 'w') as f:
         json.dump(db, f, indent=2)
+    print(f"💾 Saved database with {len(db.get('users', []))} users")
 
 
 # ==================== USER FUNCTIONS ====================
@@ -54,25 +61,36 @@ def get_user_by_id(user_id: int) -> Optional[Dict]:
     
     for user in users:
         if user.get("id") == user_id:
+            print(f"✅ Found user by ID: {user_id}")
             return user
     
+    print(f"❌ User not found by ID: {user_id}")
     return None
 
 
 def get_user_by_username(username: str) -> Optional[Dict]:
     """Get user by username"""
+    print(f"🔍 Searching for user: '{username}'")
     db = load_database()
     users = db.get("users", [])
     
+    print(f"📋 Available usernames: {[u.get('username') for u in users]}")
+    
     for user in users:
-        if user.get("username") == username:
+        user_name = user.get("username")
+        print(f"  Comparing: '{username}' == '{user_name}' ? {username == user_name}")
+        if user_name == username:
+            print(f"✅ MATCH FOUND for user: {username}")
+            print(f"   Password hash: {user.get('password_hash')[:20]}...")
             return user
     
+    print(f"❌ NO MATCH for user: '{username}'")
     return None
 
 
 def create_user(username: str, password_hash: str, is_admin: bool = False) -> int:
     """Create a new user and return user ID"""
+    print(f"➕ Creating new user: {username}")
     db = load_database()
     users = db.get("users", [])
     
@@ -99,6 +117,7 @@ def create_user(username: str, password_hash: str, is_admin: bool = False) -> in
     db["users"] = users
     save_database(db)
     
+    print(f"✅ User created with ID: {new_id}")
     return new_id
 
 
