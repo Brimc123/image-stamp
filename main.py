@@ -1,10 +1,11 @@
 """
 AutoDate Main Application - COMPLETE WORKING VERSION
 All routes, admin panel, login, tools integrated
+FIXED: Retrofit tool routes no longer double-wrap HTMLResponse
 """
 
 from fastapi import FastAPI, Request, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
@@ -28,6 +29,13 @@ from retrofit_tool import (
 
 # Initialize FastAPI
 app = FastAPI(title="AutoDate Platform")
+
+# ==================== HEALTH CHECK ====================
+
+@app.get("/api/ping")
+def health_check():
+    """Health check endpoint for Render"""
+    return {"status": "ok"}
 
 # ==================== HOMEPAGE ====================
 
@@ -315,34 +323,41 @@ async def route_timestamp_process(request: Request):
     return await post_timestamp_tool(request)
 
 
-# ==================== RETROFIT TOOL ROUTES ====================
+# ==================== RETROFIT TOOL ROUTES - FIXED ====================
 
-@app.get("/tool/retrofit", response_class=HTMLResponse)
+@app.get("/tool/retrofit")
 def route_retrofit_tool(request: Request):
+    """FIXED: Function already returns HTMLResponse, don't wrap again"""
     return get_retrofit_tool_page(request)
 
-@app.post("/api/retrofit-process")
+@app.post("/tool/retrofit/process")
 async def route_retrofit_process(request: Request):
+    """FIXED: Changed route to match what the form expects"""
     return await post_retrofit_process(request)
 
-@app.get("/tool/retrofit/calcs", response_class=HTMLResponse)
+@app.get("/tool/retrofit/calcs")
 def route_retrofit_calcs(request: Request):
+    """FIXED: Function already returns HTMLResponse"""
     return get_calc_upload_page(request)
 
-@app.post("/api/retrofit-calcs")
+@app.post("/tool/retrofit/calcs")
 async def route_retrofit_calcs_upload(request: Request):
+    """FIXED: Changed route to match what the form expects"""
     return await post_calc_upload(request)
 
-@app.get("/tool/retrofit/questions", response_class=HTMLResponse)
+@app.get("/tool/retrofit/questions")
 def route_retrofit_questions(request: Request):
+    """FIXED: Function already returns HTMLResponse"""
     return get_questions_page(request)
 
-@app.post("/api/retrofit-questions")
+@app.post("/tool/retrofit/answer")
 async def route_retrofit_questions_submit(request: Request):
+    """FIXED: Changed route to match what the form expects"""
     return await post_questions_submit(request)
 
-@app.get("/api/retrofit-pdf")
+@app.get("/tool/retrofit/download")
 def route_retrofit_pdf(request: Request):
+    """FIXED: Changed route to match expectations"""
     return get_pdf_download(request)
 
 
