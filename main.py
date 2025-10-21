@@ -8,10 +8,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-# Import modules - EXACTLY AS IN WORKING VERSION
+# Import modules - FIXED WITH CORRECT NAMES FROM ERRORS
 from auth import require_active_user_row, require_admin, get_login_page, get_register_page, post_login, post_register, post_logout
 from database import get_user_by_id, get_all_users, update_user_status, set_user_credits, update_user_tool_access
-from admin import get_admin_panel
+from admin import get_admin_page
 from billing import get_billing_page, get_topup_page, post_topup
 from timestamp_tool import get_timestamp_tool_page, post_timestamp_process
 from retrofit_tool import (
@@ -495,7 +495,7 @@ def route_admin(request: Request):
     user_row = require_admin(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
-    return get_admin_panel()
+    return get_admin_page()
 
 @app.post("/admin/update-user")
 async def update_user(request: Request):
