@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 # Import modules
-from auth import require_active_user_row, require_admin, login_page, register_page, handle_login, handle_register, logout
+from auth import require_active_user_row, require_admin, get_login_page, get_register_page, handle_login, handle_register, handle_logout
 from database import get_user_by_id, get_all_users, update_user_status, set_user_credits, update_user_tool_access
 from admin import get_admin_panel
 from billing import get_billing_page, get_topup_page, handle_topup
@@ -470,7 +470,7 @@ def dashboard(request: Request):
 
 @app.get("/login", response_class=HTMLResponse)
 def route_login(request: Request):
-    return login_page(request)
+    return get_login_page(request)
 
 @app.post("/login")
 async def route_handle_login(request: Request, username: str = Form(...), password: str = Form(...)):
@@ -478,7 +478,7 @@ async def route_handle_login(request: Request, username: str = Form(...), passwo
 
 @app.get("/register", response_class=HTMLResponse)
 def route_register():
-    return register_page()
+    return get_register_page()
 
 @app.post("/register")
 async def route_handle_register(username: str = Form(...), password: str = Form(...)):
@@ -486,7 +486,7 @@ async def route_handle_register(username: str = Form(...), password: str = Form(
 
 @app.post("/logout")
 def route_logout(request: Request):
-    return logout(request)
+    return handle_logout(request)
 
 # ============================================================================
 # ADMIN ROUTES
