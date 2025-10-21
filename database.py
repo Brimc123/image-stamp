@@ -1,672 +1,204 @@
 """
-Authentication Module - COMPLETE WORKING VERSION
-Handles login, logout, registration, and session management
+Database Module - COMPLETE WORKING VERSION
+Handles all database operations with JSON file storage
 """
 
-import hashlib
-import secrets
-from typing import Optional, Dict
-from fastapi import Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+import json
+import os
+from typing import Optional, Dict, List
+from datetime import datetime
 
-# Import database functions
-from database import get_user_by_username, create_user, get_user_by_id
+# Database file path
+DB_FILE = "database.json"
 
-# In-memory session storage (replace with Redis in production)
-SESSIONS = {}
+# ==================== DATABASE INITIALIZATION ====================
 
-# ==================== SESSION MANAGEMENT ====================
-
-def create_session(user_id: int) -> str:
-    """Create a new session token"""
-    session_token = secrets.token_urlsafe(32)
-    SESSIONS[session_token] = user_id
-    return session_token
-
-
-def get_user_from_session(session_token: str) -> Optional[int]:
-    """Get user ID from session token"""
-    return SESSIONS.get(session_token)
+def init_database():
+    """Initialize database file if it doesn't exist"""
+    if not os.path.exists(DB_FILE):
+        default_db = {
+            "users": [],
+            "transactions": []
+        }
+        save_database(default_db)
 
 
-def delete_session(session_token: str):
-    """Delete a session"""
-    if session_token in SESSIONS:
-        del SESSIONS[session_token]
+def load_database() -> Dict:
+    """Load database from JSON file"""
+    init_database()
+    try:
+        with open(DB_FILE, 'r') as f:
+            return json.load(f)
+    except Exception:
+        return {"users": [], "transactions": []}
 
 
-# ==================== PASSWORD HASHING ====================
+def save_database(db: Dict):
+    """Save database to JSON file"""
+    with open(DB_FILE, 'w') as f:
+        json.dump(db, f, indent=2)
 
-def hash_password(password: str) -> str:
-    """Hash a password using SHA-256"""
-    return hashlib.sha256(password.encode()).hexdigest()
+
+# ==================== USER FUNCTIONS ====================
+
+def get_all_users() -> List[Dict]:
+    """Get all users from database"""
+    db = load_database()
+    return db.get("users", [])
 
 
-# ==================== AUTH HELPERS ====================
-
-def get_current_user_row(request: Request) -> Optional[Dict]:
-    """Get current user from session cookie"""
-    session_token = request.cookies.get("session_token")
-    if not session_token:
-        return None
+def get_user_by_id(user_id: int) -> Optional[Dict]:
+    """Get user by ID"""
+    db = load_database()
+    users = db.get("users", [])
     
-    user_id = get_user_from_session(session_token)
-    if not user_id:
-        return None
+    for user in users:
+        if user.get("id") == user_id:
+            return user
     
-    return get_user_by_id(user_id)
+    return None
 
 
-def require_active_user_row(request: Request):
-    """Require an active user, redirect to login if not authenticated"""
-    user_row = get_current_user_row(request)
+def get_user_by_username(username: str) -> Optional[Dict]:
+    """Get user by username"""
+    db = load_database()
+    users = db.get("users", [])
     
-    if not user_row:
-        return RedirectResponse(url="/login", status_code=303)
+    for user in users:
+        if user.get("username") == username:
+            return user
     
-    # Check if user is active
-    if user_row.get("is_active", 1) != 1:
-        return HTMLResponse("""
-            <html>
-            <head>
-                <title>Account Suspended</title>
-                <style>
-                    body {
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        min-height: 100vh;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        margin: 0;
-                        padding: 20px;
-                    }
-                    .container {
-                        background: white;
-                        padding: 3rem;
-                        border-radius: 20px;
-                        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-                        text-align: center;
-                        max-width: 500px;
-                    }
-                    h1 {
-                        color: #ef4444;
-                        margin-bottom: 1rem;
-                        font-size: 2rem;
-                    }
-                    p {
-                        color: #6b7280;
-                        line-height: 1.6;
-                        margin-bottom: 2rem;
-                    }
-                    .logout-btn {
-                        background: #ef4444;
-                        color: white;
-                        border: none;
-                        padding: 1rem 2rem;
-                        border-radius: 8px;
-                        cursor: pointer;
-                        font-weight: 600;
-                        font-size: 1rem;
-                        text-decoration: none;
-                        display: inline-block;
-                    }
-                    .logout-btn:hover {
-                        background: #dc2626;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h1>⚠️ Account Suspended</h1>
-                    <p>Your account has been suspended by an administrator. Please contact support for more information.</p>
-                    <form method="POST" action="/logout">
-                        <button type="submit" class="logout-btn">Logout</button>
-                    </form>
-                </div>
-            </body>
-            </html>
-        """)
-    
-    return user_row
+    return None
 
 
-# ==================== LOGIN PAGE ====================
-
-def get_login_page(request: Request):
-    """Display login page"""
-    # If already logged in, redirect to homepage
-    user_row = get_current_user_row(request)
-    if user_row:
-        return RedirectResponse(url="/", status_code=303)
+def create_user(username: str, password_hash: str, is_admin: bool = False) -> int:
+    """Create a new user and return user ID"""
+    db = load_database()
+    users = db.get("users", [])
     
-    html = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - AutoDate</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        
-        .login-container {
-            background: white;
-            padding: 3rem;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            width: 100%;
-            max-width: 450px;
-        }
-        
-        .logo {
-            text-align: center;
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-        
-        h1 {
-            text-align: center;
-            color: #1f2937;
-            margin-bottom: 0.5rem;
-            font-size: 2rem;
-        }
-        
-        .subtitle {
-            text-align: center;
-            color: #6b7280;
-            margin-bottom: 2rem;
-        }
-        
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-        
-        label {
-            display: block;
-            color: #374151;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-        
-        input {
-            width: 100%;
-            padding: 0.75rem;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: border-color 0.3s;
-        }
-        
-        input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        
-        .login-btn {
-            width: 100%;
-            padding: 1rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-        
-        .login-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
-        }
-        
-        .register-link {
-            text-align: center;
-            margin-top: 1.5rem;
-            color: #6b7280;
-        }
-        
-        .register-link a {
-            color: #667eea;
-            text-decoration: none;
-            font-weight: 600;
-        }
-        
-        .register-link a:hover {
-            text-decoration: underline;
-        }
-        
-        .error-message {
-            background: #fee2e2;
-            color: #991b1b;
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            text-align: center;
-        }
-    </style>
-</head>
-<body>
-    <div class="login-container">
-        <div class="logo">🤖</div>
-        <h1>Welcome Back</h1>
-        <p class="subtitle">Sign in to AutoDate</p>
-        
-        <form method="POST" action="/login">
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" required autofocus>
-            </div>
-            
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-            
-            <button type="submit" class="login-btn">Sign In</button>
-        </form>
-        
-        <div class="register-link">
-            Don't have an account? <a href="/register">Create one</a>
-        </div>
-    </div>
-</body>
-</html>
-    """
-    return HTMLResponse(html)
+    # Generate new user ID
+    if users:
+        new_id = max(user.get("id", 0) for user in users) + 1
+    else:
+        new_id = 1
+    
+    # Create new user
+    new_user = {
+        "id": new_id,
+        "username": username,
+        "password_hash": password_hash,
+        "is_admin": 1 if is_admin else 0,
+        "is_active": 1,
+        "credits": 100.0,  # Starting credits
+        "created_at": datetime.now().isoformat(),
+        "retrofit_tool_access": 1,
+        "timestamp_tool_access": 1
+    }
+    
+    users.append(new_user)
+    db["users"] = users
+    save_database(db)
+    
+    return new_id
 
 
-# ==================== LOGIN POST ====================
-
-async def post_login(request: Request, username: str = Form(...), password: str = Form(...)):
-    """Handle login form submission"""
-    # Get user from database
-    user = get_user_by_username(username)
+def update_user_status(user_id: int, is_active: bool):
+    """Update user active status"""
+    db = load_database()
+    users = db.get("users", [])
     
-    if not user:
-        return HTMLResponse("""
-            <html>
-            <head>
-                <meta http-equiv="refresh" content="2;url=/login">
-                <style>
-                    body {
-                        font-family: sans-serif;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        min-height: 100vh;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    }
-                    .error-box {
-                        background: white;
-                        padding: 2rem;
-                        border-radius: 12px;
-                        text-align: center;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="error-box">
-                    <h2>❌ Invalid Credentials</h2>
-                    <p>Redirecting back to login...</p>
-                </div>
-            </body>
-            </html>
-        """)
+    for user in users:
+        if user.get("id") == user_id:
+            user["is_active"] = 1 if is_active else 0
+            break
     
-    # Check password
-    password_hash = hash_password(password)
-    if user["password_hash"] != password_hash:
-        return HTMLResponse("""
-            <html>
-            <head>
-                <meta http-equiv="refresh" content="2;url=/login">
-                <style>
-                    body {
-                        font-family: sans-serif;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        min-height: 100vh;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    }
-                    .error-box {
-                        background: white;
-                        padding: 2rem;
-                        border-radius: 12px;
-                        text-align: center;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="error-box">
-                    <h2>❌ Invalid Credentials</h2>
-                    <p>Redirecting back to login...</p>
-                </div>
-            </body>
-            </html>
-        """)
-    
-    # Check if user is active
-    if user.get("is_active", 1) != 1:
-        return HTMLResponse("""
-            <html>
-            <head>
-                <meta http-equiv="refresh" content="3;url=/login">
-                <style>
-                    body {
-                        font-family: sans-serif;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        min-height: 100vh;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    }
-                    .error-box {
-                        background: white;
-                        padding: 2rem;
-                        border-radius: 12px;
-                        text-align: center;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="error-box">
-                    <h2>⚠️ Account Suspended</h2>
-                    <p>Your account has been suspended. Please contact support.</p>
-                </div>
-            </body>
-            </html>
-        """)
-    
-    # Create session
-    session_token = create_session(user["id"])
-    
-    # Redirect to homepage with session cookie
-    response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie(
-        key="session_token",
-        value=session_token,
-        httponly=True,
-        max_age=86400 * 30  # 30 days
-    )
-    
-    return response
+    db["users"] = users
+    save_database(db)
 
 
-# ==================== LOGOUT ====================
-
-def post_logout(request: Request):
-    """Handle logout - clear session cookie"""
-    session_token = request.cookies.get("session_token")
-    if session_token:
-        delete_session(session_token)
+def update_user_credits(user_id: int, amount: float):
+    """Update user credits (can be positive or negative)"""
+    db = load_database()
+    users = db.get("users", [])
     
-    response = RedirectResponse(url="/login", status_code=303)
-    response.delete_cookie("session_token")
-    return response
-
-
-# ==================== REGISTER PAGE ====================
-
-def get_register_page(request: Request):
-    """Display registration page"""
-    # If already logged in, redirect to homepage
-    user_row = get_current_user_row(request)
-    if user_row:
-        return RedirectResponse(url="/", status_code=303)
+    for user in users:
+        if user.get("id") == user_id:
+            current_credits = float(user.get("credits", 0.0))
+            user["credits"] = current_credits + amount
+            break
     
-    html = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register - AutoDate</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        
-        .register-container {
-            background: white;
-            padding: 3rem;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            width: 100%;
-            max-width: 450px;
-        }
-        
-        .logo {
-            text-align: center;
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-        
-        h1 {
-            text-align: center;
-            color: #1f2937;
-            margin-bottom: 0.5rem;
-            font-size: 2rem;
-        }
-        
-        .subtitle {
-            text-align: center;
-            color: #6b7280;
-            margin-bottom: 2rem;
-        }
-        
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-        
-        label {
-            display: block;
-            color: #374151;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-        
-        input {
-            width: 100%;
-            padding: 0.75rem;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: border-color 0.3s;
-        }
-        
-        input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        
-        .register-btn {
-            width: 100%;
-            padding: 1rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-        
-        .register-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
-        }
-        
-        .login-link {
-            text-align: center;
-            margin-top: 1.5rem;
-            color: #6b7280;
-        }
-        
-        .login-link a {
-            color: #667eea;
-            text-decoration: none;
-            font-weight: 600;
-        }
-        
-        .login-link a:hover {
-            text-decoration: underline;
-        }
-    </style>
-</head>
-<body>
-    <div class="register-container">
-        <div class="logo">🤖</div>
-        <h1>Create Account</h1>
-        <p class="subtitle">Join AutoDate today</p>
-        
-        <form method="POST" action="/register">
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" required autofocus>
-            </div>
-            
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="confirm_password">Confirm Password</label>
-                <input type="password" id="confirm_password" name="confirm_password" required>
-            </div>
-            
-            <button type="submit" class="register-btn">Create Account</button>
-        </form>
-        
-        <div class="login-link">
-            Already have an account? <a href="/login">Sign in</a>
-        </div>
-    </div>
-</body>
-</html>
-    """
-    return HTMLResponse(html)
+    db["users"] = users
+    save_database(db)
 
 
-# ==================== REGISTER POST ====================
+def set_user_credits(user_id: int, amount: float):
+    """Set user credits to exact amount"""
+    db = load_database()
+    users = db.get("users", [])
+    
+    for user in users:
+        if user.get("id") == user_id:
+            user["credits"] = amount
+            break
+    
+    db["users"] = users
+    save_database(db)
 
-async def post_register(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    confirm_password: str = Form(...)
-):
-    """Handle registration form submission"""
+
+# ==================== TRANSACTION FUNCTIONS ====================
+
+def get_user_transactions(user_id: int) -> List[Dict]:
+    """Get all transactions for a user"""
+    db = load_database()
+    transactions = db.get("transactions", [])
     
-    # Check if passwords match
-    if password != confirm_password:
-        return HTMLResponse("""
-            <html>
-            <head>
-                <meta http-equiv="refresh" content="2;url=/register">
-                <style>
-                    body {
-                        font-family: sans-serif;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        min-height: 100vh;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    }
-                    .error-box {
-                        background: white;
-                        padding: 2rem;
-                        border-radius: 12px;
-                        text-align: center;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="error-box">
-                    <h2>❌ Passwords Don't Match</h2>
-                    <p>Redirecting back to registration...</p>
-                </div>
-            </body>
-            </html>
-        """)
+    user_transactions = []
+    for txn in transactions:
+        if txn.get("user_id") == user_id:
+            user_transactions.append(txn)
     
-    # Check if username already exists
-    existing_user = get_user_by_username(username)
-    if existing_user:
-        return HTMLResponse("""
-            <html>
-            <head>
-                <meta http-equiv="refresh" content="2;url=/register">
-                <style>
-                    body {
-                        font-family: sans-serif;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        min-height: 100vh;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    }
-                    .error-box {
-                        background: white;
-                        padding: 2rem;
-                        border-radius: 12px;
-                        text-align: center;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="error-box">
-                    <h2>❌ Username Already Exists</h2>
-                    <p>Please choose a different username...</p>
-                </div>
-            </body>
-            </html>
-        """)
+    # Sort by date, newest first
+    user_transactions.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
     
-    # Create user
-    password_hash = hash_password(password)
-    user_id = create_user(username, password_hash)
+    return user_transactions
+
+
+def add_transaction(user_id: int, amount: float, description: str):
+    """Add a transaction record"""
+    db = load_database()
+    transactions = db.get("transactions", [])
     
-    # Create session
-    session_token = create_session(user_id)
+    # Generate new transaction ID
+    if transactions:
+        new_id = max(txn.get("id", 0) for txn in transactions) + 1
+    else:
+        new_id = 1
     
-    # Redirect to homepage with session cookie
-    response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie(
-        key="session_token",
-        value=session_token,
-        httponly=True,
-        max_age=86400 * 30  # 30 days
-    )
+    # Create new transaction
+    new_txn = {
+        "id": new_id,
+        "user_id": user_id,
+        "amount": amount,
+        "description": description,
+        "timestamp": datetime.now().isoformat()
+    }
     
-    return response
+    transactions.append(new_txn)
+    db["transactions"] = transactions
+    save_database(db)
+
+
+# ==================== ADMIN FUNCTIONS ====================
+
+def get_all_transactions() -> List[Dict]:
+    """Get all transactions (admin only)"""
+    db = load_database()
+    transactions = db.get("transactions", [])
+    transactions.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    return transactions
+
+
+# ==================== INITIALIZE ON IMPORT ====================
+
+# Initialize database when module is imported
+init_database()
