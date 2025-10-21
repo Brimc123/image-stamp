@@ -1,5 +1,5 @@
 """
-Authentication Module - COMPLETE WORKING VERSION
+Authentication Module - WITH PASSWORD DEBUG
 Handles login, logout, registration, and session management
 """
 
@@ -39,7 +39,9 @@ def delete_session(session_token: str):
 
 def hash_password(password: str) -> str:
     """Hash a password using SHA-256"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    hashed = hashlib.sha256(password.encode()).hexdigest()
+    print(f"🔐 Hashed password: {hashed[:20]}...")
+    return hashed
 
 
 # ==================== AUTH HELPERS ====================
@@ -336,10 +338,13 @@ def get_login_page(request: Request):
 
 async def post_login(request: Request, username: str = Form(...), password: str = Form(...)):
     """Handle login form submission"""
+    print(f"🔑 Login attempt for: '{username}'")
+    
     # Get user from database
     user = get_user_by_username(username)
     
     if not user:
+        print(f"❌ User not found: {username}")
         return HTMLResponse("""
             <html>
             <head>
@@ -371,8 +376,16 @@ async def post_login(request: Request, username: str = Form(...), password: str 
         """)
     
     # Check password
+    print(f"📝 Input password: '{password}'")
     password_hash = hash_password(password)
-    if user["password_hash"] != password_hash:
+    stored_hash = user["password_hash"]
+    
+    print(f"🔐 Generated hash: {password_hash}")
+    print(f"💾 Stored hash:    {stored_hash}")
+    print(f"🔍 Match? {password_hash == stored_hash}")
+    
+    if stored_hash != password_hash:
+        print(f"❌ PASSWORD MISMATCH!")
         return HTMLResponse("""
             <html>
             <head>
@@ -436,6 +449,7 @@ async def post_login(request: Request, username: str = Form(...), password: str 
         """)
     
     # Create session
+    print(f"✅ Login successful for: {username}")
     session_token = create_session(user["id"])
     
     # Redirect to homepage with session cookie
