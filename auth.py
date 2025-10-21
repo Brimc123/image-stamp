@@ -1,80 +1,128 @@
-from fastapi import Form, Request, Response
+"""
+Authentication Module - COMPLETE WORKING VERSION
+Handles login, logout, registration, and session management
+"""
+
+import hashlib
+import secrets
+from typing import Optional, Dict
+from fastapi import Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from database import get_user_by_email, create_user
-from config import ADMIN_EMAIL
 
-def is_admin(request: Request) -> bool:
-    """Check if user is admin"""
-    email = request.cookies.get("user_email")
-    return email == ADMIN_EMAIL
+# Import database functions
+from database import get_user_by_username, create_user, get_user_by_id
 
-def set_cookie(response: Response, key: str, value: str):
-    """Set cookie"""
-    response.set_cookie(key=key, value=value, httponly=True, samesite="lax")
+# In-memory session storage (replace with Redis in production)
+SESSIONS = {}
 
-def delete_cookie(response: Response, key: str):
-    """Delete cookie"""
-    response.delete_cookie(key=key)
+# ==================== SESSION MANAGEMENT ====================
+
+def create_session(user_id: int) -> str:
+    """Create a new session token"""
+    session_token = secrets.token_urlsafe(32)
+    SESSIONS[session_token] = user_id
+    return session_token
+
+
+def get_user_from_session(session_token: str) -> Optional[int]:
+    """Get user ID from session token"""
+    return SESSIONS.get(session_token)
+
+
+def delete_session(session_token: str):
+    """Delete a session"""
+    if session_token in SESSIONS:
+        del SESSIONS[session_token]
+
+
+# ==================== PASSWORD HASHING ====================
+
+def hash_password(password: str) -> str:
+    """Hash a password using SHA-256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+# ==================== AUTH HELPERS ====================
+
+def get_current_user_row(request: Request) -> Optional[Dict]:
+    """Get current user from session cookie"""
+    session_token = request.cookies.get("session_token")
+    if not session_token:
+        return None
+    
+    user_id = get_user_from_session(session_token)
+    if not user_id:
+        return None
+    
+    return get_user_by_id(user_id)
+
 
 def require_active_user_row(request: Request):
-    """Check if user is logged in and active"""
-    email = request.cookies.get("user_email")
-    if not email:
-        return RedirectResponse(url="/login", status_code=302)
+    """Require an active user, redirect to login if not authenticated"""
+    user_row = get_current_user_row(request)
     
-    user_row = get_user_by_email(email)
     if not user_row:
-        return RedirectResponse(url="/login", status_code=302)
+        return RedirectResponse(url="/login", status_code=303)
     
-    # Check if account is suspended (but not admin)
-    try:
-        is_active = user_row["is_active"]
-    except (KeyError, TypeError):
-        is_active = 1
-    
-    if is_active == 0 and email != ADMIN_EMAIL:
+    # Check if user is active
+    if user_row.get("is_active", 1) != 1:
         return HTMLResponse("""
-            <!DOCTYPE html>
             <html>
             <head>
                 <title>Account Suspended</title>
                 <style>
                     body {
-                        font-family: Arial, sans-serif;
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
                         display: flex;
                         justify-content: center;
                         align-items: center;
-                        height: 100vh;
-                        margin: 0;
+                        min-height: 100vh;
                         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        margin: 0;
+                        padding: 20px;
                     }
                     .container {
                         background: white;
-                        padding: 40px;
-                        border-radius: 10px;
-                        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+                        padding: 3rem;
+                        border-radius: 20px;
+                        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
                         text-align: center;
-                        max-width: 400px;
+                        max-width: 500px;
                     }
-                    h1 { color: #e74c3c; margin-bottom: 20px; }
-                    p { color: #555; margin-bottom: 30px; }
-                    a {
-                        display: inline-block;
-                        padding: 12px 30px;
-                        background: #667eea;
+                    h1 {
+                        color: #ef4444;
+                        margin-bottom: 1rem;
+                        font-size: 2rem;
+                    }
+                    p {
+                        color: #6b7280;
+                        line-height: 1.6;
+                        margin-bottom: 2rem;
+                    }
+                    .logout-btn {
+                        background: #ef4444;
                         color: white;
+                        border: none;
+                        padding: 1rem 2rem;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        font-size: 1rem;
                         text-decoration: none;
-                        border-radius: 5px;
-                        transition: background 0.3s;
+                        display: inline-block;
                     }
-                    a:hover { background: #764ba2; }
+                    .logout-btn:hover {
+                        background: #dc2626;
+                    }
                 </style>
             </head>
             <body>
                 <div class="container">
-                    <h1>Account Suspended</h1>
-                    <p>Your account has been suspended. Please contact the administrator for assistance.</p>
-                    <a href="/logout">Logout</a>
+                    <h1>⚠️ Account Suspended</h1>
+                    <p>Your account has been suspended by an administrator. Please contact support for more information.</p>
+                    <form method="POST" action="/logout">
+                        <button type="submit" class="logout-btn">Logout</button>
+                    </form>
                 </div>
             </body>
             </html>
@@ -82,252 +130,543 @@ def require_active_user_row(request: Request):
     
     return user_row
 
-# Login page HTML
-LOGIN_HTML = """
+
+# ==================== LOGIN PAGE ====================
+
+def get_login_page(request: Request):
+    """Display login page"""
+    # If already logged in, redirect to homepage
+    user_row = get_current_user_row(request)
+    if user_row:
+        return RedirectResponse(url="/", status_code=303)
+    
+    html = """
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - AutoDate</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
+            padding: 20px;
         }
+        
         .login-container {
             background: white;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            padding: 3rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             width: 100%;
-            max-width: 400px;
+            max-width: 450px;
         }
+        
+        .logo {
+            text-align: center;
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
         h1 {
             text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-            font-size: 28px;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+            font-size: 2rem;
         }
+        
+        .subtitle {
+            text-align: center;
+            color: #6b7280;
+            margin-bottom: 2rem;
+        }
+        
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 1.5rem;
         }
+        
         label {
             display: block;
-            margin-bottom: 8px;
-            color: #555;
-            font-weight: 500;
+            color: #374151;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
         }
+        
         input {
             width: 100%;
-            padding: 12px;
-            border: 2px solid #e0e0e0;
+            padding: 0.75rem;
+            border: 2px solid #e5e7eb;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 1rem;
             transition: border-color 0.3s;
         }
+        
         input:focus {
             outline: none;
             border-color: #667eea;
         }
-        button {
+        
+        .login-btn {
             width: 100%;
-            padding: 14px;
+            padding: 1rem;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
             border-radius: 8px;
-            font-size: 16px;
+            font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s;
+            transition: transform 0.3s, box-shadow 0.3s;
         }
-        button:hover {
+        
+        .login-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
         }
-        .signup-link {
+        
+        .register-link {
             text-align: center;
-            margin-top: 20px;
-            color: #666;
+            margin-top: 1.5rem;
+            color: #6b7280;
         }
-        .signup-link a {
+        
+        .register-link a {
             color: #667eea;
             text-decoration: none;
             font-weight: 600;
         }
-        .signup-link a:hover {
+        
+        .register-link a:hover {
             text-decoration: underline;
+        }
+        
+        .error-message {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            text-align: center;
         }
     </style>
 </head>
 <body>
     <div class="login-container">
-        <h1>Login to AutoDate</h1>
+        <div class="logo">🤖</div>
+        <h1>Welcome Back</h1>
+        <p class="subtitle">Sign in to AutoDate</p>
+        
         <form method="POST" action="/login">
             <div class="form-group">
-                <label>Email</label>
-                <input type="email" name="email" required placeholder="your@email.com">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autofocus>
             </div>
+            
             <div class="form-group">
-                <label>Password</label>
-                <input type="password" name="password" required placeholder="Password">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
             </div>
-            <button type="submit">Login</button>
+            
+            <button type="submit" class="login-btn">Sign In</button>
         </form>
-        <div class="signup-link">
-            Don't have an account? <a href="/signup">Sign up</a>
+        
+        <div class="register-link">
+            Don't have an account? <a href="/register">Create one</a>
         </div>
     </div>
 </body>
 </html>
-"""
+    """
+    return HTMLResponse(html)
 
-# Signup page HTML
-SIGNUP_HTML = """
+
+# ==================== LOGIN POST ====================
+
+async def post_login(request: Request, username: str = Form(...), password: str = Form(...)):
+    """Handle login form submission"""
+    # Get user from database
+    user = get_user_by_username(username)
+    
+    if not user:
+        return HTMLResponse("""
+            <html>
+            <head>
+                <meta http-equiv="refresh" content="2;url=/login">
+                <style>
+                    body {
+                        font-family: sans-serif;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        min-height: 100vh;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    }
+                    .error-box {
+                        background: white;
+                        padding: 2rem;
+                        border-radius: 12px;
+                        text-align: center;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="error-box">
+                    <h2>❌ Invalid Credentials</h2>
+                    <p>Redirecting back to login...</p>
+                </div>
+            </body>
+            </html>
+        """)
+    
+    # Check password
+    password_hash = hash_password(password)
+    if user["password_hash"] != password_hash:
+        return HTMLResponse("""
+            <html>
+            <head>
+                <meta http-equiv="refresh" content="2;url=/login">
+                <style>
+                    body {
+                        font-family: sans-serif;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        min-height: 100vh;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    }
+                    .error-box {
+                        background: white;
+                        padding: 2rem;
+                        border-radius: 12px;
+                        text-align: center;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="error-box">
+                    <h2>❌ Invalid Credentials</h2>
+                    <p>Redirecting back to login...</p>
+                </div>
+            </body>
+            </html>
+        """)
+    
+    # Check if user is active
+    if user.get("is_active", 1) != 1:
+        return HTMLResponse("""
+            <html>
+            <head>
+                <meta http-equiv="refresh" content="3;url=/login">
+                <style>
+                    body {
+                        font-family: sans-serif;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        min-height: 100vh;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    }
+                    .error-box {
+                        background: white;
+                        padding: 2rem;
+                        border-radius: 12px;
+                        text-align: center;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="error-box">
+                    <h2>⚠️ Account Suspended</h2>
+                    <p>Your account has been suspended. Please contact support.</p>
+                </div>
+            </body>
+            </html>
+        """)
+    
+    # Create session
+    session_token = create_session(user["id"])
+    
+    # Redirect to homepage with session cookie
+    response = RedirectResponse(url="/", status_code=303)
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        max_age=86400 * 30  # 30 days
+    )
+    
+    return response
+
+
+# ==================== LOGOUT ====================
+
+def post_logout(request: Request):
+    """Handle logout - clear session cookie"""
+    session_token = request.cookies.get("session_token")
+    if session_token:
+        delete_session(session_token)
+    
+    response = RedirectResponse(url="/login", status_code=303)
+    response.delete_cookie("session_token")
+    return response
+
+
+# ==================== REGISTER PAGE ====================
+
+def get_register_page(request: Request):
+    """Display registration page"""
+    # If already logged in, redirect to homepage
+    user_row = get_current_user_row(request)
+    if user_row:
+        return RedirectResponse(url="/", status_code=303)
+    
+    html = """
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Sign Up - AutoDate</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - AutoDate</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
+            padding: 20px;
         }
-        .signup-container {
+        
+        .register-container {
             background: white;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            padding: 3rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             width: 100%;
-            max-width: 400px;
+            max-width: 450px;
         }
+        
+        .logo {
+            text-align: center;
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
         h1 {
             text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-            font-size: 28px;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+            font-size: 2rem;
         }
+        
+        .subtitle {
+            text-align: center;
+            color: #6b7280;
+            margin-bottom: 2rem;
+        }
+        
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 1.5rem;
         }
+        
         label {
             display: block;
-            margin-bottom: 8px;
-            color: #555;
-            font-weight: 500;
+            color: #374151;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
         }
+        
         input {
             width: 100%;
-            padding: 12px;
-            border: 2px solid #e0e0e0;
+            padding: 0.75rem;
+            border: 2px solid #e5e7eb;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 1rem;
             transition: border-color 0.3s;
         }
+        
         input:focus {
             outline: none;
             border-color: #667eea;
         }
-        button {
+        
+        .register-btn {
             width: 100%;
-            padding: 14px;
+            padding: 1rem;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
             border-radius: 8px;
-            font-size: 16px;
+            font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s;
+            transition: transform 0.3s, box-shadow 0.3s;
         }
-        button:hover {
+        
+        .register-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
         }
+        
         .login-link {
             text-align: center;
-            margin-top: 20px;
-            color: #666;
+            margin-top: 1.5rem;
+            color: #6b7280;
         }
+        
         .login-link a {
             color: #667eea;
             text-decoration: none;
             font-weight: 600;
         }
+        
         .login-link a:hover {
             text-decoration: underline;
         }
     </style>
 </head>
 <body>
-    <div class="signup-container">
+    <div class="register-container">
+        <div class="logo">🤖</div>
         <h1>Create Account</h1>
-        <form method="POST" action="/signup">
+        <p class="subtitle">Join AutoDate today</p>
+        
+        <form method="POST" action="/register">
             <div class="form-group">
-                <label>Email</label>
-                <input type="email" name="email" required placeholder="your@email.com">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autofocus>
             </div>
+            
             <div class="form-group">
-                <label>Password</label>
-                <input type="password" name="password" required placeholder="Password">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
             </div>
-            <button type="submit">Sign Up</button>
+            
+            <div class="form-group">
+                <label for="confirm_password">Confirm Password</label>
+                <input type="password" id="confirm_password" name="confirm_password" required>
+            </div>
+            
+            <button type="submit" class="register-btn">Create Account</button>
         </form>
+        
         <div class="login-link">
-            Already have an account? <a href="/login">Login</a>
+            Already have an account? <a href="/login">Sign in</a>
         </div>
     </div>
 </body>
 </html>
-"""
+    """
+    return HTMLResponse(html)
 
-def get_login_page():
-    """Return login page"""
-    return HTMLResponse(LOGIN_HTML)
 
-def post_login(email: str = Form(...), password: str = Form(...)):
-    """Handle login"""
-    user_row = get_user_by_email(email)
-    if not user_row or user_row["password"] != password:
+# ==================== REGISTER POST ====================
+
+async def post_register(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...)
+):
+    """Handle registration form submission"""
+    
+    # Check if passwords match
+    if password != confirm_password:
         return HTMLResponse("""
-            <script>
-                alert("Invalid credentials!");
-                window.location.href = "/login";
-            </script>
+            <html>
+            <head>
+                <meta http-equiv="refresh" content="2;url=/register">
+                <style>
+                    body {
+                        font-family: sans-serif;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        min-height: 100vh;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    }
+                    .error-box {
+                        background: white;
+                        padding: 2rem;
+                        border-radius: 12px;
+                        text-align: center;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="error-box">
+                    <h2>❌ Passwords Don't Match</h2>
+                    <p>Redirecting back to registration...</p>
+                </div>
+            </body>
+            </html>
         """)
-    resp = RedirectResponse(url="/", status_code=302)
-    set_cookie(resp, "user_email", email)
-    return resp
-
-def get_signup_page():
-    """Return signup page"""
-    return HTMLResponse(SIGNUP_HTML)
-
-def post_signup(email: str = Form(...), password: str = Form(...)):
-    """Handle signup"""
-    user_id = create_user(email, password)
-    if not user_id:
+    
+    # Check if username already exists
+    existing_user = get_user_by_username(username)
+    if existing_user:
         return HTMLResponse("""
-            <script>
-                alert("Email already exists!");
-                window.location.href = "/signup";
-            </script>
+            <html>
+            <head>
+                <meta http-equiv="refresh" content="2;url=/register">
+                <style>
+                    body {
+                        font-family: sans-serif;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        min-height: 100vh;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    }
+                    .error-box {
+                        background: white;
+                        padding: 2rem;
+                        border-radius: 12px;
+                        text-align: center;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="error-box">
+                    <h2>❌ Username Already Exists</h2>
+                    <p>Please choose a different username...</p>
+                </div>
+            </body>
+            </html>
         """)
-    resp = RedirectResponse(url="/", status_code=302)
-    set_cookie(resp, "user_email", email)
-    return resp
-
-def logout():
-    """Handle logout"""
-    resp = RedirectResponse(url="/login", status_code=302)
-    delete_cookie(resp, "user_email")
-    return resp
+    
+    # Create user
+    password_hash = hash_password(password)
+    user_id = create_user(username, password_hash)
+    
+    # Create session
+    session_token = create_session(user_id)
+    
+    # Redirect to homepage with session cookie
+    response = RedirectResponse(url="/", status_code=303)
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        max_age=86400 * 30  # 30 days
+    )
+    
+    return response
