@@ -8,22 +8,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-# Import modules - FIXED WITH CORRECT NAMES FROM ERRORS
+# Import modules - MINIMAL WORKING IMPORTS ONLY
 from auth import require_active_user_row, require_admin, get_login_page, get_register_page, post_login, post_register, post_logout
 from database import get_user_by_id, get_all_users, update_user_status, set_user_credits, update_user_tool_access
 from admin import get_admin_page
 from billing import get_billing_page, get_topup_page, post_topup
 from timestamp_tool import get_timestamp_tool_page, post_timestamp_tool
-from retrofit_tool import (
-    get_retrofit_tool_page, 
-    post_retrofit_process,
-    get_retrofit_calcs_page,
-    post_retrofit_calcs,
-    get_retrofit_questions_page,
-    post_retrofit_answer,
-    get_retrofit_review_page,
-    post_retrofit_complete
-)
 
 app = FastAPI()
 
@@ -444,7 +434,7 @@ def dashboard(request: Request):
             </a>
             
             <!-- Retrofit Design Tool Card -->
-            <a href="/tool/retrofit" class="tool-card">
+            <a href="#" onclick="alert('Retrofit tool coming soon! Working on it.'); return false;" class="tool-card">
                 <span class="tool-icon">🏗️</span>
                 <h2 class="tool-title">Retrofit Design Tool</h2>
                 <p class="tool-description">
@@ -452,7 +442,7 @@ def dashboard(request: Request):
                 </p>
                 <div class="tool-footer">
                     <span class="tool-price">💰 £10.00 per use</span>
-                    <span class="new-badge">✨ New</span>
+                    <span class="new-badge">✨ Coming Soon</span>
                 </div>
             </a>
         </div>
@@ -577,43 +567,17 @@ async def route_timestamp_process(request: Request):
     return await post_timestamp_tool(request, user_row)
 
 # ============================================================================
-# RETROFIT TOOL ROUTES - EXACTLY AS IN WORKING VERSION
+# RETROFIT TOOL ROUTES - COMMENTED OUT FOR NOW
 # ============================================================================
 
-@app.get("/tool/retrofit", response_class=HTMLResponse)
-def route_retrofit_tool(request: Request):
-    user_row = require_active_user_row(request)
-    if isinstance(user_row, RedirectResponse):
-        return user_row
-    return get_retrofit_tool_page(request)
+# Will add retrofit tool routes back once we figure out the correct function names
 
-@app.post("/tool/retrofit/process")
-async def route_retrofit_process(request: Request):
-    return await post_retrofit_process(request)
-
-@app.get("/tool/retrofit/calcs", response_class=HTMLResponse)
-def route_retrofit_calcs(request: Request):
-    return get_retrofit_calcs_page(request)
-
-@app.post("/tool/retrofit/calcs")
-async def route_retrofit_calcs_post(request: Request):
-    return await post_retrofit_calcs(request)
-
-@app.get("/tool/retrofit/questions", response_class=HTMLResponse)
-def route_retrofit_questions(request: Request):
-    return get_retrofit_questions_page(request)
-
-@app.post("/tool/retrofit/answer")
-async def route_retrofit_answer(request: Request):
-    return await post_retrofit_answer(request)
-
-@app.get("/tool/retrofit/review", response_class=HTMLResponse)
-def route_retrofit_review(request: Request):
-    return get_retrofit_review_page(request)
-
-@app.post("/tool/retrofit/complete")
-async def route_retrofit_complete(request: Request):
-    return await post_retrofit_complete(request)
+# @app.get("/tool/retrofit", response_class=HTMLResponse)
+# def route_retrofit_tool(request: Request):
+#     user_row = require_active_user_row(request)
+#     if isinstance(user_row, RedirectResponse):
+#         return user_row
+#     return get_retrofit_tool_page(request)
 
 # ============================================================================
 # RUN SERVER
