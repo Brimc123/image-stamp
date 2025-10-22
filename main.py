@@ -1,19 +1,19 @@
 """
-AutoDate Main Application - WORKING VERSION WITH VISUAL UPGRADE
-Based on main (45).py with stunning new dashboard design
+AutoDate Main Application - FINAL VERSION
+Beautiful glassmorphism UI + All working routes from main (45).py
 """
 
 from fastapi import FastAPI, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-# Import modules - MINIMAL WORKING IMPORTS ONLY
+# EXACT imports from working deployment
 from auth import require_active_user_row, require_admin, get_login_page, get_register_page, post_login, post_register, post_logout
 from database import get_user_by_id, get_all_users, update_user_status, set_user_credits, update_user_tool_access
 from admin import get_admin_page
 from billing import get_billing_page, get_topup_page, post_topup
 from timestamp_tool import get_timestamp_tool_page, post_timestamp_tool
+from retrofit_tool import get_retrofit_tool_page, post_retrofit_tool
 
 app = FastAPI()
 
@@ -23,12 +23,12 @@ def ping():
     return {"status": "ok"}
 
 # ============================================================================
-# STUNNING DASHBOARD WITH GLASSMORPHISM - NEW DESIGN!
+# STUNNING DASHBOARD WITH GLASSMORPHISM
 # ============================================================================
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
-    """Modern glassmorphism dashboard with integrated navigation"""
+    """Modern glassmorphism dashboard"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
@@ -37,7 +37,6 @@ def dashboard(request: Request):
     credits = float(user_row.get("credits", 0.0))
     is_admin = user_row.get("is_admin", 0) == 1
     
-    # Navigation links
     admin_link = f'<a href="/admin" class="nav-link admin-link">👑 Admin</a>' if is_admin else ''
     
     html = f"""
@@ -48,11 +47,7 @@ def dashboard(request: Request):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AutoDate Dashboard</title>
     <style>
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         
         body {{
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -62,7 +57,6 @@ def dashboard(request: Request):
             overflow-x: hidden;
         }}
         
-        /* Animated background particles */
         body::before {{
             content: '';
             position: fixed;
@@ -83,7 +77,6 @@ def dashboard(request: Request):
             50% {{ transform: translateY(-20px) rotate(5deg); }}
         }}
         
-        /* Glassmorphism navigation */
         .navbar {{
             background: rgba(255, 255, 255, 0.15);
             backdrop-filter: blur(20px);
@@ -110,13 +103,8 @@ def dashboard(request: Request):
             transition: transform 0.3s ease;
         }}
         
-        .logo:hover {{
-            transform: scale(1.05);
-        }}
-        
-        .logo-icon {{
-            font-size: 2rem;
-        }}
+        .logo:hover {{ transform: scale(1.05); }}
+        .logo-icon {{ font-size: 2rem; }}
         
         .nav-menu {{
             display: flex;
@@ -184,7 +172,6 @@ def dashboard(request: Request):
             box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
         }}
         
-        /* User info badge */
         .user-badge {{
             display: flex;
             align-items: center;
@@ -196,18 +183,14 @@ def dashboard(request: Request):
             font-weight: 500;
         }}
         
-        .user-icon {{
-            font-size: 1.2rem;
-        }}
+        .user-icon {{ font-size: 1.2rem; }}
         
-        /* Main container */
         .container {{
             max-width: 1400px;
             margin: 0 auto;
             padding: 3rem 2rem;
         }}
         
-        /* Welcome section with glassmorphism */
         .welcome-section {{
             background: rgba(255, 255, 255, 0.15);
             backdrop-filter: blur(20px);
@@ -222,14 +205,8 @@ def dashboard(request: Request):
         }}
         
         @keyframes fadeInUp {{
-            from {{
-                opacity: 0;
-                transform: translateY(30px);
-            }}
-            to {{
-                opacity: 1;
-                transform: translateY(0);
-            }}
+            from {{ opacity: 0; transform: translateY(30px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
         }}
         
         .welcome-title {{
@@ -257,7 +234,6 @@ def dashboard(request: Request):
             75% {{ transform: rotate(-20deg); }}
         }}
         
-        /* Tool cards grid */
         .tools-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
@@ -299,9 +275,7 @@ def dashboard(request: Request):
             border-color: rgba(255, 255, 255, 0.5);
         }}
         
-        .tool-card:hover::before {{
-            opacity: 1;
-        }}
+        .tool-card:hover::before {{ opacity: 1; }}
         
         .tool-icon {{
             font-size: 4rem;
@@ -365,31 +339,15 @@ def dashboard(request: Request):
             50% {{ transform: scale(1.05); }}
         }}
         
-        /* Responsive design */
         @media (max-width: 768px) {{
-            .tools-grid {{
-                grid-template-columns: 1fr;
-            }}
-            
-            .welcome-title {{
-                font-size: 2rem;
-            }}
-            
-            .navbar {{
-                flex-direction: column;
-                gap: 1rem;
-                padding: 1rem;
-            }}
-            
-            .nav-menu {{
-                flex-wrap: wrap;
-                justify-content: center;
-            }}
+            .tools-grid {{ grid-template-columns: 1fr; }}
+            .welcome-title {{ font-size: 2rem; }}
+            .navbar {{ flex-direction: column; gap: 1rem; padding: 1rem; }}
+            .nav-menu {{ flex-wrap: wrap; justify-content: center; }}
         }}
     </style>
 </head>
 <body>
-    <!-- Navigation Bar -->
     <nav class="navbar">
         <a href="/" class="logo">
             <span class="logo-icon">📅</span>
@@ -409,9 +367,7 @@ def dashboard(request: Request):
         </div>
     </nav>
     
-    <!-- Main Content -->
     <div class="container">
-        <!-- Welcome Section -->
         <div class="welcome-section">
             <h1 class="welcome-title">
                 Welcome back, {username.split('@')[0]}! <span class="wave">👋</span>
@@ -419,9 +375,7 @@ def dashboard(request: Request):
             <p class="welcome-subtitle">Choose a tool to get started with your project automation</p>
         </div>
         
-        <!-- Tools Grid -->
         <div class="tools-grid">
-            <!-- Timestamp Tool Card -->
             <a href="/tool/timestamp" class="tool-card">
                 <span class="tool-icon">⏱️</span>
                 <h2 class="tool-title">Timestamp Tool</h2>
@@ -433,8 +387,7 @@ def dashboard(request: Request):
                 </div>
             </a>
             
-            <!-- Retrofit Design Tool Card -->
-            <a href="#" onclick="alert('Retrofit tool coming soon! Working on it.'); return false;" class="tool-card">
+            <a href="/tool/retrofit" class="tool-card">
                 <span class="tool-icon">🏗️</span>
                 <h2 class="tool-title">Retrofit Design Tool</h2>
                 <p class="tool-description">
@@ -442,7 +395,7 @@ def dashboard(request: Request):
                 </p>
                 <div class="tool-footer">
                     <span class="tool-price">💰 £10.00 per use</span>
-                    <span class="new-badge">✨ Coming Soon</span>
+                    <span class="new-badge">✨ New</span>
                 </div>
             </a>
         </div>
@@ -453,7 +406,7 @@ def dashboard(request: Request):
     return HTMLResponse(html)
 
 # ============================================================================
-# AUTH ROUTES - EXACTLY AS IN WORKING VERSION
+# AUTH ROUTES
 # ============================================================================
 
 @app.get("/login", response_class=HTMLResponse)
@@ -477,7 +430,7 @@ def route_logout(request: Request):
     return post_logout(request)
 
 # ============================================================================
-# ADMIN ROUTES - EXACTLY AS IN WORKING VERSION
+# ADMIN ROUTES
 # ============================================================================
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -524,7 +477,7 @@ async def update_user(request: Request):
         return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p><a href='/admin'>Back</a>")
 
 # ============================================================================
-# BILLING ROUTES - EXACTLY AS IN WORKING VERSION
+# BILLING ROUTES
 # ============================================================================
 
 @app.get("/billing", response_class=HTMLResponse)
@@ -549,7 +502,7 @@ async def route_post_topup(request: Request):
     return await post_topup(request, user_row)
 
 # ============================================================================
-# TIMESTAMP TOOL ROUTES - EXACTLY AS IN WORKING VERSION
+# TIMESTAMP TOOL ROUTES
 # ============================================================================
 
 @app.get("/tool/timestamp", response_class=HTMLResponse)
@@ -567,17 +520,22 @@ async def route_timestamp_process(request: Request):
     return await post_timestamp_tool(request, user_row)
 
 # ============================================================================
-# RETROFIT TOOL ROUTES - COMMENTED OUT FOR NOW
+# RETROFIT TOOL ROUTES
 # ============================================================================
 
-# Will add retrofit tool routes back once we figure out the correct function names
+@app.get("/tool/retrofit", response_class=HTMLResponse)
+def route_retrofit_tool(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return get_retrofit_tool_page(request, user_row)
 
-# @app.get("/tool/retrofit", response_class=HTMLResponse)
-# def route_retrofit_tool(request: Request):
-#     user_row = require_active_user_row(request)
-#     if isinstance(user_row, RedirectResponse):
-#         return user_row
-#     return get_retrofit_tool_page(request)
+@app.post("/tool/retrofit/process")
+async def route_retrofit_process(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return await post_retrofit_tool(request, user_row)
 
 # ============================================================================
 # RUN SERVER
