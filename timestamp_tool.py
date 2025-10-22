@@ -17,6 +17,15 @@ from config import (
     FONT_PATHS,
 )
 
+# ============================================================================
+# TIMESTAMP TOOL - FIXED VERSION
+# Changes:
+# 1. Auto-scaling font size based on image dimensions
+# 2. Increased default crop height to 500px
+# 3. Increased max limits (font: 200pt, crop: 1000px)
+# 4. Added user guidance in UI
+# ============================================================================
+
 def _load_font(font_size: int) -> ImageFont.FreeTypeFont:
     last_err = None
     for path in FONT_PATHS:
@@ -64,8 +73,6 @@ def process_timestamp_images(
     num_images = len(files)
     interval_seconds = 0 if num_images <= 1 else (end_dt - start_dt).total_seconds() / (num_images - 1)
 
-    font = _load_font(font_size)
-
     processed_images = []
 
     for idx, file in enumerate(files):
@@ -73,7 +80,16 @@ def process_timestamp_images(
         ts_text = current_dt.strftime("%d %b %Y, %H:%M:%S")
 
         img = Image.open(file.file).convert("RGB")
+        
+        # AUTO-SCALE font based on image height if using default/zero
+        actual_font_size = font_size
+        if font_size == 0 or font_size == DEFAULT_FONT_SIZE:
+            # Scale font to be 3.5% of image height, minimum 60pt
+            actual_font_size = max(60, int(img.height * 0.035))
+        
+        font = _load_font(actual_font_size)
 
+        # Crop from bottom BEFORE adding timestamp
         if crop_height and crop_height > 0:
             w, h = img.size
             img = img.crop((0, 0, w, max(1, h - crop_height)))
@@ -171,6 +187,12 @@ def get_timestamp_tool_page(request: Request):
             color: #333;
             font-weight: 600;
         }}
+        .help-text {{
+            font-size: 13px;
+            color: #666;
+            margin-top: 5px;
+            font-style: italic;
+        }}
         input[type="date"],
         input[type="number"],
         select {{
@@ -246,6 +268,21 @@ def get_timestamp_tool_page(request: Request):
             color: #856404;
             font-weight: 600;
         }}
+        .warning-box {{
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }}
+        .warning-box h4 {{
+            color: #1976d2;
+            margin-bottom: 8px;
+        }}
+        .warning-box ul {{
+            margin-left: 20px;
+            color: #555;
+        }}
     </style>
 </head>
 <body>
@@ -257,6 +294,15 @@ def get_timestamp_tool_page(request: Request):
     <div class="container">
         <div class="cost-info">
             💰 Cost: £{TIMESTAMP_TOOL_COST:.2f} per batch
+        </div>
+        
+        <div class="warning-box">
+            <h4>⚙️ Settings Guide for High-Resolution Images:</h4>
+            <ul>
+                <li><strong>Font Size:</strong> Use 80-120 for phone/tablet photos (1080p+)</li>
+                <li><strong>Crop Height:</strong> Use 400-600 pixels to remove bottom timestamp bars</li>
+                <li><strong>Auto-scaling:</strong> Leave font at 0 for automatic sizing</li>
+            </ul>
         </div>
         
         <form method="POST" action="/tool/timestamp/process" enctype="multipart/form-data" id="timestampForm">
@@ -313,12 +359,14 @@ def get_timestamp_tool_page(request: Request):
             
             <div class="form-group">
                 <label>Font Size (pt)</label>
-                <input type="number" name="font_size" value="{DEFAULT_FONT_SIZE}" min="10" max="100" required>
+                <input type="number" name="font_size" value="0" min="0" max="200" required>
+                <div class="help-text">Use 0 for auto-sizing, or 80-120 for high-res images</div>
             </div>
             
             <div class="form-group">
                 <label>Crop from Bottom (pixels)</label>
-                <input type="number" name="crop_height" value="{DEFAULT_CROP_HEIGHT}" min="0" max="500" required>
+                <input type="number" name="crop_height" value="500" min="0" max="1000" required>
+                <div class="help-text">Removes timestamp bar at bottom. Try 400-600 for phone photos</div>
             </div>
             
             <button type="submit" class="submit-btn">Process Images</button>
