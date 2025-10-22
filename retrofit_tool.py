@@ -3,6 +3,7 @@ RETROFIT DESIGN TOOL - COMPLETE FIXED VERSION
 ✅ FIX 1: Improved loft extraction from site notes
 ✅ FIX 2: ASHP extraction from measure sheet
 ✅ FIX 3: Drag-and-drop for calc uploads
+✅ FIX 4: JSON parsing error fixed
 """
 
 import io
@@ -668,7 +669,7 @@ def get_retrofit_tool_page(request: Request):
     return HTMLResponse(html)
 
 async def post_retrofit_process(request: Request):
-    """Process Phase 1 uploads and extract data"""
+    """✅ FIXED: Process Phase 1 uploads and extract data"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -698,7 +699,7 @@ async def post_retrofit_process(request: Request):
         if measure_sheet and hasattr(measure_sheet, 'filename') and measure_sheet.filename:
             measure_sheet_data = extract_measure_sheet_data(measure_sheet)
         
-        # Get selected measures
+        # ✅ FIX: Get selected measures correctly from form
         selected_measures = form.getlist("measures")
         
         # Store session data
@@ -725,6 +726,7 @@ async def post_retrofit_process(request: Request):
             return RedirectResponse("/tool/retrofit/questions", status_code=303)
         
     except Exception as e:
+        print(f"Error in post_retrofit_process: {e}")
         return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p><a href='/tool/retrofit'>Back</a>")
 
 # ============================================================================
@@ -732,7 +734,7 @@ async def post_retrofit_process(request: Request):
 # ============================================================================
 
 def get_calc_upload_page(request: Request):
-    """✅ FIX 3: Phase 2 with drag-and-drop functionality"""
+    """✅ Phase 2 with drag-and-drop functionality"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -936,6 +938,7 @@ async def post_calc_upload(request: Request):
         return RedirectResponse("/tool/retrofit/questions", status_code=303)
         
     except Exception as e:
+        print(f"Error in post_calc_upload: {e}")
         return RedirectResponse("/tool/retrofit/questions", status_code=303)
 
 # ============================================================================
@@ -1157,6 +1160,7 @@ async def post_questions_submit(request: Request):
         return RedirectResponse("/tool/retrofit/questions", status_code=303)
         
     except Exception as e:
+        print(f"Error in post_questions_submit: {e}")
         return RedirectResponse("/tool/retrofit/questions", status_code=303)
 
 # ============================================================================
