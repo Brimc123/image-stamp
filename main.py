@@ -510,7 +510,7 @@ def route_timestamp_tool(request: Request):
     user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
-    return get_timestamp_tool_page(request, user_row)
+    return get_timestamp_tool_page(request)
 
 @app.post("/tool/timestamp/process")
 async def route_timestamp_process(request: Request):
@@ -528,7 +528,7 @@ def route_retrofit_tool(request: Request):
     user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
-    return get_retrofit_tool_page(request, user_row)
+    return get_retrofit_tool_page(request)
 
 @app.post("/tool/retrofit/process")
 async def route_retrofit_process(request: Request):
