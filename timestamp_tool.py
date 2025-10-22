@@ -259,7 +259,7 @@ def get_timestamp_tool_page(request: Request):
             💰 Cost: £{TIMESTAMP_TOOL_COST:.2f} per batch
         </div>
         
-        <form method="POST" action="/api/process-timestamp" enctype="multipart/form-data" id="timestampForm">
+        <form method="POST" action="/tool/timestamp/process" enctype="multipart/form-data" id="timestampForm">
             <div class="form-group">
                 <label>Upload Images</label>
                 <div class="dropzone" id="dropzone">
@@ -327,7 +327,7 @@ def get_timestamp_tool_page(request: Request):
         <a href="/" class="back-link">← Back to Dashboard</a>
     </div>
     
-        <script>
+    <script>
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
         const fileInfo = document.getElementById('fileInfo');
@@ -366,11 +366,7 @@ def get_timestamp_tool_page(request: Request):
     """
     return HTMLResponse(html_content)
 
-async def post_timestamp_tool(request: Request):
-    user_row = require_active_user_row(request)
-    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
-        return user_row
-
+async def post_timestamp_tool(request: Request, user_row: dict):
     try:
         has_access = user_row.get("timestamp_tool_access", 1) == 1
     except Exception:
