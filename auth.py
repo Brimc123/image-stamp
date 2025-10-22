@@ -238,7 +238,7 @@ async def post_login(request: Request):
     if not user_row.get("is_active", 0):
         return RedirectResponse("/login?error=Account disabled", status_code=303)
     
-    response = RedirectResponse("/dashboard", status_code=303)
+    response = RedirectResponse("/", status_code=303)
     response.set_cookie(key="user_id", value=str(user_row["id"]), httponly=True)
     return response
 
@@ -256,7 +256,7 @@ async def post_register(request: Request):
     password_hash = hash_password(password)
     user_id = create_user(username, password_hash)
     
-    response = RedirectResponse("/dashboard", status_code=303)
+    response = RedirectResponse("/", status_code=303)
     response.set_cookie(key="user_id", value=str(user_id), httponly=True)
     return response
 
