@@ -140,7 +140,7 @@ def get_billing_page(request: Request):
             <p>Available Credits</p>
         </div>
         
-        <a href="/topup" class="topup-btn">Top Up Credits</a>
+        <a href="/billing/topup" class="topup-btn">Top Up Credits</a>
         
         <h2>Transaction History</h2>
         <table>
@@ -268,7 +268,7 @@ def get_topup_page(request: Request):
             <p>Credits are deducted automatically when processing images.</p>
         </div>
         
-        <form method="POST" action="/topup">
+        <form method="POST" action="/billing/topup">
             <div class="form-group">
                 <label>Top-up Amount</label>
                 <input type="number" name="amount" min="{MINIMUM_TOPUP:.0f}" step="0.01" value="{MINIMUM_TOPUP:.0f}" required>
@@ -283,17 +283,16 @@ def get_topup_page(request: Request):
     """
     return HTMLResponse(html_content)
 
-def post_topup(request: Request, amount: float = Form(...)):
+async def post_topup(request: Request, user_row: dict):
     """Process top-up"""
-    user_row = require_active_user_row(request)
-    if isinstance(user_row, (RedirectResponse, HTMLResponse)):
-        return user_row
+    form = await request.form()
+    amount = float(form.get("amount", 0))
     
     if amount < MINIMUM_TOPUP:
         return HTMLResponse(f"""
             <script>
                 alert("Minimum top-up is £{MINIMUM_TOPUP:.2f}");
-                window.location.href = "/topup";
+                window.location.href = "/billing/topup";
             </script>
         """)
     
