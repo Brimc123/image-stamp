@@ -1,331 +1,403 @@
 """
-Authentication Module - WITH PASSWORD DEBUG
-Handles login, logout, registration, and session management
+AutoDate Main Application - FINAL VERSION
+Beautiful glassmorphism UI + All working routes from main (45).py
 """
 
-import hashlib
-import secrets
-from typing import Optional, Dict
-from fastapi import Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Request, Form, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+import uvicorn
 
-# Import database functions
-from database import get_user_by_username, create_user, get_user_by_id
+# EXACT imports from working deployment
+from auth import require_active_user_row, require_admin, get_login_page, get_register_page, post_login, post_register, post_logout
+from database import get_user_by_id, get_all_users, update_user_status, set_user_credits, update_user_tool_access
+from admin import get_admin_page
+from billing import get_billing_page, get_topup_page, post_topup
+from timestamp_tool import get_timestamp_tool_page, post_timestamp_tool
+from retrofit_tool import get_retrofit_tool_page, post_retrofit_process
 
-# In-memory session storage (replace with Redis in production)
-SESSIONS = {}
+app = FastAPI()
 
-# ==================== SESSION MANAGEMENT ====================
+# Health check for Render
+@app.get("/api/ping")
+def ping():
+    return {"status": "ok"}
 
-def create_session(user_id: int) -> str:
-    """Create a new session token"""
-    session_token = secrets.token_urlsafe(32)
-    SESSIONS[session_token] = user_id
-    return session_token
+# ============================================================================
+# STUNNING DASHBOARD WITH GLASSMORPHISM
+# ============================================================================
 
-
-def get_user_from_session(session_token: str) -> Optional[int]:
-    """Get user ID from session token"""
-    return SESSIONS.get(session_token)
-
-
-def delete_session(session_token: str):
-    """Delete a session"""
-    if session_token in SESSIONS:
-        del SESSIONS[session_token]
-
-
-# ==================== PASSWORD HASHING ====================
-
-def hash_password(password: str) -> str:
-    """Hash a password using SHA-256"""
-    hashed = hashlib.sha256(password.encode()).hexdigest()
-    print(f"🔐 Hashed password: {hashed[:20]}...")
-    return hashed
-
-
-# ==================== AUTH HELPERS ====================
-
-def get_current_user_row(request: Request) -> Optional[Dict]:
-    """Get current user from session cookie"""
-    session_token = request.cookies.get("session_token")
-    if not session_token:
-        return None
+@app.get("/", response_class=HTMLResponse)
+def dashboard(request: Request):
+    """Modern glassmorphism dashboard"""
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
     
-    user_id = get_user_from_session(session_token)
-    if not user_id:
-        return None
+    username = user_row.get("username", "User")
+    credits = float(user_row.get("credits", 0.0))
+    is_admin = user_row.get("is_admin", 0) == 1
     
-    return get_user_by_id(user_id)
-
-
-def is_admin(request: Request) -> bool:
-    """Check if current user is an admin"""
-    user_row = get_current_user_row(request)
-    if not user_row:
-        return False
-    return user_row.get("is_admin", 0) == 1
-
-
-def require_admin(request: Request):
-    """Require admin access, redirect if not admin"""
-    user_row = get_current_user_row(request)
+    admin_link = f'<a href="/admin" class="nav-link admin-link">👑 Admin</a>' if is_admin else ''
     
-    if not user_row:
-        return RedirectResponse(url="/login", status_code=303)
-    
-    if user_row.get("is_admin", 0) != 1:
-        return HTMLResponse("""
-            <html>
-            <head>
-                <title>Access Denied</title>
-                <style>
-                    body {
-                        font-family: sans-serif;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        min-height: 100vh;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    }
-                    .error-box {
-                        background: white;
-                        padding: 3rem;
-                        border-radius: 20px;
-                        text-align: center;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="error-box">
-                    <h1>🚫 Access Denied</h1>
-                    <p>You need administrator privileges to access this page.</p>
-                    <a href="/">Back to Dashboard</a>
-                </div>
-            </body>
-            </html>
-        """)
-    
-    return user_row
-
-
-def require_active_user_row(request: Request):
-    """Require an active user, redirect to login if not authenticated"""
-    user_row = get_current_user_row(request)
-    
-    if not user_row:
-        return RedirectResponse(url="/login", status_code=303)
-    
-    # Check if user is active
-    if user_row.get("is_active", 1) != 1:
-        return HTMLResponse("""
-            <html>
-            <head>
-                <title>Account Suspended</title>
-                <style>
-                    body {
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        min-height: 100vh;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        margin: 0;
-                        padding: 20px;
-                    }
-                    .container {
-                        background: white;
-                        padding: 3rem;
-                        border-radius: 20px;
-                        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-                        text-align: center;
-                        max-width: 500px;
-                    }
-                    h1 {
-                        color: #ef4444;
-                        margin-bottom: 1rem;
-                        font-size: 2rem;
-                    }
-                    p {
-                        color: #6b7280;
-                        line-height: 1.6;
-                        margin-bottom: 2rem;
-                    }
-                    .logout-btn {
-                        background: #ef4444;
-                        color: white;
-                        border: none;
-                        padding: 1rem 2rem;
-                        border-radius: 8px;
-                        cursor: pointer;
-                        font-weight: 600;
-                        font-size: 1rem;
-                        text-decoration: none;
-                        display: inline-block;
-                    }
-                    .logout-btn:hover {
-                        background: #dc2626;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h1>⚠️ Account Suspended</h1>
-                    <p>Your account has been suspended by an administrator. Please contact support for more information.</p>
-                    <form method="POST" action="/logout">
-                        <button type="submit" class="logout-btn">Logout</button>
-                    </form>
-                </div>
-            </body>
-            </html>
-        """)
-    
-    return user_row
-
-
-# ==================== LOGIN PAGE ====================
-
-def get_login_page(request: Request):
-    """Display login page"""
-    # If already logged in, redirect to homepage
-    user_row = get_current_user_row(request)
-    if user_row:
-        return RedirectResponse(url="/", status_code=303)
-    
-    html = """
+    html = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - AutoDate</title>
+    <title>AutoDate Dashboard</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        body {{
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
             min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }}
+        
+        body::before {{
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+            animation: float 20s ease-in-out infinite;
+            pointer-events: none;
+        }}
+        
+        @keyframes float {{
+            0%, 100% {{ transform: translateY(0) rotate(0deg); }}
+            50% {{ transform: translateY(-20px) rotate(5deg); }}
+        }}
+        
+        .navbar {{
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            padding: 1.25rem 2rem;
             display: flex;
-            justify-content: center;
+            justify-content: space-between;
             align-items: center;
-            padding: 20px;
-        }
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }}
         
-        .login-container {
-            background: white;
-            padding: 3rem;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            width: 100%;
-            max-width: 450px;
-        }
-        
-        .logo {
-            text-align: center;
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-        
-        h1 {
-            text-align: center;
-            color: #1f2937;
-            margin-bottom: 0.5rem;
-            font-size: 2rem;
-        }
-        
-        .subtitle {
-            text-align: center;
-            color: #6b7280;
-            margin-bottom: 2rem;
-        }
-        
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-        
-        label {
-            display: block;
-            color: #374151;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-        
-        input {
-            width: 100%;
-            padding: 0.75rem;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: border-color 0.3s;
-        }
-        
-        input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        
-        .login-btn {
-            width: 100%;
-            padding: 1rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        .logo {{
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
             color: white;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-decoration: none;
+            transition: transform 0.3s ease;
+        }}
+        
+        .logo:hover {{ transform: scale(1.05); }}
+        .logo-icon {{ font-size: 2rem; }}
+        
+        .nav-menu {{
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }}
+        
+        .nav-link {{
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }}
+        
+        .nav-link:hover {{
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }}
+        
+        .admin-link {{
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
             border: none;
-            border-radius: 8px;
-            font-size: 1rem;
+            font-weight: 600;
+        }}
+        
+        .credits-badge {{
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 0.5rem 1.25rem;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }}
+        
+        .credits-badge:hover {{
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+        }}
+        
+        .logout-btn {{
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            border: none;
+            padding: 0.5rem 1.25rem;
+            border-radius: 12px;
+            color: white;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }}
         
-        .login-btn:hover {
+        .logout-btn:hover {{
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
-        }
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+        }}
         
-        .register-link {
+        .user-badge {{
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 12px;
+            color: white;
+            font-weight: 500;
+        }}
+        
+        .user-icon {{ font-size: 1.2rem; }}
+        
+        .container {{
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }}
+        
+        .welcome-section {{
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 24px;
+            padding: 3rem;
             text-align: center;
-            margin-top: 1.5rem;
-            color: #6b7280;
-        }
+            margin-bottom: 3rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            animation: fadeInUp 0.6s ease;
+        }}
         
-        .register-link a {
-            color: #667eea;
+        @keyframes fadeInUp {{
+            from {{ opacity: 0; transform: translateY(30px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+        
+        .welcome-title {{
+            color: white;
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }}
+        
+        .welcome-subtitle {{
+            color: rgba(255, 255, 255, 0.95);
+            font-size: 1.25rem;
+            font-weight: 400;
+        }}
+        
+        .wave {{
+            display: inline-block;
+            animation: wave 2s ease-in-out infinite;
+        }}
+        
+        @keyframes wave {{
+            0%, 100% {{ transform: rotate(0deg); }}
+            25% {{ transform: rotate(20deg); }}
+            75% {{ transform: rotate(-20deg); }}
+        }}
+        
+        .tools-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 2rem;
+            animation: fadeInUp 0.8s ease 0.2s both;
+        }}
+        
+        .tool-card {{
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 24px;
+            padding: 2.5rem;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             text-decoration: none;
-            font-weight: 600;
-        }
+            display: block;
+        }}
         
-        .register-link a:hover {
-            text-decoration: underline;
-        }
+        .tool-card::before {{
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }}
+        
+        .tool-card:hover {{
+            transform: translateY(-10px) scale(1.02);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+        }}
+        
+        .tool-card:hover::before {{ opacity: 1; }}
+        
+        .tool-icon {{
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+            display: block;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+            transition: transform 0.4s ease;
+        }}
+        
+        .tool-card:hover .tool-icon {{
+            transform: scale(1.1) rotate(5deg);
+        }}
+        
+        .tool-title {{
+            color: white;
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }}
+        
+        .tool-description {{
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }}
+        
+        .tool-footer {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1.5rem;
+        }}
+        
+        .tool-price {{
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }}
+        
+        .new-badge {{
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+            color: white;
+            padding: 0.4rem 1rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 12px rgba(6, 182, 212, 0.4);
+            animation: pulse 2s ease-in-out infinite;
+        }}
+        
+        @keyframes pulse {{
+            0%, 100% {{ transform: scale(1); }}
+            50% {{ transform: scale(1.05); }}
+        }}
+        
+        @media (max-width: 768px) {{
+            .tools-grid {{ grid-template-columns: 1fr; }}
+            .welcome-title {{ font-size: 2rem; }}
+            .navbar {{ flex-direction: column; gap: 1rem; padding: 1rem; }}
+            .nav-menu {{ flex-wrap: wrap; justify-content: center; }}
+        }}
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <div class="logo">🤖</div>
-        <h1>Welcome Back</h1>
-        <p class="subtitle">Sign in to AutoDate</p>
-        
-        <form method="POST" action="/login">
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" required autofocus>
+    <nav class="navbar">
+        <a href="/" class="logo">
+            <span class="logo-icon">📅</span>
+            <span>AutoDate</span>
+        </a>
+        <div class="nav-menu">
+            <div class="user-badge">
+                <span class="user-icon">👤</span>
+                {username}
             </div>
-            
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-            
-            <button type="submit" class="login-btn">Sign In</button>
-        </form>
+            <a href="/" class="nav-link">🏠 Dashboard</a>
+            {admin_link}
+            <a href="/billing" class="credits-badge">💳 £{credits:.2f}</a>
+            <form action="/logout" method="post" style="display: inline;">
+                <button type="submit" class="logout-btn">Logout</button>
+            </form>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <div class="welcome-section">
+            <h1 class="welcome-title">
+                Welcome back, {username.split('@')[0]}! <span class="wave">👋</span>
+            </h1>
+            <p class="welcome-subtitle">Choose a tool to get started with your project automation</p>
+        </div>
         
-        <div class="register-link">
-            Don't have an account? <a href="/register">Create one</a>
+        <div class="tools-grid">
+            <a href="/tool/timestamp" class="tool-card">
+                <span class="tool-icon">⏱️</span>
+                <h2 class="tool-title">Timestamp Tool</h2>
+                <p class="tool-description">
+                    Generate professional timestamp documents from PDF schedules. Perfect for construction projects and site management. Add accurate date/time stamps to your images instantly.
+                </p>
+                <div class="tool-footer">
+                    <span class="tool-price">💰 £5.00 per use</span>
+                </div>
+            </a>
+            
+            <a href="/tool/retrofit" class="tool-card">
+                <span class="tool-icon">🏗️</span>
+                <h2 class="tool-title">Retrofit Design Tool</h2>
+                <p class="tool-description">
+                    Create PAS 2035 compliant retrofit design documents. Extract data from site notes, condition reports, and calculations. Reduce design time from 2-4 hours to 12-18 minutes.
+                </p>
+                <div class="tool-footer">
+                    <span class="tool-price">💰 £10.00 per use</span>
+                    <span class="new-badge">✨ New</span>
+                </div>
+            </a>
         </div>
     </div>
 </body>
@@ -333,395 +405,141 @@ def get_login_page(request: Request):
     """
     return HTMLResponse(html)
 
+# ============================================================================
+# AUTH ROUTES
+# ============================================================================
 
-# ==================== LOGIN POST ====================
+@app.get("/login", response_class=HTMLResponse)
+def route_login(request: Request):
+    return get_login_page(request)
 
-async def post_login(request: Request, username: str = Form(...), password: str = Form(...)):
-    """Handle login form submission"""
-    print(f"🔑 Login attempt for: '{username}'")
-    
-    # Get user from database
-    user = get_user_by_username(username)
-    
-    if not user:
-        print(f"❌ User not found: {username}")
-        return HTMLResponse("""
-            <html>
-            <head>
-                <meta http-equiv="refresh" content="2;url=/login">
-                <style>
-                    body {
-                        font-family: sans-serif;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        min-height: 100vh;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    }
-                    .error-box {
-                        background: white;
-                        padding: 2rem;
-                        border-radius: 12px;
-                        text-align: center;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="error-box">
-                    <h2>❌ Invalid Credentials</h2>
-                    <p>Redirecting back to login...</p>
-                </div>
-            </body>
-            </html>
-        """)
-    
-    # Check password
-    print(f"📝 Input password: '{password}'")
-    password_hash = hash_password(password)
-    stored_hash = user["password_hash"]
-    
-    print(f"🔐 Generated hash: {password_hash}")
-    print(f"💾 Stored hash:    {stored_hash}")
-    print(f"🔍 Match? {password_hash == stored_hash}")
-    
-    if stored_hash != password_hash:
-        print(f"❌ PASSWORD MISMATCH!")
-        return HTMLResponse("""
-            <html>
-            <head>
-                <meta http-equiv="refresh" content="2;url=/login">
-                <style>
-                    body {
-                        font-family: sans-serif;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        min-height: 100vh;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    }
-                    .error-box {
-                        background: white;
-                        padding: 2rem;
-                        border-radius: 12px;
-                        text-align: center;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="error-box">
-                    <h2>❌ Invalid Credentials</h2>
-                    <p>Redirecting back to login...</p>
-                </div>
-            </body>
-            </html>
-        """)
-    
-    # Check if user is active
-    if user.get("is_active", 1) != 1:
-        return HTMLResponse("""
-            <html>
-            <head>
-                <meta http-equiv="refresh" content="3;url=/login">
-                <style>
-                    body {
-                        font-family: sans-serif;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        min-height: 100vh;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    }
-                    .error-box {
-                        background: white;
-                        padding: 2rem;
-                        border-radius: 12px;
-                        text-align: center;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="error-box">
-                    <h2>⚠️ Account Suspended</h2>
-                    <p>Your account has been suspended. Please contact support.</p>
-                </div>
-            </body>
-            </html>
-        """)
-    
-    # Create session
-    print(f"✅ Login successful for: {username}")
-    session_token = create_session(user["id"])
-    
-    # Redirect to homepage with session cookie
-    response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie(
-        key="session_token",
-        value=session_token,
-        httponly=True,
-        max_age=86400 * 30  # 30 days
-    )
-    
-    return response
+@app.post("/login")
+async def route_post_login(request: Request):
+    return await post_login(request)
 
+@app.get("/register", response_class=HTMLResponse)
+def route_register():
+    return get_register_page()
 
-# ==================== LOGOUT ====================
+@app.post("/register")
+async def route_post_register(request: Request):
+    return await post_register(request)
 
-def post_logout(request: Request):
-    """Handle logout - clear session cookie"""
-    session_token = request.cookies.get("session_token")
-    if session_token:
-        delete_session(session_token)
-    
-    response = RedirectResponse(url="/login", status_code=303)
-    response.delete_cookie("session_token")
-    return response
+@app.post("/logout")
+def route_logout(request: Request):
+    return post_logout(request)
 
+# ============================================================================
+# ADMIN ROUTES
+# ============================================================================
 
-# ==================== REGISTER PAGE ====================
+@app.get("/admin", response_class=HTMLResponse)
+def route_admin(request: Request):
+    user_row = require_admin(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return get_admin_page()
 
-def get_register_page(request: Request):
-    """Display registration page"""
-    # If already logged in, redirect to homepage
-    user_row = get_current_user_row(request)
-    if user_row:
-        return RedirectResponse(url="/", status_code=303)
+@app.post("/admin/update-user")
+async def update_user(request: Request):
+    user_row = require_admin(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
     
-    html = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register - AutoDate</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    try:
+        form = await request.form()
+        user_id = int(form.get("user_id"))
+        action = form.get("action")
         
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
+        if action == "toggle_active":
+            users = get_all_users()
+            target_user = next((u for u in users if u["id"] == user_id), None)
+            if target_user:
+                new_status = 0 if target_user.get("is_active", 1) == 1 else 1
+                update_user_status(user_id, new_status)
         
-        .register-container {
-            background: white;
-            padding: 3rem;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            width: 100%;
-            max-width: 450px;
-        }
+        elif action == "set_credits":
+            credits = float(form.get("credits", 0))
+            set_user_credits(user_id, credits)
         
-        .logo {
-            text-align: center;
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
+        elif action in ["toggle_timestamp", "toggle_retrofit"]:
+            tool_name = "timestamp_tool_access" if "timestamp" in action else "retrofit_tool_access"
+            users = get_all_users()
+            target_user = next((u for u in users if u["id"] == user_id), None)
+            if target_user:
+                current_access = target_user.get(tool_name, 1)
+                new_access = 0 if current_access == 1 else 1
+                update_user_tool_access(user_id, tool_name, new_access)
         
-        h1 {
-            text-align: center;
-            color: #1f2937;
-            margin-bottom: 0.5rem;
-            font-size: 2rem;
-        }
-        
-        .subtitle {
-            text-align: center;
-            color: #6b7280;
-            margin-bottom: 2rem;
-        }
-        
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-        
-        label {
-            display: block;
-            color: #374151;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-        
-        input {
-            width: 100%;
-            padding: 0.75rem;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: border-color 0.3s;
-        }
-        
-        input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        
-        .register-btn {
-            width: 100%;
-            padding: 1rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-        
-        .register-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
-        }
-        
-        .login-link {
-            text-align: center;
-            margin-top: 1.5rem;
-            color: #6b7280;
-        }
-        
-        .login-link a {
-            color: #667eea;
-            text-decoration: none;
-            font-weight: 600;
-        }
-        
-        .login-link a:hover {
-            text-decoration: underline;
-        }
-    </style>
-</head>
-<body>
-    <div class="register-container">
-        <div class="logo">🤖</div>
-        <h1>Create Account</h1>
-        <p class="subtitle">Join AutoDate today</p>
-        
-        <form method="POST" action="/register">
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" required autofocus>
-            </div>
-            
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="confirm_password">Confirm Password</label>
-                <input type="password" id="confirm_password" name="confirm_password" required>
-            </div>
-            
-            <button type="submit" class="register-btn">Create Account</button>
-        </form>
-        
-        <div class="login-link">
-            Already have an account? <a href="/login">Sign in</a>
-        </div>
-    </div>
-</body>
-</html>
-    """
-    return HTMLResponse(html)
+        return RedirectResponse("/admin", status_code=303)
+    
+    except Exception as e:
+        return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p><a href='/admin'>Back</a>")
 
+# ============================================================================
+# BILLING ROUTES
+# ============================================================================
 
-# ==================== REGISTER POST ====================
+@app.get("/billing", response_class=HTMLResponse)
+def route_billing(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return get_billing_page(user_row)
 
-async def post_register(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    confirm_password: str = Form(...)
-):
-    """Handle registration form submission"""
-    
-    # Check if passwords match
-    if password != confirm_password:
-        return HTMLResponse("""
-            <html>
-            <head>
-                <meta http-equiv="refresh" content="2;url=/register">
-                <style>
-                    body {
-                        font-family: sans-serif;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        min-height: 100vh;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    }
-                    .error-box {
-                        background: white;
-                        padding: 2rem;
-                        border-radius: 12px;
-                        text-align: center;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="error-box">
-                    <h2>❌ Passwords Don't Match</h2>
-                    <p>Redirecting back to registration...</p>
-                </div>
-            </body>
-            </html>
-        """)
-    
-    # Check if username already exists
-    existing_user = get_user_by_username(username)
-    if existing_user:
-        return HTMLResponse("""
-            <html>
-            <head>
-                <meta http-equiv="refresh" content="2;url=/register">
-                <style>
-                    body {
-                        font-family: sans-serif;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        min-height: 100vh;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    }
-                    .error-box {
-                        background: white;
-                        padding: 2rem;
-                        border-radius: 12px;
-                        text-align: center;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="error-box">
-                    <h2>❌ Username Already Exists</h2>
-                    <p>Please choose a different username...</p>
-                </div>
-            </body>
-            </html>
-        """)
-    
-    # Create user
-    password_hash = hash_password(password)
-    user_id = create_user(username, password_hash)
-    
-    # Create session
-    session_token = create_session(user_id)
-    
-    # Redirect to homepage with session cookie
-    response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie(
-        key="session_token",
-        value=session_token,
-        httponly=True,
-        max_age=86400 * 30  # 30 days
-    )
-    
-    return response
+@app.get("/billing/topup", response_class=HTMLResponse)
+def route_topup(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return get_topup_page(user_row)
+
+@app.post("/billing/topup")
+async def route_post_topup(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return await post_topup(request, user_row)
+
+# ============================================================================
+# TIMESTAMP TOOL ROUTES
+# ============================================================================
+
+@app.get("/tool/timestamp", response_class=HTMLResponse)
+def route_timestamp_tool(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return get_timestamp_tool_page(request, user_row)
+
+@app.post("/tool/timestamp/process")
+async def route_timestamp_process(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return await post_timestamp_tool(request, user_row)
+
+# ============================================================================
+# RETROFIT TOOL ROUTES
+# ============================================================================
+
+@app.get("/tool/retrofit", response_class=HTMLResponse)
+def route_retrofit_tool(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return get_retrofit_tool_page(request, user_row)
+
+@app.post("/tool/retrofit/process")
+async def route_retrofit_process(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return await post_retrofit_process(request, user_row)
+
+# ============================================================================
+# RUN SERVER
+# ============================================================================
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
