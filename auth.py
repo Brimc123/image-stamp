@@ -1,6 +1,6 @@
 """
-Authentication Module - CORRECT VERSION
-This defines all auth functions that main.py imports
+Authentication Module - FIXED VERSION
+NO circular imports - only imports what it needs
 """
 
 from fastapi import Request, Form
