@@ -1,6 +1,6 @@
 """
-Authentication Module - FIXED VERSION
-NO circular imports - only imports what it needs
+Authentication Module - CORRECT VERSION
+This defines all auth functions that main.py imports
 """
 
 from fastapi import Request, Form
@@ -261,7 +261,7 @@ async def post_register(request: Request):
     return response
 
 
-def handle_logout():
+def post_logout(request: Request):
     """Handle logout"""
     response = RedirectResponse("/login", status_code=303)
     response.delete_cookie("user_id")
