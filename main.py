@@ -438,7 +438,7 @@ def route_admin(request: Request):
     user_row = require_admin(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
-    return get_admin_page()
+    return get_admin_page(request)
 
 @app.post("/admin/update-user")
 async def update_user(request: Request):
@@ -485,14 +485,14 @@ def route_billing(request: Request):
     user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
-    return get_billing_page(user_row)
+    return get_billing_page(request)
 
 @app.get("/billing/topup", response_class=HTMLResponse)
 def route_topup(request: Request):
     user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
-    return get_topup_page(user_row)
+    return get_topup_page(request)
 
 @app.post("/billing/topup")
 async def route_post_topup(request: Request):
