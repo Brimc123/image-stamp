@@ -18,12 +18,12 @@ from config import (
 )
 
 # ============================================================================
-# TIMESTAMP TOOL - FIXED VERSION
+# TIMESTAMP TOOL - FIXED VERSION v2
 # Changes:
-# 1. Auto-scaling font size based on image dimensions
-# 2. Increased default crop height to 500px
-# 3. Increased max limits (font: 200pt, crop: 1000px)
-# 4. Added user guidance in UI
+# 1. Reduced font scaling from 3.5% to 2.2% of image height
+# 2. Minimal outline (1px) with softer dark grey color
+# 3. Better auto-scaling for high-res images
+# 4. Matches reference image styling
 # ============================================================================
 
 def _load_font(font_size: int) -> ImageFont.FreeTypeFont:
@@ -40,6 +40,10 @@ def _load_font(font_size: int) -> ImageFont.FreeTypeFont:
         raise last_err or RuntimeError("Unable to load any font.")
 
 def _draw_timestamp(img: Image.Image, text: str, font: ImageFont.FreeTypeFont) -> Image.Image:
+    """
+    Draws timestamp with minimal outline to match reference style.
+    Uses 1px dark grey outline instead of thick black outline.
+    """
     draw = ImageDraw.Draw(img)
     bbox = draw.textbbox((0, 0), text, font=font)
     text_w = bbox[2] - bbox[0]
@@ -48,10 +52,16 @@ def _draw_timestamp(img: Image.Image, text: str, font: ImageFont.FreeTypeFont) -
     x = img.width - text_w - TIMESTAMP_PADDING
     y = img.height - text_h - TIMESTAMP_PADDING
 
-    for dx in range(-OUTLINE_WIDTH, OUTLINE_WIDTH + 1):
-        for dy in range(-OUTLINE_WIDTH, OUTLINE_WIDTH + 1):
-            draw.text((x + dx, y + dy), text, font=font, fill=(0, 0, 0))
+    # Draw minimal 1-pixel outline in dark grey (not pure black)
+    # This creates subtle shadow effect like in reference image
+    outline_color = (40, 40, 40)  # Dark grey instead of (0, 0, 0)
+    
+    for dx in [-1, 0, 1]:
+        for dy in [-1, 0, 1]:
+            if dx != 0 or dy != 0:  # Skip center (that's where white text goes)
+                draw.text((x + dx, y + dy), text, font=font, fill=outline_color)
 
+    # Draw main white text on top
     draw.text((x, y), text, font=font, fill=(255, 255, 255))
     return img
 
@@ -81,11 +91,13 @@ def process_timestamp_images(
 
         img = Image.open(file.file).convert("RGB")
         
-        # AUTO-SCALE font based on image height if using default/zero
+        # AUTO-SCALE font based on image height
+        # Reduced from 3.5% to 2.2% for more reasonable sizing
         actual_font_size = font_size
         if font_size == 0 or font_size == DEFAULT_FONT_SIZE:
-            # Scale font to be 3.5% of image height, minimum 60pt
-            actual_font_size = max(60, int(img.height * 0.035))
+            # New formula: 2.2% of image height
+            # 1080px -> 24pt, 1920px -> 42pt, 2160px -> 48pt
+            actual_font_size = max(24, int(img.height * 0.022))
         
         font = _load_font(actual_font_size)
 
@@ -282,6 +294,7 @@ def get_timestamp_tool_page(request: Request):
         .warning-box ul {{
             margin-left: 20px;
             color: #555;
+            line-height: 1.6;
         }}
     </style>
 </head>
@@ -297,11 +310,11 @@ def get_timestamp_tool_page(request: Request):
         </div>
         
         <div class="warning-box">
-            <h4>⚙️ Settings Guide for High-Resolution Images:</h4>
+            <h4>⚙️ Recommended Settings:</h4>
             <ul>
-                <li><strong>Font Size:</strong> Use 80-120 for phone/tablet photos (1080p+)</li>
-                <li><strong>Crop Height:</strong> Use 400-600 pixels to remove bottom timestamp bars</li>
-                <li><strong>Auto-scaling:</strong> Leave font at 0 for automatic sizing</li>
+                <li><strong>Font Size:</strong> Use <strong>0</strong> for automatic sizing (recommended), or 30-50 for manual control</li>
+                <li><strong>Crop Height:</strong> Use <strong>500</strong> pixels to remove bottom timestamp bars from phone images</li>
+                <li><strong>Auto-scale works best:</strong> Set font to 0 and let the tool calculate the right size</li>
             </ul>
         </div>
         
@@ -359,14 +372,14 @@ def get_timestamp_tool_page(request: Request):
             
             <div class="form-group">
                 <label>Font Size (pt)</label>
-                <input type="number" name="font_size" value="0" min="0" max="200" required>
-                <div class="help-text">Use 0 for auto-sizing, or 80-120 for high-res images</div>
+                <input type="number" name="font_size" value="0" min="0" max="150" required>
+                <div class="help-text">Set to 0 for automatic sizing (recommended), or use 30-50 for manual sizing</div>
             </div>
             
             <div class="form-group">
                 <label>Crop from Bottom (pixels)</label>
                 <input type="number" name="crop_height" value="500" min="0" max="1000" required>
-                <div class="help-text">Removes timestamp bar at bottom. Try 400-600 for phone photos</div>
+                <div class="help-text">Removes bottom info bar. Use 500 for phone images, 0 for no cropping</div>
             </div>
             
             <button type="submit" class="submit-btn">Process Images</button>
