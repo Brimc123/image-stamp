@@ -1,0 +1,29 @@
+SOLAR PV INSTALLATION INSTRUCTIONS (Generic)
+
+1. SCOPE AND PURPOSE
+This document provides guidance on installing roof-mounted solar photovoltaic (PV) systems, compliant with PAS 2030:2023, MCS 3002, and BS 7671.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Conduct structural assessment to verify roof load capacity.
+- Confirm orientation, shading, and pitch for optimal yield.
+- Verify inverter and generation meter locations.
+
+3. MATERIALS AND EQUIPMENT
+- PV panels, inverters, roof mounting system, isolators, DC cabling
+- PPE, fall arrest harnesses, and scaffolding
+
+4. INSTALLATION PROCESS
+- Mount PV brackets securely to rafters using appropriate fixings.
+- Attach rails and mount panels per design layout.
+- Route DC cables to inverter through appropriate conduit.
+- Connect inverter to AC supply via isolators and generation meter.
+
+5. QUALITY CHECKS AND TESTING
+- Test system performance and polarity.
+- Verify MCS commissioning data and electrical safety compliance.
+- Label all isolators and cables.
+
+6. HANDOVER AND DOCUMENTATION
+- Provide homeowner with MCS certificate and warranty information.
+- Include system layout, as-built schematic, and safety guidance.
+- Record data within Retrofit Design package.

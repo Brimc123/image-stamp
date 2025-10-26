@@ -1,0 +1,30 @@
+ROOM-IN-ROOF INSULATION INSTALLATION INSTRUCTIONS (SWIP System)
+
+1. SCOPE AND PURPOSE
+This document provides installation instructions for SWIP room-in-roof insulation systems, ensuring compliance with PAS 2030:2023, PAS 2035:2023, and BS 5250 for condensation control.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Conduct a pre-installation survey confirming rafter depth, ventilation paths, and moisture condition.
+- Check for damp ingress, leaks, or inadequate ventilation.
+- Identify all electrical, plumbing, and structural elements.
+
+3. MATERIALS AND EQUIPMENT
+- SWIP RIR insulation boards and fixings
+- Vapour control layer and sealant
+- Cutting tools, screwdrivers, PPE
+
+4. INSTALLATION PROCESS
+- Insulate between rafters, maintaining required ventilation gap (typically 50 mm) above insulation.
+- Fit internal layer over rafters and seal all joints with approved tape.
+- Ensure VCL continuity and airtightness at junctions.
+- Finish with plasterboard lining and jointing.
+
+5. QUALITY CHECKS AND TESTING
+- Verify insulation thickness and full coverage.
+- Confirm eaves and ridge ventilation remain effective.
+- Record photographic evidence for PAS compliance.
+
+6. HANDOVER AND DOCUMENTATION
+- Record insulation details and any deviations from design.
+- Provide homeowner with ventilation and maintenance advice.
+- Include documentation in Retrofit Design file.

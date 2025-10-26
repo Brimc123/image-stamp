@@ -1,0 +1,28 @@
+TIME AND TEMPERATURE ZONE CONTROL (TTZC) INSTALLATION INSTRUCTIONS
+
+1. SCOPE AND PURPOSE
+This instruction covers installation of time and temperature zone controls to ensure efficient heating management, in accordance with PAS 2030:2023 and Building Regulations Part L.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Confirm system design with separate heating zones identified.
+- Verify wiring centre and valve positions.
+- Isolate power before work.
+
+3. MATERIALS AND EQUIPMENT
+- Zone valves, programmable thermostats, wiring centre, cabling
+- Electrical tools and test equipment
+
+4. INSTALLATION PROCESS
+- Install motorised valves and wire to control system.
+- Configure thermostats for each zone.
+- Test switching between zones and ensure independent temperature control.
+
+5. QUALITY CHECKS AND TESTING
+- Verify zone isolation and independent operation.
+- Check boiler interlock compliance with Part L.
+- Record wiring diagrams and system test results.
+
+6. HANDOVER AND DOCUMENTATION
+- Demonstrate zone controls to homeowner.
+- Provide operating instructions.
+- Include commissioning certificate within Retrofit Design file.

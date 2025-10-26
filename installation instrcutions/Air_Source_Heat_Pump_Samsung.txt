@@ -1,0 +1,31 @@
+AIR SOURCE HEAT PUMP INSTALLATION INSTRUCTIONS (Samsung)
+
+1. SCOPE AND PURPOSE
+This document outlines the installation process for Samsung air source heat pumps (ASHPs), ensuring compliance with PAS 2030:2023, MCS MIS 3005, and manufacturer guidance.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Conduct heat loss calculation and design in accordance with MIS 3005.
+- Confirm external unit location (minimum clearances, noise, airflow, and boundary compliance).
+- Check suitability of electrical supply and circuit protection.
+
+3. MATERIALS AND EQUIPMENT
+- Samsung ASHP unit, buffer tank, pipework, insulation, fittings, and controls
+- Electrical cabling and isolators
+- Commissioning equipment: gauges, thermometer, flow meter
+
+4. INSTALLATION PROCESS
+- Mount external ASHP on level concrete plinth with anti-vibration pads.
+- Connect flow/return pipework using insulated refrigerant-grade piping.
+- Install internal hydraulic module, buffer vessel, and controls.
+- Evacuate and pressure-test refrigerant circuit per MCS standards.
+- Charge with refrigerant as specified by design.
+
+5. QUALITY CHECKS AND TESTING
+- Check refrigerant pressure and system flow rates.
+- Conduct electrical and safety checks.
+- Commission system following Samsung service checklist.
+
+6. HANDOVER AND DOCUMENTATION
+- Provide homeowner with operation and maintenance instructions.
+- Complete commissioning certificate and attach to Retrofit Design file.
+- Record serial number, model, and installer credentials.

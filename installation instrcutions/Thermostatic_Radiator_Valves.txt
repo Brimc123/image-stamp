@@ -1,0 +1,28 @@
+THERMOSTATIC RADIATOR VALVES (TRV) INSTALLATION INSTRUCTIONS
+
+1. SCOPE AND PURPOSE
+This document covers installation of thermostatic radiator valves in accordance with PAS 2030:2023, providing individual room control and energy savings.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Verify heating system is depressurised and drained.
+- Confirm radiator valve compatibility and pipe size.
+
+3. MATERIALS AND EQUIPMENT
+- TRV sets, spanners, PTFE tape, and drain kit
+- PPE: gloves and eye protection
+
+4. INSTALLATION PROCESS
+- Remove existing manual valves and fit new TRV bodies.
+- Apply PTFE tape to threads and ensure watertight seal.
+- Refill and bleed heating system.
+- Check correct operation and calibration.
+
+5. QUALITY CHECKS AND TESTING
+- Inspect for leaks and correct TRV orientation.
+- Confirm room heating balance via flow temperature test.
+- Photograph for PAS 2030 evidence.
+
+6. HANDOVER AND DOCUMENTATION
+- Explain operation to homeowner.
+- Record valve types and locations.
+- Store within Retrofit Design file.

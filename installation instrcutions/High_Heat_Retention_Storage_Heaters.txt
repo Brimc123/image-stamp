@@ -1,0 +1,30 @@
+HIGH HEAT RETENTION STORAGE HEATERS INSTALLATION INSTRUCTIONS
+
+1. SCOPE AND PURPOSE
+This instruction covers the installation of high heat retention (HHR) storage heaters, compliant with PAS 2030:2023. The purpose is to provide efficient electric heating with improved thermal storage and heat release characteristics.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Verify suitability of existing electrical circuits (dedicated off-peak supply, 13 A spur if required).
+- Conduct electrical test and inspection in accordance with BS 7671.
+- Confirm heater location, wall strength, and clearance distances.
+
+3. MATERIALS AND EQUIPMENT
+- Approved HHR storage heater units and fixings
+- Power tools, cable, conduit, and isolators
+- PPE: gloves, goggles, and safety footwear
+
+4. INSTALLATION PROCESS
+- Isolate power supply before installation.
+- Mount heater securely on designated wall, maintaining air circulation clearance.
+- Connect to off-peak and supply circuits as per wiring diagram.
+- Set up controls and charge periods according to design load.
+
+5. QUALITY CHECKS AND TESTING
+- Conduct functional test of heat charge and fan output.
+- Check all electrical terminations for security.
+- Verify operation of thermostats and controls.
+
+6. HANDOVER AND DOCUMENTATION
+- Demonstrate controls to homeowner.
+- Provide maintenance and operating guidance.
+- Record serial numbers and installer details in Retrofit Design package.

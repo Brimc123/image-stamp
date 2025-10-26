@@ -1,0 +1,28 @@
+PROGRAMMABLE ROOM THERMOSTAT INSTALLATION INSTRUCTIONS
+
+1. SCOPE AND PURPOSE
+These instructions describe installation of programmable room thermostats (PRT) to provide time and temperature control for space heating systems, in accordance with PAS 2030:2023 and BS EN 60730.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Ensure compatible boiler or heating system.
+- Verify safe electrical isolation and wiring access.
+- Confirm optimal thermostat location (1.5 m above floor, away from heat sources).
+
+3. MATERIALS AND EQUIPMENT
+- Programmable thermostat unit and backplate
+- Screwdrivers, level, wire strippers, drill, and fixings
+
+4. INSTALLATION PROCESS
+- Mount backplate to wall and make electrical connections as per wiring diagram.
+- Fit thermostat unit and power on system.
+- Program temperature and time schedules as per design intent.
+
+5. QUALITY CHECKS AND TESTING
+- Verify correct switching operation.
+- Confirm thermostat accuracy using thermometer.
+- Record installation and test data.
+
+6. HANDOVER AND DOCUMENTATION
+- Demonstrate use to homeowner.
+- Provide programming guide.
+- Store evidence and settings within Retrofit Design documentation.

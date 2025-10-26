@@ -1,0 +1,32 @@
+INTERNAL WALL INSULATION INSTALLATION INSTRUCTIONS (SWIP System)
+
+1. SCOPE AND PURPOSE
+This document describes installation of SWIP internal wall insulation systems in accordance with PAS 2030:2023 and PAS 2035:2023, improving thermal efficiency while controlling condensation risk.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Conduct pre-works survey to assess substrate suitability, moisture, and ventilation.
+- Verify condensation risk assessment (BS 5250) and interstitial condensation modelling.
+- Ensure electrical and plumbing services are identified and isolated where needed.
+
+3. MATERIALS AND EQUIPMENT
+- SWIP IWI board system with vapour control layer (VCL) and fixings
+- Mechanical fixings, joint tape, sealant, and ancillary beads
+- PPE: mask, gloves, eye protection
+
+4. INSTALLATION PROCESS
+- Prepare substrate (clean, dry, sound, and level).
+- Fix insulation boards tightly together, staggering joints.
+- Seal all perimeters and service penetrations with airtight sealant.
+- Fit mechanical fixings as per design specification.
+- Apply VCL and ensure continuity at junctions.
+- Finish with plasterboard skim or dry lining finish as per design.
+
+5. QUALITY CHECKS AND TESTING
+- Inspect joint alignment and VCL continuity.
+- Conduct visual inspection for gaps, voids, or thermal bridges.
+- Record photographic evidence for each elevation.
+
+6. HANDOVER AND DOCUMENTATION
+- Record product batch, thickness, and fixing method.
+- Provide homeowner guidance on maintenance and wall fixings.
+- Include record within Retrofit Design package under PAS 2030:2023.

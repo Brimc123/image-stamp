@@ -1,0 +1,31 @@
+CAVITY WALL INSULATION INSTALLATION INSTRUCTIONS (Generic)
+
+1. SCOPE AND PURPOSE
+This instruction covers installation of blown cavity wall insulation to improve thermal performance while maintaining compliance with PAS 2030:2023 and PAS 2035:2023.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Verify property suitability with pre-installation survey (wall tie condition, damp risk, exposure zone).
+- Ensure cavity width and wall condition meet system requirements.
+- Check that vents and airbricks will remain unobstructed.
+- Confirm DPC level and assess for cavity obstructions.
+
+3. MATERIALS AND EQUIPMENT
+- Approved blown insulation material (e.g., mineral fibre, EPS bead, or PU foam – as per certification)
+- Drilling equipment and injection nozzles
+- PPE and RPE suitable for dust and noise control
+
+4. INSTALLATION PROCESS
+- Drill holes per manufacturer’s pattern (typically 22–26 mm).
+- Inject insulation under pressure ensuring full fill of cavity.
+- Plug and make good drilled holes to match existing finish.
+- Maintain ventilation openings and damp-proof integrity.
+
+5. QUALITY CHECKS AND TESTING
+- Check drill pattern uniformity and cavity fill via borescope.
+- Ensure no material escapes through vents or openings.
+- Conduct post-installation inspection per PAS 2030 Annex B.
+
+6. HANDOVER AND DOCUMENTATION
+- Record system type, installer ID, and completion date.
+- Provide homeowner with guarantee and maintenance advice.
+- Store photographic evidence within Retrofit Design documentation.

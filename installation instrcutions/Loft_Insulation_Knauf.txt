@@ -1,0 +1,34 @@
+LOFT INSULATION INSTALLATION INSTRUCTIONS (Knauf Earthwool)
+
+1. SCOPE AND PURPOSE
+This document outlines the procedure for installing loft insulation using Knauf Earthwool Loft Roll, in compliance with PAS 2030:2023 and PAS 2035:2023. The objective is to improve thermal performance of the loft while maintaining adequate ventilation and preventing condensation.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Conduct a risk assessment in accordance with PAS 2030 Annex B.
+- Verify that the loft space is free of damp, leaks, and pests.
+- Check existing insulation depth and identify any electrical cables or downlight fittings.
+- Ensure eaves ventilation is unobstructed and insulation will not block air paths.
+
+3. MATERIALS AND EQUIPMENT
+- Knauf Earthwool Loft Roll (various thicknesses as per design specification)
+- Protective PPE: gloves, mask, overalls, goggles
+- Loft board walkway (for access)
+- Measuring tape, knife, and insulation supports
+
+4. INSTALLATION PROCESS
+- Lay insulation between joists, ensuring full coverage without compression.
+- For top-up insulation, cross-lay perpendicular to joists to achieve target depth (typically 270–300 mm total).
+- Maintain 25 mm ventilation gap at eaves.
+- Keep clear of cold water tanks and electrical fixtures.
+- Install insulation supports around services as necessary.
+
+5. QUALITY CHECKS AND TESTING
+- Confirm even insulation depth across entire loft.
+- Check no insulation obstructs ventilation pathways.
+- Verify access hatch is insulated and draught-sealed.
+- Photograph completed work for PAS 2030 compliance record.
+
+6. HANDOVER AND DOCUMENTATION
+- Record insulation thickness and product used.
+- Provide homeowner guidance on avoiding loft compression and maintaining ventilation.
+- Store documentation in Retrofit Design package as evidence of PAS 2030:2023 compliance.
