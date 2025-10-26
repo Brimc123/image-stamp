@@ -36,43 +36,323 @@ SESSION_STORAGE = {}
 # ============================================================================
 
 def load_installation_instructions(measure_code: str) -> str:
-    """Load installation instructions from text file"""
-    # Map measure codes to actual filenames
-    filename_mapping = {
-        "HEAT_PUMP": "Air_Source_Heat_Pump_Samsung.txt",
-        "CWI": "Cavity_Wall_Insulation.txt", 
-        "ESH": "High_Heat_Retention_Storage_Heaters.txt",
-        "IWI": "Internal_Wall_Insulation_SWIP.txt",
-        "LOFT": "Loft_Insulation_Knauf.txt",
-        "PRT": "Programmable_Room_Thermostat.txt",
-        "RIR": "Room_in_Roof_Insulation_SWIP.txt",
-        "SOLAR_PV": "Solar_PV.txt",
-        "TRV": "Thermostatic_Radiator_Valves.txt",
-        "GAS_BOILER": "Time_and_Temperature_Zone_Control.txt"
+    """Load installation instructions - embedded content"""
+    
+    # Embedded installation instructions
+    instructions = {
+        "LOFT": """LOFT INSULATION INSTALLATION INSTRUCTIONS (Knauf Earthwool)
+
+1. SCOPE AND PURPOSE
+This document outlines the procedure for installing loft insulation using Knauf Earthwool Loft Roll, in compliance with PAS 2030:2023 and PAS 2035:2023. The objective is to improve thermal performance of the loft while maintaining adequate ventilation and preventing condensation.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Conduct a risk assessment in accordance with PAS 2030 Annex B.
+- Verify that the loft space is free of damp, leaks, and pests.
+- Check existing insulation depth and identify any electrical cables or downlight fittings.
+- Ensure eaves ventilation is unobstructed and insulation will not block air paths.
+
+3. MATERIALS AND EQUIPMENT
+- Knauf Earthwool Loft Roll (various thicknesses as per design specification)
+- Protective PPE: gloves, mask, overalls, goggles
+- Loft board walkway (for access)
+- Measuring tape, knife, and insulation supports
+
+4. INSTALLATION PROCESS
+- Lay insulation between joists, ensuring full coverage without compression.
+- For top-up insulation, cross-lay perpendicular to joists to achieve target depth (typically 270–300 mm total).
+- Maintain 25 mm ventilation gap at eaves.
+- Keep clear of cold water tanks and electrical fixtures.
+- Install insulation supports around services as necessary.
+
+5. QUALITY CHECKS AND TESTING
+- Confirm even insulation depth across entire loft.
+- Check no insulation obstructs ventilation pathways.
+- Verify access hatch is insulated and draught-sealed.
+- Photograph completed work for PAS 2030 compliance record.
+
+6. HANDOVER AND DOCUMENTATION
+- Record insulation thickness and product used.
+- Provide homeowner guidance on avoiding loft compression and maintaining ventilation.
+- Store documentation in Retrofit Design package as evidence of PAS 2030:2023 compliance.""",
+
+        "ESH": """HIGH HEAT RETENTION STORAGE HEATERS INSTALLATION INSTRUCTIONS
+
+1. SCOPE AND PURPOSE
+This instruction covers the installation of high heat retention (HHR) storage heaters, compliant with PAS 2030:2023. The purpose is to provide efficient electric heating with improved thermal storage and heat release characteristics.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Verify suitability of existing electrical circuits (dedicated off-peak supply, 13 A spur if required).
+- Conduct electrical test and inspection in accordance with BS 7671.
+- Confirm heater location, wall strength, and clearance distances.
+
+3. MATERIALS AND EQUIPMENT
+- Approved HHR storage heater units and fixings
+- Power tools, cable, conduit, and isolators
+- PPE: gloves, goggles, and safety footwear
+
+4. INSTALLATION PROCESS
+- Isolate power supply before installation.
+- Mount heater securely on designated wall, maintaining air circulation clearance.
+- Connect to off-peak and supply circuits as per wiring diagram.
+- Set up controls and charge periods according to design load.
+
+5. QUALITY CHECKS AND TESTING
+- Conduct functional test of heat charge and fan output.
+- Check all electrical terminations for security.
+- Verify operation of thermostats and controls.
+
+6. HANDOVER AND DOCUMENTATION
+- Demonstrate controls to homeowner.
+- Provide maintenance and operating guidance.
+- Record serial numbers and installer details in Retrofit Design package.""",
+
+        "PRT": """PROGRAMMABLE ROOM THERMOSTAT INSTALLATION INSTRUCTIONS
+
+1. SCOPE AND PURPOSE
+These instructions describe installation of programmable room thermostats (PRT) to provide time and temperature control for space heating systems, in accordance with PAS 2030:2023 and BS EN 60730.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Ensure compatible boiler or heating system.
+- Verify safe electrical isolation and wiring access.
+- Confirm optimal thermostat location (1.5 m above floor, away from heat sources).
+
+3. MATERIALS AND EQUIPMENT
+- Programmable thermostat unit and backplate
+- Screwdrivers, level, wire strippers, drill, and fixings
+
+4. INSTALLATION PROCESS
+- Mount backplate to wall and make electrical connections as per wiring diagram.
+- Fit thermostat unit and power on system.
+- Program temperature and time schedules as per design intent.
+
+5. QUALITY CHECKS AND TESTING
+- Verify correct switching operation.
+- Confirm thermostat accuracy using thermometer.
+- Record installation and test data.
+
+6. HANDOVER AND DOCUMENTATION
+- Demonstrate use to homeowner.
+- Provide programming guide.
+- Store evidence and settings within Retrofit Design documentation.""",
+
+        "TRV": """THERMOSTATIC RADIATOR VALVES (TRV) INSTALLATION INSTRUCTIONS
+
+1. SCOPE AND PURPOSE
+This document covers installation of thermostatic radiator valves in accordance with PAS 2030:2023, providing individual room control and energy savings.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Verify heating system is depressurised and drained.
+- Confirm radiator valve compatibility and pipe size.
+
+3. MATERIALS AND EQUIPMENT
+- TRV sets, spanners, PTFE tape, and drain kit
+- PPE: gloves and eye protection
+
+4. INSTALLATION PROCESS
+- Remove existing manual valves and fit new TRV bodies.
+- Apply PTFE tape to threads and ensure watertight seal.
+- Refill and bleed heating system.
+- Check correct operation and calibration.
+
+5. QUALITY CHECKS AND TESTING
+- Inspect for leaks and correct TRV orientation.
+- Confirm room heating balance via flow temperature test.
+- Photograph for PAS 2030 evidence.
+
+6. HANDOVER AND DOCUMENTATION
+- Explain operation to homeowner.
+- Record valve types and locations.
+- Store within Retrofit Design file.""",
+
+        "HEAT_PUMP": """AIR SOURCE HEAT PUMP INSTALLATION INSTRUCTIONS (Samsung)
+
+1. SCOPE AND PURPOSE
+This document outlines the installation process for Samsung air source heat pumps (ASHPs), ensuring compliance with PAS 2030:2023, MCS MIS 3005, and manufacturer guidance.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Conduct heat loss calculation and design in accordance with MIS 3005.
+- Confirm external unit location (minimum clearances, noise, airflow, and boundary compliance).
+- Check suitability of electrical supply and circuit protection.
+
+3. MATERIALS AND EQUIPMENT
+- Samsung ASHP unit, buffer tank, pipework, insulation, fittings, and controls
+- Electrical cabling and isolators
+- Commissioning equipment: gauges, thermometer, flow meter
+
+4. INSTALLATION PROCESS
+- Mount external ASHP on level concrete plinth with anti-vibration pads.
+- Connect flow/return pipework using insulated refrigerant-grade piping.
+- Install internal hydraulic module, buffer vessel, and controls.
+- Evacuate and pressure-test refrigerant circuit per MCS standards.
+- Charge with refrigerant as specified by design.
+
+5. QUALITY CHECKS AND TESTING
+- Check refrigerant pressure and system flow rates.
+- Conduct electrical and safety checks.
+- Commission system following Samsung service checklist.
+
+6. HANDOVER AND DOCUMENTATION
+- Provide homeowner with operation and maintenance instructions.
+- Complete commissioning certificate and attach to Retrofit Design file.
+- Record serial number, model, and installer credentials.""",
+
+        "SOLAR_PV": """SOLAR PV INSTALLATION INSTRUCTIONS (Generic)
+
+1. SCOPE AND PURPOSE
+This document provides guidance on installing roof-mounted solar photovoltaic (PV) systems, compliant with PAS 2030:2023, MCS 3002, and BS 7671.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Conduct structural assessment to verify roof load capacity.
+- Confirm orientation, shading, and pitch for optimal yield.
+- Verify inverter and generation meter locations.
+
+3. MATERIALS AND EQUIPMENT
+- PV panels, inverters, roof mounting system, isolators, DC cabling
+- PPE, fall arrest harnesses, and scaffolding
+
+4. INSTALLATION PROCESS
+- Mount PV brackets securely to rafters using appropriate fixings.
+- Attach rails and mount panels per design layout.
+- Route DC cables to inverter through appropriate conduit.
+- Connect inverter to AC supply via isolators and generation meter.
+
+5. QUALITY CHECKS AND TESTING
+- Test system performance and polarity.
+- Verify MCS commissioning data and electrical safety compliance.
+- Label all isolators and cables.
+
+6. HANDOVER AND DOCUMENTATION
+- Provide homeowner with MCS certificate and warranty information.
+- Include system layout, as-built schematic, and safety guidance.
+- Record data within Retrofit Design package.""",
+
+        "IWI": """INTERNAL WALL INSULATION INSTALLATION INSTRUCTIONS (SWIP System)
+
+1. SCOPE AND PURPOSE
+This document describes installation of SWIP internal wall insulation systems in accordance with PAS 2030:2023 and PAS 2035:2023, improving thermal efficiency while controlling condensation risk.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Conduct pre-works survey to assess substrate suitability, moisture, and ventilation.
+- Verify condensation risk assessment (BS 5250) and interstitial condensation modelling.
+- Ensure electrical and plumbing services are identified and isolated where needed.
+
+3. MATERIALS AND EQUIPMENT
+- SWIP IWI board system with vapour control layer (VCL) and fixings
+- Mechanical fixings, joint tape, sealant, and ancillary beads
+- PPE: mask, gloves, eye protection
+
+4. INSTALLATION PROCESS
+- Prepare substrate (clean, dry, sound, and level).
+- Fix insulation boards tightly together, staggering joints.
+- Seal all perimeters and service penetrations with airtight sealant.
+- Fit mechanical fixings as per design specification.
+- Apply VCL and ensure continuity at junctions.
+- Finish with plasterboard skim or dry lining finish as per design.
+
+5. QUALITY CHECKS AND TESTING
+- Inspect joint alignment and VCL continuity.
+- Conduct visual inspection for gaps, voids, or thermal bridges.
+- Record photographic evidence for each elevation.
+
+6. HANDOVER AND DOCUMENTATION
+- Record product batch, thickness, and fixing method.
+- Provide homeowner guidance on maintenance and wall fixings.
+- Include record within Retrofit Design package under PAS 2030:2023.""",
+
+        "CWI": """CAVITY WALL INSULATION INSTALLATION INSTRUCTIONS (Generic)
+
+1. SCOPE AND PURPOSE
+This instruction covers installation of blown cavity wall insulation to improve thermal performance while maintaining compliance with PAS 2030:2023 and PAS 2035:2023.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Verify property suitability with pre-installation survey (wall tie condition, damp risk, exposure zone).
+- Ensure cavity width and wall condition meet system requirements.
+- Check that vents and airbricks will remain unobstructed.
+- Confirm DPC level and assess for cavity obstructions.
+
+3. MATERIALS AND EQUIPMENT
+- Approved blown insulation material (e.g., mineral fibre, EPS bead, or PU foam – as per certification)
+- Drilling equipment and injection nozzles
+- PPE and RPE suitable for dust and noise control
+
+4. INSTALLATION PROCESS
+- Drill holes per manufacturer's pattern (typically 22–26 mm).
+- Inject insulation under pressure ensuring full fill of cavity.
+- Plug and make good drilled holes to match existing finish.
+- Maintain ventilation openings and damp-proof integrity.
+
+5. QUALITY CHECKS AND TESTING
+- Check drill pattern uniformity and cavity fill via borescope.
+- Ensure no material escapes through vents or openings.
+- Conduct post-installation inspection per PAS 2030 Annex B.
+
+6. HANDOVER AND DOCUMENTATION
+- Record system type, installer ID, and completion date.
+- Provide homeowner with guarantee and maintenance advice.
+- Store photographic evidence within Retrofit Design documentation.""",
+
+        "RIR": """ROOM-IN-ROOF INSULATION INSTALLATION INSTRUCTIONS (SWIP System)
+
+1. SCOPE AND PURPOSE
+This document provides installation instructions for SWIP room-in-roof insulation systems, ensuring compliance with PAS 2030:2023, PAS 2035:2023, and BS 5250 for condensation control.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Conduct a pre-installation survey confirming rafter depth, ventilation paths, and moisture condition.
+- Check for damp ingress, leaks, or inadequate ventilation.
+- Identify all electrical, plumbing, and structural elements.
+
+3. MATERIALS AND EQUIPMENT
+- SWIP RIR insulation boards and fixings
+- Vapour control layer and sealant
+- Cutting tools, screwdrivers, PPE
+
+4. INSTALLATION PROCESS
+- Insulate between rafters, maintaining required ventilation gap (typically 50 mm) above insulation.
+- Fit internal layer over rafters and seal all joints with approved tape.
+- Ensure VCL continuity and airtightness at junctions.
+- Finish with plasterboard lining and jointing.
+
+5. QUALITY CHECKS AND TESTING
+- Verify insulation thickness and full coverage.
+- Confirm eaves and ridge ventilation remain effective.
+- Record photographic evidence for PAS compliance.
+
+6. HANDOVER AND DOCUMENTATION
+- Record insulation details and any deviations from design.
+- Provide homeowner with ventilation and maintenance advice.
+- Include documentation in Retrofit Design file.""",
+
+        "GAS_BOILER": """TIME AND TEMPERATURE ZONE CONTROL (TTZC) INSTALLATION INSTRUCTIONS
+
+1. SCOPE AND PURPOSE
+This instruction covers installation of time and temperature zone controls to ensure efficient heating management, in accordance with PAS 2030:2023 and Building Regulations Part L.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Confirm system design with separate heating zones identified.
+- Verify wiring centre and valve positions.
+- Isolate power before work.
+
+3. MATERIALS AND EQUIPMENT
+- Zone valves, programmable thermostats, wiring centre, cabling
+- Electrical tools and test equipment
+
+4. INSTALLATION PROCESS
+- Install motorised valves and wire to control system.
+- Configure thermostats for each zone.
+- Test switching between zones and ensure independent temperature control.
+
+5. QUALITY CHECKS AND TESTING
+- Verify zone isolation and independent operation.
+- Check boiler interlock compliance with Part L.
+- Record wiring diagrams and system test results.
+
+6. HANDOVER AND DOCUMENTATION
+- Demonstrate zone controls to homeowner.
+- Provide operating instructions.
+- Include commissioning certificate within Retrofit Design file."""
     }
     
-    filename = filename_mapping.get(measure_code, f"{measure_code}.txt")
-    
-    # Try multiple possible paths
-    possible_paths = [
-        os.path.join(os.path.dirname(__file__), "installation_instructions", filename),
-        os.path.join("installation_instructions", filename),
-        f"/app/installation_instructions/{filename}",
-        f"./installation_instructions/{filename}",
-        filename  # Last resort - current directory
-    ]
-    
-    for filepath in possible_paths:
-        try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                return f.read()
-        except FileNotFoundError:
-            continue
-        except Exception as e:
-            continue
-    
-    # If no file found, return a basic template
-    return f"""INSTALLATION INSTRUCTIONS FOR {MEASURES.get(measure_code, {}).get('name', measure_code)}
+    return instructions.get(measure_code, f"""INSTALLATION INSTRUCTIONS FOR {MEASURES.get(measure_code, {}).get('name', measure_code)}
 
 1. SCOPE AND PURPOSE
 Installation instructions for {MEASURES.get(measure_code, {}).get('name', measure_code)} to be completed in accordance with PAS 2030:2023 and manufacturer specifications.
@@ -95,9 +375,7 @@ Installation instructions for {MEASURES.get(measure_code, {}).get('name', measur
 5. HANDOVER AND DOCUMENTATION
 - Provide user instructions to homeowner
 - Complete commissioning certificate
-- Record installation details in Retrofit Design documentation
-
-Note: Detailed installation instructions file not found. Please ensure installation_instructions/{filename} exists in the project directory."""
+- Record installation details in Retrofit Design documentation""")
 
 def format_installation_instructions_for_pdf(instructions: str) -> str:
     """Format installation instructions for PDF inclusion"""
