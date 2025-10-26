@@ -52,15 +52,52 @@ def load_installation_instructions(measure_code: str) -> str:
     }
     
     filename = filename_mapping.get(measure_code, f"{measure_code}.txt")
-    filepath = os.path.join("installation_instructions", filename)
     
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            return f.read()
-    except FileNotFoundError:
-        return f"Installation instructions for {measure_code} not available at {filepath}."
-    except Exception as e:
-        return f"Error loading installation instructions for {measure_code}: {str(e)}"
+    # Try multiple possible paths
+    possible_paths = [
+        os.path.join(os.path.dirname(__file__), "installation_instructions", filename),
+        os.path.join("installation_instructions", filename),
+        f"/app/installation_instructions/{filename}",
+        f"./installation_instructions/{filename}",
+        filename  # Last resort - current directory
+    ]
+    
+    for filepath in possible_paths:
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return f.read()
+        except FileNotFoundError:
+            continue
+        except Exception as e:
+            continue
+    
+    # If no file found, return a basic template
+    return f"""INSTALLATION INSTRUCTIONS FOR {MEASURES.get(measure_code, {}).get('name', measure_code)}
+
+1. SCOPE AND PURPOSE
+Installation instructions for {MEASURES.get(measure_code, {}).get('name', measure_code)} to be completed in accordance with PAS 2030:2023 and manufacturer specifications.
+
+2. PRE-INSTALLATION REQUIREMENTS
+- Conduct risk assessment in accordance with PAS 2030 Annex B
+- Verify building condition and suitability
+- Ensure all materials and equipment are available
+
+3. INSTALLATION PROCESS
+- Follow manufacturer's installation instructions
+- Ensure compliance with building regulations
+- Complete installation in accordance with design specifications
+
+4. QUALITY CHECKS AND TESTING
+- Conduct visual inspection
+- Test functionality as per manufacturer requirements
+- Document completion with photographic evidence
+
+5. HANDOVER AND DOCUMENTATION
+- Provide user instructions to homeowner
+- Complete commissioning certificate
+- Record installation details in Retrofit Design documentation
+
+Note: Detailed installation instructions file not found. Please ensure installation_instructions/{filename} exists in the project directory."""
 
 def format_installation_instructions_for_pdf(instructions: str) -> str:
     """Format installation instructions for PDF inclusion"""
