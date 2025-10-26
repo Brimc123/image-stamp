@@ -1,12 +1,14 @@
 """
-RETROFIT DESIGN TOOL - COMPLETE FIXED VERSION
+RETROFIT DESIGN TOOL - COMPLETE WITH INSTALLATION INSTRUCTIONS
 ✅ FIX 1: Improved loft extraction from site notes
 ✅ FIX 2: ASHP extraction from measure sheet
 ✅ FIX 3: Drag-and-drop for calc uploads
 ✅ FIX 4: JSON parsing error fixed
+✅ NEW: Installation instructions integration
 """
 
 import io
+import os
 import re
 import json
 from datetime import datetime
@@ -28,6 +30,48 @@ from config import RETROFIT_TOOL_COST
 
 # Session storage (in-memory for now)
 SESSION_STORAGE = {}
+
+# ============================================================================
+# INSTALLATION INSTRUCTIONS FUNCTIONS
+# ============================================================================
+
+def load_installation_instructions(measure_code: str) -> str:
+    """Load installation instructions from text file"""
+    # Map measure codes to actual filenames
+    filename_mapping = {
+        "HEAT_PUMP": "Air_Source_Heat_Pump_Samsung.txt",
+        "CWI": "Cavity_Wall_Insulation.txt", 
+        "ESH": "High_Heat_Retention_Storage_Heaters.txt",
+        "IWI": "Internal_Wall_Insulation_SWIP.txt",
+        "LOFT": "Loft_Insulation_Knauf.txt",
+        "PRT": "Programmable_Room_Thermostat.txt",
+        "RIR": "Room_in_Roof_Insulation_SWIP.txt",
+        "SOLAR_PV": "Solar_PV.txt",
+        "TRV": "Thermostatic_Radiator_Valves.txt",
+        "GAS_BOILER": "Time_and_Temperature_Zone_Control.txt"
+    }
+    
+    filename = filename_mapping.get(measure_code, f"{measure_code}.txt")
+    filepath = os.path.join("installation_instructions", filename)
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        return f"Installation instructions for {measure_code} not available at {filepath}."
+    except Exception as e:
+        return f"Error loading installation instructions for {measure_code}: {str(e)}"
+
+def format_installation_instructions_for_pdf(instructions: str) -> str:
+    """Format installation instructions for PDF inclusion"""
+    # Add some basic formatting for PDF
+    formatted = instructions.replace('\n\n', '<br/><br/>')
+    formatted = formatted.replace('\n', '<br/>')
+    
+    # Make numbered sections bold
+    formatted = re.sub(r'^(\d+\.\s+[A-Z][A-Z\s]+)$', r'<b>\1</b>', formatted, flags=re.MULTILINE)
+    
+    return formatted
 
 # ============================================================================
 # MEASURE DEFINITIONS
@@ -191,7 +235,7 @@ def extract_property_data(text: str) -> Dict:
     if date_match:
         data['build_date'] = date_match.group(1).strip()
     
-    # ✅ IMPROVED LOFT EXTRACTION
+    # Improved LOFT EXTRACTION
     # Pattern 1: "Roofs - Insulation Thickness: 100 mm"
     loft_thickness_match = re.search(r'(?:Roofs?\s*[-]?\s*Insulation Thickness|Insulation Thickness)[:\s]+(\d+)\s*mm', text, re.IGNORECASE)
     if loft_thickness_match:
@@ -218,7 +262,7 @@ def extract_property_data(text: str) -> Dict:
     return data
 
 def extract_measure_sheet_data(excel_file: UploadFile) -> Dict:
-    """✅ IMPROVED: Extract data from measure sheet Excel - ENHANCED ASHP EXTRACTION"""
+    """Extract data from measure sheet Excel - ENHANCED ASHP EXTRACTION"""
     data = {}
     try:
         wb = openpyxl.load_workbook(io.BytesIO(excel_file.file.read()))
@@ -251,7 +295,7 @@ def extract_measure_sheet_data(excel_file: UploadFile) -> Dict:
                         data[current_measure]['current_depth'] = field_value
                 
                 elif current_measure == "HEAT_PUMP":
-                    # ✅ ENHANCED EXTRACTION FOR HEAT PUMP
+                    # Enhanced extraction for heat pump
                     if "Make and model" in field_name or "Make" in field_name:
                         data[current_measure]['make_model'] = field_value
                     elif "size" in field_name.lower() and "kw" in field_name.lower():
@@ -669,7 +713,7 @@ def get_retrofit_tool_page(request: Request):
     return HTMLResponse(html)
 
 async def post_retrofit_process(request: Request):
-    """✅ FIXED: Process Phase 1 uploads and extract data"""
+    """Process Phase 1 uploads and extract data"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -699,7 +743,7 @@ async def post_retrofit_process(request: Request):
         if measure_sheet and hasattr(measure_sheet, 'filename') and measure_sheet.filename:
             measure_sheet_data = extract_measure_sheet_data(measure_sheet)
         
-        # ✅ FIX: Get selected measures correctly from form
+        # Get selected measures correctly from form
         selected_measures = form.getlist("measures")
         
         # Store session data
@@ -730,11 +774,11 @@ async def post_retrofit_process(request: Request):
         return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p><a href='/tool/retrofit'>Back</a>")
 
 # ============================================================================
-# PHASE 2: CALCULATION UPLOADS - ✅ WITH DRAG-AND-DROP
+# PHASE 2: CALCULATION UPLOADS
 # ============================================================================
 
 def get_calc_upload_page(request: Request):
-    """✅ Phase 2 with drag-and-drop functionality"""
+    """Phase 2 with drag-and-drop functionality"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -1164,11 +1208,11 @@ async def post_questions_submit(request: Request):
         return RedirectResponse("/tool/retrofit/questions", status_code=303)
 
 # ============================================================================
-# PHASE 4 & 5: GENERATE PDF
+# PHASE 4 & 5: GENERATE PDF WITH INSTALLATION INSTRUCTIONS
 # ============================================================================
 
 def get_pdf_download(request: Request):
-    """Generate and download PDF"""
+    """Generate and download PDF with installation instructions"""
     user_row = require_active_user_row(request)
     if isinstance(user_row, (RedirectResponse, HTMLResponse)):
         return user_row
@@ -1203,22 +1247,40 @@ def get_pdf_download(request: Request):
     story.append(Spacer(1, 0.3*inch))
     
     # Selected measures heading
-    story.append(Paragraph("<b>Selected Measures</b>", styles['Heading2']))
+    story.append(Paragraph("<b>Selected Measures & Installation Instructions</b>", styles['Heading2']))
     story.append(Spacer(1, 0.2*inch))
     
-    # Each measure
+    # Each measure with installation instructions
     for measure_code in session_data.get("selected_measures", []):
         measure = MEASURES[measure_code]
         answers = session_data.get("answers", {}).get(measure_code, {})
         
+        # Measure heading
         story.append(Paragraph(f"<b>{measure['name']}</b>", styles['Heading3']))
         
+        # Measure specifications
+        story.append(Paragraph("<b>Design Specifications:</b>", styles['Heading4']))
         for key, value in answers.items():
             if key != "measure_code":
                 story.append(Paragraph(f"• <b>{key}:</b> {value}", styles['Normal']))
         
-        story.append(Spacer(1, 0.2*inch))
+        story.append(Spacer(1, 0.1*inch))
+        
+        # Installation instructions
+        story.append(Paragraph("<b>Installation Instructions:</b>", styles['Heading4']))
+        instructions = load_installation_instructions(measure_code)
+        formatted_instructions = format_installation_instructions_for_pdf(instructions)
+        
+        # Split instructions into paragraphs for better PDF formatting
+        instruction_paragraphs = formatted_instructions.split('<br/><br/>')
+        for para in instruction_paragraphs:
+            if para.strip():
+                story.append(Paragraph(para.strip(), styles['Normal']))
+                story.append(Spacer(1, 0.1*inch))
+        
+        story.append(PageBreak())
     
+    # Build PDF
     doc.build(story)
     
     # Deduct credits
