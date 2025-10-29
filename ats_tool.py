@@ -94,18 +94,31 @@ async def parse_condition_report(pdf_file):
                 text_parts.append(page.extract_text() or "")
             text = "\n".join(text_parts)
             
-            # Extract address
-            addr_match = re.search(r"Property Address\s*[:\-]?\s*(.+)", text, re.IGNORECASE)
-            if addr_match:
-                parsed['address'] = addr_match.group(1).strip().replace("\n", " ")
+            # DEBUG: Print extracted text
+            print("=" * 80)
+            print("EXTRACTED PDF TEXT:")
+            print("=" * 80)
+            print(text[:2000])
+            print("=" * 80)
             
-            # Extract assessor
-            assessor_match = re.search(r"Assessor(?:\s*ID|\s*name)?\s*[:\-]?\s*([A-Za-z .()/0-9]+)", text, re.IGNORECASE)
+            # Extract address - handle multi-line format
+            # Look for the pattern: Surveyor Name, then address lines, then Postcode
+            addr_pattern = re.search(r"Surveyor Name\s+([^\n]+)\s+(.+?)\s+Postcode\s+([^\n]+)", text, re.IGNORECASE | re.DOTALL)
+            if addr_pattern:
+                # Combine all parts and clean up
+                address_parts = addr_pattern.group(2).split('\n')
+                address_parts = [part.strip() for part in address_parts if part.strip() and 'address' not in part.lower()]
+                address_text = ', '.join(address_parts)
+                postcode = addr_pattern.group(3).strip()
+                parsed['address'] = f"{address_text}, {postcode}"
+            
+            # Extract assessor/surveyor - try multiple patterns
+            assessor_match = re.search(r"(?:Assessor|Surveyor|Inspector)(?:\s*(?:Name|ID))?\s*[:\-]?\s*([A-Za-z\s.()]+)", text, re.IGNORECASE)
             if assessor_match:
                 parsed['assessor'] = assessor_match.group(1).strip()
             
-            # Extract inspection date
-            date_match = re.search(r"Inspection Date\s*[:\-]?\s*([0-9]{1,2}\s*[A-Za-z]{3,9}\s*[0-9]{4}|[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}\-[0-9]{2}\-[0-9]{2})", text, re.IGNORECASE)
+            # Extract inspection/survey date - try multiple patterns
+            date_match = re.search(r"(?:Inspection|Survey)\s*Date\s*[:\-]?\s*([0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{2,4})", text, re.IGNORECASE)
             if date_match:
                 parsed['inspection_date'] = date_match.group(1).strip()
             
