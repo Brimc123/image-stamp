@@ -402,6 +402,18 @@ def dashboard(request: Request):
                     <span class="new-badge">✨ New</span>
                 </div>
             </a>
+
+<a href="/tool/ats-generator" class="tool-card">
+                <span class="tool-icon">🏠</span>
+                <h2 class="tool-title">Airtightness Strategy Generator</h2>
+                <p class="tool-description">
+                    Generate PAS 2035 Annex 8.2.35 compliant Airtightness Strategy documents. Auto-extracts data from Condition Reports and creates professional ATS documents instantly.
+                </p>
+                <div class="tool-footer">
+                    <span class="tool-price">💰 £10.00 per use</span>
+                    <span class="new-badge">✨ New</span>
+                </div>
+            </a>
         </div>
     </div>
 </body>
@@ -552,7 +564,7 @@ async def route_ats_generator(request: Request):
         return user_row
     return await ats_generator_route(request, user_row)
 
-@app.post("/tool/ats-generator/process")
+@app.post("/tool/ats-generator")
 async def route_ats_generator_process(request: Request):
     user_row = require_active_user_row(request)
     if isinstance(user_row, RedirectResponse):
