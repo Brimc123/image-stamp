@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATS Generator - AutoDate</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+    <style>
+        .ats-container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 30px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .ats-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .ats-header h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .ats-header p {
+            color: #666;
+            font-size: 14px;
+        }
+        .upload-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .upload-box {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-box:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        .upload-box input[type="file"] {
+            display: none;
+        }
+        .upload-box label {
+            cursor: pointer;
+            display: block;
+        }
+        .form-section {
+            margin-bottom: 20px;
+        }
+        .form-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        .generate-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .generate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .generate-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .balance-display {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f0f9ff;
+            border-radius: 8px;
+        }
+        .balance-display strong {
+            color: #667eea;
+            font-size: 20px;
+        }
+        .price-tag {
+            display: inline-block;
+            background: #fef3c7;
+            color: #92400e;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .details-toggle {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+        .details-toggle:hover {
+            background: #e9ecef;
+        }
+        .details-content {
+            display: none;
+            margin-top: 20px;
+        }
+        .details-content.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="ats-container">
+        <div class="ats-header">
+            <h1>🏠 Airtightness Strategy Generator</h1>
+            <p>PAS 2035:2023 – Annex 8.2.35 Compliant</p>
+            <span class="price-tag">💰 £10.00 per use</span>
+        </div>
+
+        <div class="balance-display">
+            <p>Your Balance: <strong>£{{ "%.2f"|format(balance) }}</strong></p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" enctype="multipart/form-data">
+            <div class="upload-section">
+                <div class="upload-box">
+                    <label for="cr_file">
+                        <div style="font-size: 40px; margin-bottom: 10px;">📄</div>
+                        <strong>Condition Report (Required)</strong>
+                        <p style="font-size: 12px; color: #666; margin-top: 10px;">Click to upload PDF</p>
+                    </label>
+                    <input type="file" id="cr_file" name="cr_file" accept=".pdf" required>
+                </div>
+
+                <div class="upload-box">
+                    <label for="notes_file">
+                        <div style="font-size: 40px; margin-bottom: 10px;">📋</div>
+                        <strong>Site Notes (Optional)</strong>
+                        <p style="font-size: 12px; color: #666; margin-top: 10px;">Click to upload PDF</p>
+                    </label>
+                    <input type="file" id="notes_file" name="notes_file" accept=".pdf">
+                </div>
+            </div>
+
+            <div class="details-toggle" onclick="toggleDetails()">
+                <strong>📝 Optional: Fill or Override Details</strong>
+                <span style="float: right;">▼</span>
+            </div>
+
+            <div class="details-content" id="detailsContent">
+                <div class="form-section">
+                    <h3>Property Information</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Property Address</label>
+                            <input type="text" name="address" placeholder="Auto-filled from PDF">
+                        </div>
+                        <div class="form-group">
+                            <label>Property Type</label>
+                            <input type="text" name="property_type" placeholder="e.g., Semi-detached house">
+                        </div>
+                        <div class="form-group">
+                            <label>Construction</label>
+                            <input type="text" name="construction" placeholder="e.g., Cavity wall, pitched roof">
+                        </div>
+                        <div class="form-group">
+                            <label>Assessor</label>
+                            <input type="text" name="assessor" placeholder="Auto-filled from PDF">
+                        </div>
+                        <div class="form-group">
+                            <label>Inspection Date</label>
+                            <input type="text" name="inspection_date" placeholder="Auto-filled from PDF">
+                        </div>
+                        <div class="form-group">
+                            <label>Retrofit Coordinator</label>
+                            <input type="text" name="coordinator" value="Brian McKevitt MCIOB">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>Retrofit Details</h3>
+                    <div class="form-group">
+                        <label>Proposed Measures</label>
+                        <textarea name="measures">Loft insulation top-up; Solar PV; Heating controls</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Existing Airtightness Condition</label>
+                        <textarea name="existing_condition" rows="4">• No prior ATT available; typical air permeability assumed for age/type.
+- Likely leakage paths: loft hatch edges, eaves junctions, service penetrations, recessed light fittings.
+- No persistent damp/mould observed. Existing background and extract ventilation present per Condition Report.</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Control Measures During Retrofit</label>
+                        <textarea name="control_measures" rows="3" placeholder="Optional - describe measures to maintain/improve airtightness"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Verification & Testing</label>
+                        <textarea name="verification" rows="3" placeholder="Optional - testing protocols and acceptance criteria"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Residual Risks & Review</label>
+                        <textarea name="residual_risks" rows="3" placeholder="Optional - remaining concerns and review schedule"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Regulatory References</label>
+                        <textarea name="references" rows="2" placeholder="Optional - relevant building regs, standards"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="generate-btn">Generate ATS Document (£10.00)</button>
+        </form>
+    </div>
+
+    <script>
+        function toggleDetails() {
+            var content = document.getElementById('detailsContent');
+            content.classList.toggle('show');
+        }
+
+        // Show filename when file is selected
+        document.getElementById('cr_file').addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                var label = e.target.previousElementSibling;
+                label.innerHTML = '<div style="font-size: 40px; margin-bottom: 10px;">✅</div><strong>' + e.target.files[0].name + '</strong>';
+            }
+        });
+
+        document.getElementById('notes_file').addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                var label = e.target.previousElementSibling;
+                label.innerHTML = '<div style="font-size: 40px; margin-bottom: 10px;">✅</div><strong>' + e.target.files[0].name + '</strong>';
+            }
+        });
+    </script>
+</body>
+</html>
