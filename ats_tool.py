@@ -1,13 +1,16 @@
-from flask import render_template, request, send_file, flash, redirect, url_for
-from flask_login import login_required, current_user
+from fastapi import Request, UploadFile, File, Form
+from fastapi.responses import StreamingResponse, HTMLResponse
+from fastapi.templating import Jinja2Templates
 import io
 from datetime import datetime
 from docx import Document
-from docx.shared import Pt, Inches
+from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 import pdfplumber
 import re
-from database import db, Transaction
+from database import get_user_by_id, set_user_credits
+
+templates = Jinja2Templates(directory="templates")
 
 def create_ats_document(data):
     """Generate PAS 2035 Annex 8.2.35 compliant ATS document"""
@@ -79,12 +82,13 @@ def create_ats_document(data):
     
     return doc
 
-def parse_condition_report(pdf_file):
+async def parse_condition_report(pdf_file):
     """Extract data from Condition Report PDF"""
     parsed = {}
     
     try:
-        with pdfplumber.open(pdf_file) as pdf:
+        content = await pdf_file.read()
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
             text_parts = []
             for page in pdf.pages:
                 text_parts.append(page.extract_text() or "")
@@ -116,39 +120,54 @@ def parse_condition_report(pdf_file):
     
     return parsed
 
-@login_required
-def ats_generator_route():
+async def ats_generator_route(request: Request, user_row):
     """Route handler for ATS Generator tool"""
-    if request.method == 'POST':
-        # Check if user has sufficient balance
-        if current_user.balance < 10.00:
-            flash('Insufficient balance. Please add funds.', 'error')
-            return redirect(url_for('ats_generator'))
+    
+    if request.method == "GET":
+        # Show the form
+        user_id = user_row.get("id")
+        user_data = get_user_by_id(user_id)
+        balance = float(user_data.get("credits", 0.0))
         
-        # Get uploaded file
-        cr_file = request.files.get('cr_file')
+        return templates.TemplateResponse("ats_generator.html", {
+            "request": request,
+            "balance": balance
+        })
+    
+    elif request.method == "POST":
+        # Process the form
+        user_id = user_row.get("id")
+        user_data = get_user_by_id(user_id)
+        balance = float(user_data.get("credits", 0.0))
         
-        if not cr_file:
-            flash('Please upload a Condition Report PDF', 'error')
-            return redirect(url_for('ats_generator'))
+        # Check balance
+        if balance < 10.00:
+            return HTMLResponse(content="<h1>Insufficient balance. Please add funds.</h1>", status_code=400)
+        
+        # Get form data
+        form_data = await request.form()
+        cr_file = form_data.get("cr_file")
+        
+        if not cr_file or not hasattr(cr_file, 'read'):
+            return HTMLResponse(content="<h1>Please upload a Condition Report PDF</h1>", status_code=400)
         
         # Parse PDF
-        parsed_data = parse_condition_report(cr_file)
+        parsed_data = await parse_condition_report(cr_file)
         
-        # Get form data (overrides parsed data)
+        # Build document data
         data = {
-            'address': request.form.get('address') or parsed_data.get('address', '[Address]'),
-            'property_type': request.form.get('property_type', '[Type]'),
-            'construction': request.form.get('construction', '[Construction]'),
-            'assessor': request.form.get('assessor') or parsed_data.get('assessor', '[Assessor]'),
-            'inspection_date': request.form.get('inspection_date') or parsed_data.get('inspection_date', '[Date]'),
-            'coordinator': request.form.get('coordinator', 'Brian McKevitt MCIOB'),
-            'measures': request.form.get('measures', 'Loft insulation top-up; Solar PV; Heating controls'),
-            'existing_condition': request.form.get('existing_condition') or parsed_data.get('existing_condition', ''),
-            'control_measures': request.form.get('control_measures', ''),
-            'verification': request.form.get('verification', ''),
-            'residual_risks': request.form.get('residual_risks', ''),
-            'references': request.form.get('references', '')
+            'address': form_data.get('address') or parsed_data.get('address', '[Address]'),
+            'property_type': form_data.get('property_type', '[Type]'),
+            'construction': form_data.get('construction', '[Construction]'),
+            'assessor': form_data.get('assessor') or parsed_data.get('assessor', '[Assessor]'),
+            'inspection_date': form_data.get('inspection_date') or parsed_data.get('inspection_date', '[Date]'),
+            'coordinator': form_data.get('coordinator', 'Brian McKevitt MCIOB'),
+            'measures': form_data.get('measures', 'Loft insulation top-up; Solar PV; Heating controls'),
+            'existing_condition': form_data.get('existing_condition') or parsed_data.get('existing_condition', ''),
+            'control_measures': form_data.get('control_measures', ''),
+            'verification': form_data.get('verification', ''),
+            'residual_risks': form_data.get('residual_risks', ''),
+            'references': form_data.get('references', '')
         }
         
         # Generate document
@@ -160,27 +179,14 @@ def ats_generator_route():
         file_stream.seek(0)
         
         # Deduct from balance
-        current_user.balance -= 10.00
-        
-        # Record transaction
-        transaction = Transaction(
-            user_id=current_user.id,
-            tool='ATS Generator',
-            amount=10.00,
-            timestamp=datetime.utcnow()
-        )
-        db.session.add(transaction)
-        db.session.commit()
+        new_balance = balance - 10.00
+        set_user_credits(user_id, new_balance)
         
         # Generate filename
         filename = f"ATS_{data.get('address', 'Property').replace(',', '').replace(' ', '_')}_Annex_8_2_35.docx"
         
-        return send_file(
+        return StreamingResponse(
             file_stream,
-            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            as_attachment=True,
-            download_name=filename
+            media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            headers={'Content-Disposition': f'attachment; filename="{filename}"'}
         )
-    
-    # GET request - show form
-    return render_template('ats_generator.html', balance=current_user.balance)

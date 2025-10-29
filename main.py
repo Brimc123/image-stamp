@@ -14,8 +14,12 @@ from admin import get_admin_page
 from billing import get_billing_page, get_topup_page, post_topup
 from timestamp_tool import get_timestamp_tool_page, post_timestamp_tool
 from retrofit_tool import get_retrofit_tool_page, post_retrofit_process
+from ats_tool import ats_generator_route
 
 app = FastAPI()
+from fastapi.staticfiles import StaticFiles
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Health check for Render
 @app.get("/api/ping")
@@ -536,6 +540,24 @@ async def route_retrofit_process(request: Request):
     if isinstance(user_row, RedirectResponse):
         return user_row
     return await post_retrofit_process(request, user_row)
+
+# ====================================================================================
+# ATS GENERATOR TOOL ROUTES
+# ====================================================================================
+
+@app.get("/tool/ats-generator", response_class=HTMLResponse)
+async def route_ats_generator(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return await ats_generator_route(request, user_row)
+
+@app.post("/tool/ats-generator/process")
+async def route_ats_generator_process(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return await ats_generator_route(request, user_row)
 
 # ============================================================================
 # RUN SERVER
