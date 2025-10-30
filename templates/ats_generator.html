@@ -4,272 +4,498 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ATS Generator - AutoDate</title>
-    <link rel="stylesheet" href="/static/app.css">
     <style>
-        .ats-container {
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .container {
             max-width: 900px;
-            margin: 40px auto;
-            padding: 30px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 24px;
+            padding: 3rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
         }
-        .ats-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .ats-header h1 {
+        
+        h1 {
             color: #667eea;
-            margin-bottom: 10px;
-        }
-        .ats-header p {
-            color: #666;
-            font-size: 14px;
-        }
-        .upload-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        .upload-box {
-            border: 2px dashed #ddd;
-            border-radius: 8px;
-            padding: 30px;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
             text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
+            font-weight: 800;
         }
-        .upload-box:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
-        }
-        .upload-box input[type="file"] {
-            display: none;
-        }
-        .upload-box label {
-            cursor: pointer;
-            display: block;
-        }
-        .form-section {
-            margin-bottom: 20px;
-        }
-        .form-section h3 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 18px;
-        }
-        .form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            color: #555;
-            font-size: 14px;
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
             font-weight: 500;
         }
-        .form-group input,
-        .form-group textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 14px;
+        
+        .balance-badge {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 1.2rem 2rem;
+            border-radius: 16px;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
         }
-        .form-group textarea {
-            resize: vertical;
-            min-height: 80px;
-        }
-        .generate-btn {
+        
+        .section-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 15px 40px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+            font-size: 1.2rem;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .form-group {
+            margin-bottom: 2rem;
+        }
+        
+        label {
+            display: block;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.75rem;
+            font-size: 1.05rem;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 1rem;
+            border: 3px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: white;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+        
+        .measures-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .measure-checkbox {
+            display: flex;
+            align-items: center;
+            padding: 1.2rem;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border: 3px solid #e2e8f0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .measure-checkbox:hover {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+        
+        .measure-checkbox.high-risk {
+            border-color: #fbbf24;
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        }
+        
+        .measure-checkbox.high-risk::after {
+            content: "⚠️ HIGH RISK";
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: #ef4444;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+        
+        .measure-checkbox input[type="checkbox"] {
+            margin-right: 0.75rem;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            accent-color: #667eea;
+        }
+        
+        .measure-checkbox label {
+            margin: 0;
+            cursor: pointer;
             font-weight: 600;
+            font-size: 0.95rem;
+            color: #334155;
+        }
+        
+        /* Beautiful Drag & Drop File Upload */
+        .file-upload-container {
+            margin-bottom: 2rem;
+        }
+        
+        .file-upload-area {
+            border: 3px dashed #cbd5e1;
+            border-radius: 16px;
+            padding: 3rem 2rem;
+            text-align: center;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .file-upload-area:hover {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            transform: scale(1.02);
+        }
+        
+        .file-upload-area.dragover {
+            border-color: #10b981;
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            transform: scale(1.05);
+            box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+        }
+        
+        .file-upload-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .file-upload-text {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+        }
+        
+        .file-upload-subtext {
+            color: #64748b;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+        }
+        
+        .file-name-display {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: #10b981;
+            color: white;
+            border-radius: 8px;
+            font-weight: 600;
+            display: none;
+        }
+        
+        .file-name-display.active {
+            display: block;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .browse-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .browse-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            border: none;
+            border-radius: 16px;
+            font-size: 1.3rem;
+            font-weight: 800;
             cursor: pointer;
             width: 100%;
-            margin-top: 20px;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            margin-top: 2rem;
         }
-        .generate-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(102, 126, 234, 0.5);
         }
-        .generate-btn:disabled {
-            background: #ccc;
+        
+        .btn-primary:disabled {
+            background: #94a3b8;
             cursor: not-allowed;
+            transform: none;
         }
-        .balance-display {
-            text-align: center;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #f0f9ff;
-            border-radius: 8px;
-        }
-        .balance-display strong {
-            color: #667eea;
-            font-size: 20px;
-        }
-        .price-tag {
+        
+        .back-link {
             display: inline-block;
-            background: #fef3c7;
-            color: #92400e;
-            padding: 5px 15px;
-            border-radius: 20px;
+            margin-bottom: 1.5rem;
+            color: white;
+            text-decoration: none;
+            font-weight: 700;
+            padding: 0.75rem 1.5rem;
+            background: rgba(255, 255, 255, 0.25);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .back-link:hover {
+            background: rgba(255, 255, 255, 0.35);
+            transform: translateX(-5px);
+        }
+        
+        .info-box {
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border-left: 6px solid #3b82f6;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            color: #1e40af;
             font-weight: 600;
-            margin-left: 10px;
         }
-        .details-toggle {
-            background: #f8f9fa;
-            border: 1px solid #ddd;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            cursor: pointer;
+        
+        .warning-box {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 6px solid #f59e0b;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-top: 1rem;
+            color: #92400e;
+            font-weight: 600;
         }
-        .details-toggle:hover {
-            background: #e9ecef;
-        }
-        .details-content {
-            display: none;
-            margin-top: 20px;
-        }
-        .details-content.show {
-            display: block;
+        
+        .required {
+            color: #ef4444;
+            font-weight: 800;
         }
     </style>
 </head>
 <body>
-    <div class="ats-container">
-        <div class="ats-header">
-            <h1>🏠 Airtightness Strategy Generator</h1>
-            <p>PAS 2035:2023 – Annex 8.2.35 Compliant</p>
-            <span class="price-tag">💰 £10.00 per use</span>
+    <a href="/" class="back-link">← Back to Dashboard</a>
+    
+    <div class="container">
+        <h1>🏠 Airtightness Strategy Generator</h1>
+        <p class="subtitle">PAS 2035:2023 Annex 8.2.35 Compliant</p>
+        
+        <div class="balance-badge">
+            Your Balance: £{{ "%.2f"|format(balance) }}
         </div>
-
-        <div class="balance-display">
-            <p>Your Balance: <strong>£{{ "%.2f"|format(balance) }}</strong></p>
+        
+        <div class="info-box">
+            <strong>💰 Cost:</strong> £10.00 per document | 
+            <strong>⏱️ Time:</strong> ~30 seconds | 
+            <strong>📄 Output:</strong> Professional PAS 2035 compliant .docx file
         </div>
-
- 
-
-        <form method="POST" enctype="multipart/form-data">
-            <div class="upload-section">
-                <div class="upload-box">
-                    <label for="cr_file">
-                        <div style="font-size: 40px; margin-bottom: 10px;">📄</div>
-                        <strong>Condition Report (Required)</strong>
-                        <p style="font-size: 12px; color: #666; margin-top: 10px;">Click to upload PDF</p>
-                    </label>
-                    <input type="file" id="cr_file" name="cr_file" accept=".pdf" required>
+        
+        <form action="/tool/ats-generator" method="post" enctype="multipart/form-data">
+            
+            <!-- Property Address -->
+            <div class="section-header">📍 Property Details</div>
+            <div class="form-group">
+                <label>Property Address <span class="required">*</span></label>
+                <input type="text" name="address" placeholder="e.g., 5 Servite Court, Braco, DUNBLANE, FK15 9RL" required>
+            </div>
+            
+            <!-- Retrofit Measures -->
+            <div class="section-header">🔧 Proposed Retrofit Measures</div>
+            <p style="margin-bottom: 1rem; color: #64748b; font-weight: 600;">Select all measures that will be installed (at least one required)</p>
+            
+            <div class="measures-grid">
+                <div class="measure-checkbox">
+                    <input type="checkbox" name="measures" value="loft_insulation" id="loft">
+                    <label for="loft">Loft Insulation</label>
                 </div>
-
-                <div class="upload-box">
-                    <label for="notes_file">
-                        <div style="font-size: 40px; margin-bottom: 10px;">📋</div>
-                        <strong>Site Notes (Optional)</strong>
-                        <p style="font-size: 12px; color: #666; margin-top: 10px;">Click to upload PDF</p>
-                    </label>
-                    <input type="file" id="notes_file" name="notes_file" accept=".pdf">
+                <div class="measure-checkbox high-risk">
+                    <input type="checkbox" name="measures" value="cavity_wall" id="cavity">
+                    <label for="cavity">Cavity Wall Insulation</label>
+                </div>
+                <div class="measure-checkbox high-risk">
+                    <input type="checkbox" name="measures" value="external_wall" id="ewi">
+                    <label for="ewi">External Wall Insulation</label>
+                </div>
+                <div class="measure-checkbox high-risk">
+                    <input type="checkbox" name="measures" value="internal_wall" id="iwi">
+                    <label for="iwi">Internal Wall Insulation</label>
+                </div>
+                <div class="measure-checkbox">
+                    <input type="checkbox" name="measures" value="floor_insulation" id="floor">
+                    <label for="floor">Floor Insulation</label>
+                </div>
+                <div class="measure-checkbox">
+                    <input type="checkbox" name="measures" value="solar_pv" id="solar">
+                    <label for="solar">Solar PV</label>
+                </div>
+                <div class="measure-checkbox">
+                    <input type="checkbox" name="measures" value="heating_upgrade" id="heating">
+                    <label for="heating">Heating Upgrade</label>
+                </div>
+                <div class="measure-checkbox">
+                    <input type="checkbox" name="measures" value="windows_doors" id="windows">
+                    <label for="windows">Windows & Doors</label>
+                </div>
+                <div class="measure-checkbox">
+                    <input type="checkbox" name="measures" value="ventilation" id="vent">
+                    <label for="vent">Ventilation System</label>
+                </div>
+                <div class="measure-checkbox">
+                    <input type="checkbox" name="measures" value="draught_proofing" id="draught">
+                    <label for="draught">Draught Proofing</label>
                 </div>
             </div>
-
-            <div class="details-toggle" onclick="toggleDetails()">
-                <strong>📝 Optional: Fill or Override Details</strong>
-                <span style="float: right;">▼</span>
+            
+            <div class="warning-box" id="highRiskWarning" style="display: none;">
+                ⚠️ <strong>HIGH-RISK MEASURES SELECTED:</strong> You have selected measures that require MANDATORY post-installation airtightness testing per PAS 2035:2023. Test results must be sent to Brian McKevitt (Retrofit Coordinator).
             </div>
-
-            <div class="details-content" id="detailsContent">
-                <div class="form-section">
-                    <h3>Property Information</h3>
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label>Property Address</label>
-                            <input type="text" name="address" placeholder="Auto-filled from PDF">
-                        </div>
-                        <div class="form-group">
-                            <label>Property Type</label>
-                            <input type="text" name="property_type" placeholder="e.g., Semi-detached house">
-                        </div>
-                        <div class="form-group">
-                            <label>Construction</label>
-                            <input type="text" name="construction" placeholder="e.g., Cavity wall, pitched roof">
-                        </div>
-                        <div class="form-group">
-                            <label>Assessor</label>
-                            <input type="text" name="assessor" placeholder="Auto-filled from PDF">
-                        </div>
-                        <div class="form-group">
-                            <label>Inspection Date</label>
-                            <input type="text" name="inspection_date" placeholder="Auto-filled from PDF">
-                        </div>
-                        <div class="form-group">
-                            <label>Retrofit Coordinator</label>
-                            <input type="text" name="coordinator" value="Brian McKevitt MCIOB">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="form-section">
-                    <h3>Retrofit Details</h3>
-                    <div class="form-group">
-                        <label>Proposed Measures</label>
-                        <textarea name="measures">Loft insulation top-up; Solar PV; Heating controls</textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Existing Airtightness Condition</label>
-                        <textarea name="existing_condition" rows="4">• No prior ATT available; typical air permeability assumed for age/type.
-- Likely leakage paths: loft hatch edges, eaves junctions, service penetrations, recessed light fittings.
-- No persistent damp/mould observed. Existing background and extract ventilation present per Condition Report.</textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Control Measures During Retrofit</label>
-                        <textarea name="control_measures" rows="3" placeholder="Optional - describe measures to maintain/improve airtightness"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Verification & Testing</label>
-                        <textarea name="verification" rows="3" placeholder="Optional - testing protocols and acceptance criteria"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Residual Risks & Review</label>
-                        <textarea name="residual_risks" rows="3" placeholder="Optional - remaining concerns and review schedule"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Regulatory References</label>
-                        <textarea name="references" rows="2" placeholder="Optional - relevant building regs, standards"></textarea>
-                    </div>
+            
+            <!-- Condition Report Upload -->
+            <div class="section-header">📄 Upload Documents</div>
+            
+            <div class="file-upload-container">
+                <label>Condition Report or RdSAP <span class="required">*</span></label>
+                <div class="file-upload-area" id="dropZone1">
+                    <div class="file-upload-icon">📎</div>
+                    <div class="file-upload-text">Drag & Drop PDF Here</div>
+                    <div class="file-upload-subtext">or click to browse</div>
+                    <input type="file" name="cr_file" id="fileInput1" accept=".pdf" required>
+                    <button type="button" class="browse-btn" onclick="document.getElementById('fileInput1').click()">
+                        Browse Files
+                    </button>
+                    <div class="file-name-display" id="fileName1"></div>
                 </div>
             </div>
-
-            <button type="submit" class="generate-btn">Generate ATS Document (£10.00)</button>
+            
+            <!-- Site Notes Upload (Optional) -->
+            <div class="file-upload-container">
+                <label>Site Notes (Optional)</label>
+                <div class="file-upload-area" id="dropZone2">
+                    <div class="file-upload-icon">📋</div>
+                    <div class="file-upload-text">Drag & Drop PDF Here</div>
+                    <div class="file-upload-subtext">or click to browse</div>
+                    <input type="file" name="site_notes_file" id="fileInput2" accept=".pdf">
+                    <button type="button" class="browse-btn" onclick="document.getElementById('fileInput2').click()">
+                        Browse Files
+                    </button>
+                    <div class="file-name-display" id="fileName2"></div>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn-primary">
+                🚀 Generate PAS 2035 Compliant ATS (£10.00)
+            </button>
         </form>
     </div>
-
+    
     <script>
-        function toggleDetails() {
-            var content = document.getElementById('detailsContent');
-            content.classList.toggle('show');
+        // High-risk measure detection
+        const highRiskCheckboxes = ['cavity', 'ewi', 'iwi'];
+        const warningBox = document.getElementById('highRiskWarning');
+        
+        function checkHighRisk() {
+            const anyHighRiskChecked = highRiskCheckboxes.some(id => 
+                document.getElementById(id).checked
+            );
+            warningBox.style.display = anyHighRiskChecked ? 'block' : 'none';
         }
-
-        // Show filename when file is selected
-        document.getElementById('cr_file').addEventListener('change', function(e) {
-            if (e.target.files.length > 0) {
-                var label = e.target.previousElementSibling;
-                label.innerHTML = '<div style="font-size: 40px; margin-bottom: 10px;">✅</div><strong>' + e.target.files[0].name + '</strong>';
-            }
+        
+        highRiskCheckboxes.forEach(id => {
+            document.getElementById(id).addEventListener('change', checkHighRisk);
         });
-
-        document.getElementById('notes_file').addEventListener('change', function(e) {
-            if (e.target.files.length > 0) {
-                var label = e.target.previousElementSibling;
-                label.innerHTML = '<div style="font-size: 40px; margin-bottom: 10px;">✅</div><strong>' + e.target.files[0].name + '</strong>';
+        
+        // Drag and drop for both upload zones
+        setupDragDrop('dropZone1', 'fileInput1', 'fileName1');
+        setupDragDrop('dropZone2', 'fileInput2', 'fileName2');
+        
+        function setupDragDrop(dropZoneId, fileInputId, fileNameId) {
+            const dropZone = document.getElementById(dropZoneId);
+            const fileInput = document.getElementById(fileInputId);
+            const fileNameDisplay = document.getElementById(fileNameId);
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.add('dragover');
+                }, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.remove('dragover');
+                }, false);
+            });
+            
+            dropZone.addEventListener('drop', function(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                
+                if (files.length > 0) {
+                    const file = files[0];
+                    if (file.type === 'application/pdf') {
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        fileInput.files = dataTransfer.files;
+                        fileNameDisplay.textContent = `✅ ${file.name}`;
+                        fileNameDisplay.classList.add('active');
+                    } else {
+                        alert('Please upload a PDF file');
+                    }
+                }
+            }, false);
+            
+            fileInput.addEventListener('change', function(e) {
+                if (this.files.length > 0) {
+                    fileNameDisplay.textContent = `✅ ${this.files[0].name}`;
+                    fileNameDisplay.classList.add('active');
+                }
+            });
+        }
+        
+        // Form validation
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const checkboxes = document.querySelectorAll('input[name="measures"]:checked');
+            if (checkboxes.length === 0) {
+                e.preventDefault();
+                alert('Please select at least one retrofit measure');
             }
         });
     </script>
