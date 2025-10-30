@@ -281,16 +281,34 @@ def generate_impact_text(selected_measures):
     impacts = [MEASURE_DESCRIPTIONS[m]['impact'] for m in selected_measures if m in MEASURE_DESCRIPTIONS]
     return " ".join(impacts)
 
-def generate_control_measures(selected_measures):
+    return "\n\n".join(controls)
+def generate_control_measures(selected_measures, is_timber_frame=False):
     if not selected_measures:
         return "General airtightness measures to be implemented during installation."
+    
     controls = []
+    
+    # Add timber frame warning if IWI is selected
+    if 'internal_wall' in selected_measures and is_timber_frame:
+        controls.append('''⚠️ CRITICAL TIMBER FRAME CONSIDERATION:
+
+This property has timber frame construction which already incorporates a vapor control layer within the wall build-up. The addition of Internal Wall Insulation with its own vapor control layer creates a risk of interstitial condensation between the two VCLs.
+
+MANDATORY REQUIREMENTS:
+- Hygrothermal modeling MUST be conducted before IWI installation (PAS 2035:2023 Clause 8.2.31)
+- Consider breathable insulation systems specifically designed for timber frame retrofit
+- Ensure compatibility between existing and new vapor control strategies
+- Specialist timber frame retrofit advice REQUIRED before proceeding with IWI
+- Enhanced monitoring for condensation risk in first 2 heating seasons post-installation
+
+''')
+    
     for i, measure in enumerate(selected_measures, 1):
         if measure in MEASURE_DESCRIPTIONS:
             controls.append(f"{i}. {MEASURE_DESCRIPTIONS[measure]['controls']}")
+    
     controls.append(f"\n{len(controls)+1}. General Workmanship:\n• All installers briefed on airtightness requirements\n• All penetrations documented and photographed\n• Materials specification maintained throughout\n• Site inspections at key stages")
     return "\n\n".join(controls)
-
 def generate_verification_text(selected_measures, has_high_risk):
     if not selected_measures:
         return "Post-installation air permeability testing recommended per PAS 2035."
@@ -701,8 +719,7 @@ async def ats_generator_route(request: Request, user_row):
             'inspection_date': merged_data.get('inspection_date', '[Date]'),
             'measures_text': generate_measures_text(selected_measures),
             'impact_text': generate_impact_text(selected_measures),
-            'control_measures': generate_control_measures(selected_measures),
-            'verification': generate_verification_text(selected_measures, has_high_risk),
+            'control_measures': generate_control_measures(selected_measures, 'timber' in merged_data.get('construction', '').lower()),            'verification': generate_verification_text(selected_measures, has_high_risk),
             'has_high_risk': has_high_risk
         }
         
