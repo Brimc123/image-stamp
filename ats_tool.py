@@ -6,6 +6,8 @@ from datetime import datetime
 from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 import pdfplumber
 import re
 from typing import List, Optional
@@ -281,7 +283,6 @@ def generate_impact_text(selected_measures):
     impacts = [MEASURE_DESCRIPTIONS[m]['impact'] for m in selected_measures if m in MEASURE_DESCRIPTIONS]
     return " ".join(impacts)
 
-    return "\n\n".join(controls)
 def generate_control_measures(selected_measures, is_timber_frame=False):
     if not selected_measures:
         return "General airtightness measures to be implemented during installation."
@@ -309,6 +310,7 @@ MANDATORY REQUIREMENTS:
     
     controls.append(f"\n{len(controls)+1}. General Workmanship:\n• All installers briefed on airtightness requirements\n• All penetrations documented and photographed\n• Materials specification maintained throughout\n• Site inspections at key stages")
     return "\n\n".join(controls)
+
 def generate_verification_text(selected_measures, has_high_risk):
     if not selected_measures:
         return "Post-installation air permeability testing recommended per PAS 2035."
@@ -467,14 +469,45 @@ def create_ats_document(data):
         run.font.name = 'Calibri'
         run.font.color.rgb = RGBColor(0, 0, 0)
     
-    # Add high-risk warning if applicable
+    # Add high-risk warning if applicable - ENHANCED WITH BOX
     if data.get('has_high_risk'):
+        doc.add_paragraph()
+        
+        # Create a visually enhanced warning box
         p = doc.add_paragraph()
-        p.add_run('\n⚠️ HIGH-RISK MEASURES SELECTED: ').bold = True
-        p.add_run('This project includes high-risk measures (IWI, EWI, RIR, or CWI) which require MANDATORY post-installation airtightness testing per PAS 2035:2023.')
-        for run in p.runs:
-            run.font.name = 'Calibri'
-            run.font.color.rgb = RGBColor(192, 0, 0)  # Red for warning
+        p.paragraph_format.left_indent = Pt(20)
+        p.paragraph_format.right_indent = Pt(20)
+        p.paragraph_format.space_before = Pt(12)
+        p.paragraph_format.space_after = Pt(12)
+        
+        # Add orange background shading
+        shading_elm = OxmlElement('w:shd')
+        shading_elm.set(qn('w:fill'), 'FFF4E6')  # Light orange background
+        p._p.get_or_add_pPr().append(shading_elm)
+        
+        # Add orange border around the paragraph
+        pPr = p._p.get_or_add_pPr()
+        pBdr = OxmlElement('w:pBdr')
+        for border_name in ('top', 'left', 'bottom', 'right'):
+            border = OxmlElement(f'w:{border_name}')
+            border.set(qn('w:val'), 'single')
+            border.set(qn('w:sz'), '24')  # Border width in 1/8 points
+            border.set(qn('w:space'), '4')  # Space from text
+            border.set(qn('w:color'), 'FF8C42')  # Orange border color
+            pBdr.append(border)
+        pPr.append(pBdr)
+        
+        # Add the warning text with enhanced formatting
+        run1 = p.add_run('⚠️ HIGH-RISK MEASURES SELECTED\n\n')
+        run1.bold = True
+        run1.font.size = Pt(14)
+        run1.font.color.rgb = RGBColor(204, 85, 0)  # Dark orange
+        run1.font.name = 'Calibri'
+        
+        run2 = p.add_run('This project includes high-risk measures (IWI, EWI, RIR, or CWI) which require MANDATORY post-installation airtightness testing per PAS 2035:2023.')
+        run2.font.size = Pt(11)
+        run2.font.color.rgb = RGBColor(51, 51, 51)  # Dark gray for better readability
+        run2.font.name = 'Calibri'
     
     doc.add_paragraph()
     
@@ -719,7 +752,8 @@ async def ats_generator_route(request: Request, user_row):
             'inspection_date': merged_data.get('inspection_date', '[Date]'),
             'measures_text': generate_measures_text(selected_measures),
             'impact_text': generate_impact_text(selected_measures),
-            'control_measures': generate_control_measures(selected_measures, 'timber' in merged_data.get('construction', '').lower()),            'verification': generate_verification_text(selected_measures, has_high_risk),
+            'control_measures': generate_control_measures(selected_measures, 'timber' in merged_data.get('construction', '').lower()),
+            'verification': generate_verification_text(selected_measures, has_high_risk),
             'has_high_risk': has_high_risk
         }
         
