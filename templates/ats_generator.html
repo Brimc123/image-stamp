@@ -343,6 +343,10 @@
                     <label for="cavity">Cavity Wall Insulation</label>
                 </div>
                 <div class="measure-checkbox high-risk">
+                    <input type="checkbox" name="measures" value="roof_in_roof" id="rir">
+                    <label for="rir">Roof-in-Roof Insulation (RIR)</label>
+                </div>
+                <div class="measure-checkbox high-risk">
                     <input type="checkbox" name="measures" value="external_wall" id="ewi">
                     <label for="ewi">External Wall Insulation</label>
                 </div>
@@ -420,7 +424,7 @@
     
     <script>
         // High-risk measure detection
-        const highRiskCheckboxes = ['cavity', 'ewi', 'iwi'];
+        const highRiskCheckboxes = ['cavity', 'ewi', 'iwi', 'rir'];
         const warningBox = document.getElementById('highRiskWarning');
         
         function checkHighRisk() {

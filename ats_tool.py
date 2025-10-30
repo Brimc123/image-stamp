@@ -14,7 +14,7 @@ from database import get_user_by_id, set_user_credits
 templates = Jinja2Templates(directory="templates")
 
 # High-risk measures that REQUIRE mandatory airtightness testing
-HIGH_RISK_MEASURES = {'internal_wall', 'external_wall', 'cavity_wall'}
+HIGH_RISK_MEASURES = {'internal_wall', 'external_wall', 'cavity_wall', 'roof_in_roof'}
 
 # Complete measure descriptions
 MEASURE_DESCRIPTIONS = {
@@ -56,6 +56,29 @@ MEASURE_DESCRIPTIONS = {
 - Verification that all mortar repairs are fully cured and sealed
 - Check for and seal any cracks that may have developed during installation process
 - Smoke pencil test around window and door reveals to verify seal integrity'''
+    },
+    'roof_in_roof': {
+        'name': 'Roof-in-roof insulation (RIR)',
+        'impact': 'RIR involves creating a new insulated roof structure within the existing roof space. This is a HIGH-RISK measure requiring mandatory post-installation airtightness testing due to the complexity of maintaining air barrier continuity.',
+        'controls': '''Roof-in-Roof Insulation Airtightness Strategy:
+- Install continuous air barrier membrane across entire roof structure
+- Tape all joints and overlaps in air barrier using compatible sealing tape
+- Seal perimeter junctions where roof meets walls with flexible sealant
+- Ensure continuity of air barrier at ridge, eaves, and verge details
+- Seal all service penetrations (electrical cables, ventilation ducts) through air barrier
+- Maintain air barrier continuity around roof windows and dormers
+- Use proprietary airtight grommets for cable penetrations
+- Photograph all sealed junctions before covering with insulation
+- Ensure proper ventilation strategy for roof space above insulation layer''',
+        'verification': '''Roof-in-Roof Insulation Verification:
+- Visual inspection of air barrier installation and taping before covering
+- Smoke pencil test at all penetrations and junctions
+- Thermal imaging survey to identify any gaps or thermal bridging
+- Verification of ventilation strategy effectiveness
+- Post-installation air permeability test (significant improvement expected)
+- Check all roof window installations for proper sealing
+- Inspect eaves, ridge, and verge details for air barrier continuity
+- Monitor for condensation in first heating season'''
     },
     'external_wall': {
         'name': 'External wall insulation (EWI)',
@@ -430,7 +453,7 @@ def create_ats_document(data):
     if data.get('has_high_risk'):
         p = doc.add_paragraph()
         p.add_run('\n⚠️ HIGH-RISK MEASURES SELECTED: ').bold = True
-        p.add_run('This project includes high-risk measures (IWI, EWI, or CWI) which require MANDATORY post-installation airtightness testing per PAS 2035:2023.')
+        p.add_run('This project includes high-risk measures (IWI, EWI, RIR, or CWI) which require MANDATORY post-installation airtightness testing per PAS 2035:2023.')
         for run in p.runs:
             run.font.name = 'Calibri'
             run.font.color.rgb = RGBColor(192, 0, 0)  # Red for warning
