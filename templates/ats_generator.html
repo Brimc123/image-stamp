@@ -328,7 +328,27 @@
                 <label>Property Address <span class="required">*</span></label>
                 <input type="text" name="address" placeholder="e.g., 5 Servite Court, Braco, DUNBLANE, FK15 9RL" required>
             </div>
-            
+            <!-- Property Age/Period - IMPROVED STYLING -->
+            <div class="mb-4">
+                <label for="property_age" class="form-label fw-bold" style="font-size: 1.1rem; color: #2d3748;">
+                    Property Age/Period <span class="text-danger">*</span>
+                </label>
+                <select class="form-select form-select-lg" id="property_age" name="property_age" required 
+                        style="border: 2px solid #6366f1; border-radius: 10px; padding: 12px 16px; font-size: 1rem; background-color: #f8f9fa; box-shadow: 0 2px 4px rgba(99, 102, 241, 0.1);">
+                    <option value="" selected disabled>Select construction period...</option>
+                    <option value="pre_1919">Before 1919 (Solid wall, traditional construction)</option>
+                    <option value="1919_1944">1919-1944 (Early cavity wall construction)</option>
+                    <option value="1945_1964">1945-1964 (Post-war construction)</option>
+                    <option value="1965_1974">1965-1974 (System built era)</option>
+                    <option value="1975_1990">1975-1990 (Early insulation standards)</option>
+                    <option value="1991_2002">1991-2002 (Part L 1995 introduced)</option>
+                    <option value="2003_2010">2003-2010 (Improved Part L standards)</option>
+                    <option value="post_2010">2010 onwards (Modern Part L 2010/2013)</option>
+                </select>
+                <small class="form-text" style="color: #6b7280; margin-top: 8px; display: block; font-size: 0.9rem;">
+                    ℹ️ This affects baseline air permeability assumptions and strategy recommendations
+                </small>
+            </div>
             <!-- Retrofit Measures -->
             <div class="section-header">🔧 Proposed Retrofit Measures</div>
             <p style="margin-bottom: 1rem; color: #64748b; font-weight: 600;">Select all measures that will be installed (at least one required)</p>
@@ -380,10 +400,9 @@
                 </div>
             </div>
             
-            <div class="warning-box" id="highRiskWarning" style="display: none;">
-                ⚠️ <strong>HIGH-RISK MEASURES SELECTED:</strong> You have selected measures that require MANDATORY post-installation airtightness testing per PAS 2035:2023. Test results must be sent to Brian McKevitt (Retrofit Coordinator).
-            </div>
-            
+            <div class="alert alert-warning" id="high-risk-warning" style="display: none; margin-top: 20px;">
+    <strong>⚠️ HIGH-RISK MEASURES SELECTED:</strong> You have selected measures where post-installation airtightness testing is HIGHLY RECOMMENDED per PAS 2035:2023. Test results should be sent to Brian McKevitt (Retrofit Coordinator).
+</div>
             <!-- Condition Report Upload -->
             <div class="section-header">📄 Upload Documents</div>
             

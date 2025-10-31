@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 import io
 from datetime import datetime
 from docx import Document
-from docx.shared import Pt, RGBColor
+from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -41,7 +41,7 @@ MEASURE_DESCRIPTIONS = {
     },
     'cavity_wall': {
         'name': 'Cavity wall insulation (CWI)',
-        'impact': 'Cavity wall insulation installation requires multiple penetrations through the external wall which must be properly sealed to prevent air leakage paths. This is a HIGH-RISK measure requiring mandatory post-installation airtightness testing.',
+        'impact': 'Cavity wall insulation installation requires multiple penetrations through the external wall which must be properly sealed to prevent air leakage paths. This is a HIGH-RISK measure where post-installation airtightness testing is highly recommended.',
         'controls': '''Cavity Wall Installation Airtightness Measures:
 - Mark all injection hole locations and photograph before drilling
 - Use appropriate drill bit size to minimize hole diameter (typically 22mm)
@@ -61,7 +61,7 @@ MEASURE_DESCRIPTIONS = {
     },
     'roof_in_roof': {
         'name': 'Roof-in-roof insulation (RIR)',
-        'impact': 'RIR involves creating a new insulated roof structure within the existing roof space. This is a HIGH-RISK measure requiring mandatory post-installation airtightness testing due to the complexity of maintaining air barrier continuity.',
+        'impact': 'RIR involves creating a new insulated roof structure within the existing roof space. This is a HIGH-RISK measure where post-installation airtightness testing is highly recommended due to the complexity of maintaining air barrier continuity.',
         'controls': '''Roof-in-Roof Insulation Airtightness Strategy:
 - Install continuous air barrier membrane across entire roof structure
 - Tape all joints and overlaps in air barrier using compatible sealing tape
@@ -84,7 +84,7 @@ MEASURE_DESCRIPTIONS = {
     },
     'external_wall': {
         'name': 'External wall insulation (EWI)',
-        'impact': 'EWI system creates a new external envelope. Critical junctions at windows, doors, roof, and ground level must maintain airtightness. This is a HIGH-RISK measure requiring mandatory post-installation airtightness testing.',
+        'impact': 'EWI system creates a new external envelope. Critical junctions at windows, doors, roof, and ground level must maintain airtightness. This is a HIGH-RISK measure where post-installation airtightness testing is highly recommended.',
         'controls': '''External Wall Insulation Airtightness Strategy:
 - Ensure continuity of airtightness layer at all junctions before EWI installation
 - Seal all existing cracks and gaps in substrate wall using appropriate filler
@@ -106,7 +106,7 @@ MEASURE_DESCRIPTIONS = {
     },
     'internal_wall': {
         'name': 'Internal wall insulation (IWI)',
-        'impact': 'IWI creates junctions with existing building fabric. Proper detailing required at floor, ceiling, and party wall junctions to maintain airtightness. This is a HIGH-RISK measure requiring mandatory post-installation airtightness testing.',
+        'impact': 'IWI creates junctions with existing building fabric. Proper detailing required at floor, ceiling, and party wall junctions to maintain airtightness. This is a HIGH-RISK measure where post-installation airtightness testing is highly recommended.',
         'controls': '''Internal Wall Insulation Airtightness Measures:
 - Seal all gaps, cracks and penetrations in existing wall before IWI installation
 - Install continuous air barrier (typically vapor control layer) as part of IWI system
@@ -271,6 +271,112 @@ MEASURE_DESCRIPTIONS = {
     }
 }
 
+def get_age_specific_baseline(property_age):
+    """Generate age-specific baseline airtightness conditions"""
+    
+    age_baselines = {
+        'pre_1919': {
+            'display_age': 'Pre-1919',
+            'air_perm': '15-20 m³/(h.m²) at 50Pa',
+            'description': '''• No prior airtightness test available; typical air permeability for pre-1919 solid wall properties estimated at 15-20 m³/(h.m²) at 50Pa
+- Construction characteristics: Solid wall (typically 9" brick), suspended timber floors, single-glazed sash windows, slate/tile pitched roof with sarking felt
+- Likely leakage paths identified: Sash window gaps, suspended floor perimeter gaps, gaps at wall/floor junctions, gaps around services, chimney breasts (even if blocked), loft hatch perimeter, eaves junctions
+- High air permeability expected due to age and construction type; significant improvement possible through targeted interventions
+- Traditional construction relies on "breathability"; some air movement is beneficial for moisture management
+- No persistent damp or mould observed during visual inspection
+- Existing background ventilation via natural infiltration; mechanical extract ventilation present in wet rooms per Condition Report''',
+            'target': '10-12 m³/(h.m²) at 50Pa',
+            'notes': 'Traditional construction - balance airtightness improvements with breathability requirements. Do not over-seal solid wall properties.'
+        },
+        '1919_1944': {
+            'display_age': '1919-1944',
+            'air_perm': '12-18 m³/(h.m²) at 50Pa',
+            'description': '''• No prior airtightness test available; typical air permeability for 1919-1944 properties estimated at 12-18 m³/(h.m²) at 50Pa
+- Construction characteristics: Early cavity wall construction (may be narrow cavity), suspended timber floors, single or early double glazing, pitched roof with felt
+- Likely leakage paths identified: Window frame perimeters, gaps at reveals, suspended floor perimeter gaps, service penetrations, loft hatch perimeter, eaves junctions, party wall junctions
+- Cavity wall construction provides some inherent air barrier, but gaps at junctions common
+- No persistent damp or mould observed during visual inspection
+- Existing background ventilation via trickle vents and mechanical extract ventilation in wet rooms per Condition Report''',
+            'target': '8-10 m³/(h.m²) at 50Pa',
+            'notes': 'Inter-war construction - good potential for improvement. Check for fill-able cavities.'
+        },
+        '1945_1964': {
+            'display_age': '1945-1964',
+            'air_perm': '10-15 m³/(h.m²) at 50Pa',
+            'description': '''• No prior airtightness test available; typical air permeability for 1945-1964 post-war properties estimated at 10-15 m³/(h.m²) at 50Pa
+- Construction characteristics: Cavity wall (standard 50-75mm cavity), concrete or timber suspended floors, metal or timber frame windows, pitched or flat roof
+- Likely leakage paths identified: Window and door perimeters, service penetrations, loft hatch perimeter, eaves junctions, gaps at floor/wall junctions
+- Post-war system built properties may have specific construction details affecting airtightness
+- No persistent damp or mould observed during visual inspection
+- Existing background ventilation via trickle vents in habitable rooms; mechanical extract fans with pull-chord operation in bathroom and kitchen per Condition Report''',
+            'target': '7-9 m³/(h.m²) at 50Pa',
+            'notes': 'Post-war construction - check for non-traditional construction methods (concrete frame, steel frame, timber frame systems).'
+        },
+        '1965_1974': {
+            'display_age': '1965-1974',
+            'air_perm': '10-14 m³/(h.m²) at 50Pa',
+            'description': '''• No prior airtightness test available; typical air permeability for 1965-1974 properties estimated at 10-14 m³/(h.m²) at 50Pa
+- Construction characteristics: Standard cavity wall construction (75-100mm cavity), mix of floor types, metal or uPVC windows (may be replacement), pitched roof with felt underlay
+- Likely leakage paths identified: Window and door frame perimeters, service penetrations, loft hatch perimeter, eaves junctions, recessed light fittings (if present)
+- No building regulations for thermal performance or airtightness during this period
+- No persistent damp or mould observed during visual inspection
+- Existing background and extract ventilation present per Condition Report''',
+            'target': '7-9 m³/(h.m²) at 50Pa',
+            'notes': 'Pre-Part L construction - significant improvement potential through systematic sealing.'
+        },
+        '1975_1990': {
+            'display_age': '1975-1990',
+            'air_perm': '8-12 m³/(h.m²) at 50Pa',
+            'description': '''• No prior airtightness test available; typical air permeability for 1975-1990 properties estimated at 8-12 m³/(h.m²) at 50Pa
+- Construction characteristics: Cavity wall with partial fill insulation (after 1982), solid or suspended floors, double glazing becoming common, pitched roof with felt underlay and some loft insulation
+- Likely leakage paths identified: Window and door frame perimeters, service penetrations, loft hatch perimeter, eaves junctions, recessed light fittings
+- Building Regulations 1976 introduced thermal requirements; some insulation likely present
+- No persistent damp or mould observed during visual inspection
+- Existing trickle ventilation and mechanical extract ventilation present per Condition Report''',
+            'target': '6-8 m³/(h.m²) at 50Pa',
+            'notes': 'Early thermal standards - partial cavity insulation may be present. Good improvement potential.'
+        },
+        '1991_2002': {
+            'display_age': '1991-2002',
+            'air_perm': '8-11 m³/(h.m²) at 50Pa',
+            'description': '''• No prior airtightness test available; typical air permeability for 1991-2002 properties estimated at 8-11 m³/(h.m²) at 50Pa
+- Construction characteristics: Cavity wall with full fill insulation (post-1995), solid floors with insulation, double glazing standard, pitched roof with 100mm+ loft insulation
+- Building Regulations Part L 1995 introduced; improved thermal performance standards
+- Likely leakage paths identified: Service penetrations, loft hatch perimeter, recessed light fittings, extract fan penetrations
+- Background ventilation via trickle vents; mechanical extract ventilation in wet rooms
+- No persistent damp or mould observed during visual inspection''',
+            'target': '5-7 m³/(h.m²) at 50Pa',
+            'notes': 'Part L 1995 construction - already has basic fabric improvements. Focus on junction detailing.'
+        },
+        '2003_2010': {
+            'display_age': '2003-2010',
+            'air_perm': '7-10 m³/(h.m²) at 50Pa',
+            'description': '''• No prior airtightness test available; typical air permeability for 2003-2010 properties estimated at 7-10 m³/(h.m²) at 50Pa
+- Construction characteristics: Cavity wall with full fill insulation, insulated solid floors, high-performance double glazing, pitched roof with 250mm+ loft insulation
+- Building Regulations Part L 2002/2006; significantly improved thermal and airtightness standards
+- Likely leakage paths identified: Service penetrations, loft hatch perimeter, extract fan and ventilation penetrations
+- Purpose-provided ventilation via trickle vents and mechanical extract; some properties may have MVHR
+- No persistent damp or mould observed during visual inspection''',
+            'target': '5-6 m³/(h.m²) at 50Pa',
+            'notes': 'Part L 2002/2006 construction - good baseline performance. Refinement of details should achieve target.'
+        },
+        'post_2010': {
+            'display_age': 'Post-2010',
+            'air_perm': '5-8 m³/(h.m²) at 50Pa',
+            'description': '''• No prior airtightness test available; typical air permeability for post-2010 properties estimated at 5-8 m³/(h.m²) at 50Pa
+- Construction characteristics: Enhanced cavity wall or timber frame with high insulation levels, fully insulated floors and walls, high-performance glazing (A-rated), highly insulated roof (270mm+)
+- Building Regulations Part L 2010/2013; stringent thermal performance and airtightness standards (design target 10 m³/(h.m²) at 50Pa)
+- Property likely tested at completion; consult original air test certificate if available
+- Likely leakage paths identified: Minor gaps at service penetrations, potential degradation of seals over time
+- Purpose-provided ventilation system per Building Regulations; likely MVHR or continuous mechanical extract
+- No persistent damp or mould observed during visual inspection''',
+            'target': '≤5 m³/(h.m²) at 50Pa',
+            'notes': 'Modern Part L construction - already designed to airtightness standards. Focus on maintaining and improving existing performance.'
+        }
+    }
+    
+    return age_baselines.get(property_age, age_baselines['1975_1990'])
+
 def generate_measures_text(selected_measures):
     measure_names = [MEASURE_DESCRIPTIONS[m]['name'] for m in selected_measures if m in MEASURE_DESCRIPTIONS]
     if not measure_names:
@@ -320,21 +426,21 @@ def generate_verification_text(selected_measures, has_high_risk):
         if measure in MEASURE_DESCRIPTIONS:
             verifications.append(MEASURE_DESCRIPTIONS[measure]['verification'])
     
-    # Add mandatory or recommended testing based on risk
+    # Add HIGHLY RECOMMENDED testing based on risk
     if has_high_risk:
-        overall_test = '''\n⚠️ MANDATORY AIRTIGHTNESS TESTING REQUIRED ⚠️
+        overall_test = '''\n⚠️ AIRTIGHTNESS TESTING HIGHLY RECOMMENDED ⚠️
 
-Due to the inclusion of high-risk measures (IWI, EWI, RIR, or CWI), post-installation airtightness testing is MANDATORY per PAS 2035:2023 Annex 8.2.35.
+Due to the inclusion of high-risk measures (IWI, EWI, RIR, or CWI), post-installation airtightness testing is HIGHLY RECOMMENDED per PAS 2035:2023 Annex 8.2.35.
 
 Testing Requirements:
 - Testing Standard: ATTMA Technical Standard L1 (Measuring Air Permeability in the Existing Housing Stock)
 - Target Air Permeability: ≤ 10 m³/(h.m²) at 50Pa
 - Testing to be conducted by ATTMA-certified air tightness tester
 - Test to be performed following completion of all retrofit measures
-- Results MUST be documented and sent to Brian McKevitt (Retrofit Coordinator)
+- Results to be documented and sent to Brian McKevitt (Retrofit Coordinator)
 - Test results to be included in project completion pack and submitted to funding body
 
-Failure to conduct and submit airtightness test results will result in non-compliance with PAS 2035 requirements.'''
+Conducting airtightness testing ensures compliance with PAS 2035 requirements and verifies the effectiveness of installation works.'''
     else:
         overall_test = '''\nAirtightness Testing - RECOMMENDED:
 
@@ -355,134 +461,150 @@ If testing is conducted:
 def create_ats_document(data):
     doc = Document()
     
-    # Set default font to Calibri 11pt
+    # Set professional default font and spacing
     style = doc.styles['Normal']
     style.font.name = 'Calibri'
     style.font.size = Pt(11)
     style.font.color.rgb = RGBColor(0, 0, 0)
+    style.paragraph_format.space_after = Pt(8)
+    style.paragraph_format.line_spacing = 1.15
     
-    # Title - Bold, Calibri 18pt, Centered
+    # Set professional margins
+    for section in doc.sections:
+        section.top_margin = Inches(1)
+        section.bottom_margin = Inches(1)
+        section.left_margin = Inches(1.25)
+        section.right_margin = Inches(1.25)
+    
+    # Title - Bold, Calibri 20pt, Centered, BLACK
     title = doc.add_paragraph()
     title_run = title.add_run('AIRTIGHTNESS STRATEGY')
     title_run.bold = True
     title_run.font.name = 'Calibri'
-    title_run.font.size = Pt(18)
+    title_run.font.size = Pt(20)
     title_run.font.color.rgb = RGBColor(0, 0, 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title.paragraph_format.space_after = Pt(6)
     
-    # Subtitle - Calibri 12pt, Centered
+    # Subtitle - Calibri 13pt, Centered, DARK GRAY
     subtitle = doc.add_paragraph()
     subtitle_run = subtitle.add_run('PAS 2035:2023 – Annex 8.2.35 Retrofit Assessment')
     subtitle_run.font.name = 'Calibri'
-    subtitle_run.font.size = Pt(12)
-    subtitle_run.font.color.rgb = RGBColor(0, 0, 0)
+    subtitle_run.font.size = Pt(13)
+    subtitle_run.font.color.rgb = RGBColor(89, 89, 89)
     subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    doc.add_paragraph()
+    subtitle.paragraph_format.space_after = Pt(20)
     
-    # Section 1 - Property Details
+    # Section 1 - Property Details - BLACK HEADINGS
     heading = doc.add_heading('1. Property Details', level=2)
     heading.runs[0].font.name = 'Calibri'
-    heading.runs[0].font.size = Pt(14)
+    heading.runs[0].font.size = Pt(15)
     heading.runs[0].font.color.rgb = RGBColor(0, 0, 0)
+    heading.runs[0].bold = True
+    heading.paragraph_format.space_before = Pt(16)
+    heading.paragraph_format.space_after = Pt(10)
     
     p = doc.add_paragraph()
     p.add_run('Address: ').bold = True
     p.add_run(data.get('address', '[Property Address]'))
     for run in p.runs:
         run.font.name = 'Calibri'
-        run.font.color.rgb = RGBColor(0, 0, 0)
+        run.font.size = Pt(11)
     
     p = doc.add_paragraph()
     p.add_run('Property Type: ').bold = True
     p.add_run(data.get('property_type', 'Detached house'))
     for run in p.runs:
         run.font.name = 'Calibri'
-        run.font.color.rgb = RGBColor(0, 0, 0)
+        run.font.size = Pt(11)
     
     p = doc.add_paragraph()
     p.add_run('Construction Type: ').bold = True
     p.add_run(data.get('construction', 'Cavity wall construction'))
     for run in p.runs:
         run.font.name = 'Calibri'
-        run.font.color.rgb = RGBColor(0, 0, 0)
+        run.font.size = Pt(11)
     
     p = doc.add_paragraph()
     p.add_run('Age/Period: ').bold = True
     p.add_run(data.get('age', 'Post-1990s'))
     for run in p.runs:
         run.font.name = 'Calibri'
-        run.font.color.rgb = RGBColor(0, 0, 0)
+        run.font.size = Pt(11)
     
-    doc.add_paragraph()
-    
-    # Section 2 - Assessment Details
+    # Section 2 - Assessment Details - BLACK HEADINGS
     heading = doc.add_heading('2. Assessment Details', level=2)
     heading.runs[0].font.name = 'Calibri'
-    heading.runs[0].font.size = Pt(14)
+    heading.runs[0].font.size = Pt(15)
     heading.runs[0].font.color.rgb = RGBColor(0, 0, 0)
+    heading.runs[0].bold = True
+    heading.paragraph_format.space_before = Pt(16)
+    heading.paragraph_format.space_after = Pt(10)
     
     p = doc.add_paragraph()
     p.add_run('Assessor: ').bold = True
     p.add_run(data.get('assessor', '[Assessor Name]'))
     for run in p.runs:
         run.font.name = 'Calibri'
-        run.font.color.rgb = RGBColor(0, 0, 0)
+        run.font.size = Pt(11)
     
     p = doc.add_paragraph()
     p.add_run('Inspection Date: ').bold = True
     p.add_run(data.get('inspection_date', '[Date]'))
     for run in p.runs:
         run.font.name = 'Calibri'
-        run.font.color.rgb = RGBColor(0, 0, 0)
+        run.font.size = Pt(11)
     
     p = doc.add_paragraph()
     p.add_run('Retrofit Coordinator: ').bold = True
     p.add_run('Brian McKevitt MCIOB')
     for run in p.runs:
         run.font.name = 'Calibri'
-        run.font.color.rgb = RGBColor(0, 0, 0)
+        run.font.size = Pt(11)
     
     p = doc.add_paragraph()
     p.add_run('PAS 2035 Compliance: ').bold = True
     p.add_run('This Airtightness Strategy is prepared in accordance with PAS 2035:2023 Annex 8.2.35')
     for run in p.runs:
         run.font.name = 'Calibri'
-        run.font.color.rgb = RGBColor(0, 0, 0)
+        run.font.size = Pt(11)
     
-    doc.add_paragraph()
-    
-    # Section 3 - Proposed Measures
+    # Section 3 - Proposed Measures - BLACK HEADINGS
     heading = doc.add_heading('3. Proposed Retrofit Measures', level=2)
     heading.runs[0].font.name = 'Calibri'
-    heading.runs[0].font.size = Pt(14)
+    heading.runs[0].font.size = Pt(15)
     heading.runs[0].font.color.rgb = RGBColor(0, 0, 0)
+    heading.runs[0].bold = True
+    heading.paragraph_format.space_before = Pt(16)
+    heading.paragraph_format.space_after = Pt(10)
     
     p = doc.add_paragraph()
     run = p.add_run(data.get('measures_text', ''))
     run.font.name = 'Calibri'
-    run.font.color.rgb = RGBColor(0, 0, 0)
+    run.font.size = Pt(11)
+    run.bold = True
     
     p = doc.add_paragraph()
     p.add_run('Impact on Airtightness: ').bold = True
     p.add_run(data.get('impact_text', ''))
     for run in p.runs:
         run.font.name = 'Calibri'
-        run.font.color.rgb = RGBColor(0, 0, 0)
+        run.font.size = Pt(11)
     
-    # Add high-risk warning if applicable - ENHANCED WITH BOX
+    # Add high-risk warning if applicable - ORANGE BOX RESTORED
     if data.get('has_high_risk'):
-        doc.add_paragraph()
-        
         # Create a visually enhanced warning box
         p = doc.add_paragraph()
         p.paragraph_format.left_indent = Pt(20)
         p.paragraph_format.right_indent = Pt(20)
-        p.paragraph_format.space_before = Pt(12)
-        p.paragraph_format.space_after = Pt(12)
+        p.paragraph_format.space_before = Pt(14)
+        p.paragraph_format.space_after = Pt(14)
+        p.paragraph_format.keep_together = True
+        p.paragraph_format.keep_with_next = True
         
         # Add orange background shading
         shading_elm = OxmlElement('w:shd')
-        shading_elm.set(qn('w:fill'), 'FFF4E6')  # Light orange background
+        shading_elm.set(qn('w:fill'), 'FFF4E6')
         p._p.get_or_add_pPr().append(shading_elm)
         
         # Add orange border around the paragraph
@@ -491,9 +613,9 @@ def create_ats_document(data):
         for border_name in ('top', 'left', 'bottom', 'right'):
             border = OxmlElement(f'w:{border_name}')
             border.set(qn('w:val'), 'single')
-            border.set(qn('w:sz'), '24')  # Border width in 1/8 points
-            border.set(qn('w:space'), '4')  # Space from text
-            border.set(qn('w:color'), 'FF8C42')  # Orange border color
+            border.set(qn('w:sz'), '24')
+            border.set(qn('w:space'), '4')
+            border.set(qn('w:color'), 'FF8C42')
             pBdr.append(border)
         pPr.append(pBdr)
         
@@ -501,27 +623,28 @@ def create_ats_document(data):
         run1 = p.add_run('⚠️ HIGH-RISK MEASURES SELECTED\n\n')
         run1.bold = True
         run1.font.size = Pt(14)
-        run1.font.color.rgb = RGBColor(204, 85, 0)  # Dark orange
+        run1.font.color.rgb = RGBColor(204, 85, 0)
         run1.font.name = 'Calibri'
         
-        run2 = p.add_run('This project includes high-risk measures (IWI, EWI, RIR, or CWI) which require MANDATORY post-installation airtightness testing per PAS 2035:2023.')
+        run2 = p.add_run('This project includes high-risk measures (IWI, EWI, RIR, or CWI) where post-installation airtightness testing is HIGHLY RECOMMENDED per PAS 2035:2023.')
         run2.font.size = Pt(11)
-        run2.font.color.rgb = RGBColor(51, 51, 51)  # Dark gray for better readability
+        run2.font.color.rgb = RGBColor(51, 51, 51)
         run2.font.name = 'Calibri'
     
-    doc.add_paragraph()
-    
-    # Section 4 - Existing Condition
+    # Section 4 - Existing Condition - BLACK HEADINGS
     heading = doc.add_heading('4. Existing Airtightness Condition', level=2)
     heading.runs[0].font.name = 'Calibri'
-    heading.runs[0].font.size = Pt(14)
+    heading.runs[0].font.size = Pt(15)
     heading.runs[0].font.color.rgb = RGBColor(0, 0, 0)
+    heading.runs[0].bold = True
+    heading.paragraph_format.space_before = Pt(16)
+    heading.paragraph_format.space_after = Pt(10)
     
     p = doc.add_paragraph()
     p.add_run('Baseline Assessment:').bold = True
     for run in p.runs:
         run.font.name = 'Calibri'
-        run.font.color.rgb = RGBColor(0, 0, 0)
+        run.font.size = Pt(11)
     
     existing_text = data.get('existing_condition', '''• No prior airtightness test available; typical air permeability estimated at 10-15 m³/(h.m²) at 50Pa
 - Likely leakage paths identified: loft hatch perimeter, eaves junctions, service penetrations
@@ -531,47 +654,50 @@ def create_ats_document(data):
     p = doc.add_paragraph()
     run = p.add_run(existing_text)
     run.font.name = 'Calibri'
-    run.font.color.rgb = RGBColor(0, 0, 0)
+    run.font.size = Pt(11)
     
-    doc.add_paragraph()
-    
-    # Section 5 - Control Measures
+    # Section 5 - Control Measures - BLACK HEADINGS
     heading = doc.add_heading('5. Control Measures During Retrofit', level=2)
     heading.runs[0].font.name = 'Calibri'
-    heading.runs[0].font.size = Pt(14)
+    heading.runs[0].font.size = Pt(15)
     heading.runs[0].font.color.rgb = RGBColor(0, 0, 0)
+    heading.runs[0].bold = True
+    heading.paragraph_format.space_before = Pt(16)
+    heading.paragraph_format.space_after = Pt(10)
     
     p = doc.add_paragraph()
     p.add_run('Air Sealing Protocols (PAS 2035:2023 Clause 8.2.35.2):').bold = True
     for run in p.runs:
         run.font.name = 'Calibri'
-        run.font.color.rgb = RGBColor(0, 0, 0)
+        run.font.size = Pt(11)
     
     p = doc.add_paragraph()
     run = p.add_run(data.get('control_measures', ''))
     run.font.name = 'Calibri'
-    run.font.color.rgb = RGBColor(0, 0, 0)
+    run.font.size = Pt(11)
     
-    doc.add_paragraph()
-    
-    # Section 6 - Verification
+    # Section 6 - Verification - BLACK HEADINGS
     heading = doc.add_heading('6. Verification & Testing', level=2)
     heading.runs[0].font.name = 'Calibri'
-    heading.runs[0].font.size = Pt(14)
+    heading.runs[0].font.size = Pt(15)
     heading.runs[0].font.color.rgb = RGBColor(0, 0, 0)
+    heading.runs[0].bold = True
+    heading.paragraph_format.space_before = Pt(16)
+    heading.paragraph_format.space_after = Pt(10)
     
     p = doc.add_paragraph()
     run = p.add_run(data.get('verification', ''))
     run.font.name = 'Calibri'
-    run.font.color.rgb = RGBColor(0, 0, 0)
+    run.font.size = Pt(11)
     
-    doc.add_paragraph()
-    
-    # Section 7 - Residual Risks
+    # Section 7 - Residual Risks - BLACK HEADINGS
     heading = doc.add_heading('7. Residual Risks & Management', level=2)
     heading.runs[0].font.name = 'Calibri'
-    heading.runs[0].font.size = Pt(14)
+    heading.runs[0].font.size = Pt(15)
     heading.runs[0].font.color.rgb = RGBColor(0, 0, 0)
+    heading.runs[0].bold = True
+    heading.paragraph_format.space_before = Pt(16)
+    heading.paragraph_format.space_after = Pt(10)
     
     risks_text = '''Ventilation Adequacy (PAS 2035:2023 Clause 7.3):
 - Risk: Improved airtightness without adequate ventilation may lead to condensation and indoor air quality issues
@@ -593,15 +719,16 @@ Review and Monitoring:
     p = doc.add_paragraph()
     run = p.add_run(risks_text)
     run.font.name = 'Calibri'
-    run.font.color.rgb = RGBColor(0, 0, 0)
+    run.font.size = Pt(11)
     
-    doc.add_paragraph()
-    
-    # Section 8 - Regulatory References
+    # Section 8 - Regulatory References - BLACK HEADINGS
     heading = doc.add_heading('8. Regulatory References & Standards', level=2)
     heading.runs[0].font.name = 'Calibri'
-    heading.runs[0].font.size = Pt(14)
+    heading.runs[0].font.size = Pt(15)
     heading.runs[0].font.color.rgb = RGBColor(0, 0, 0)
+    heading.runs[0].bold = True
+    heading.paragraph_format.space_before = Pt(16)
+    heading.paragraph_format.space_after = Pt(10)
     
     references_text = '''This Airtightness Strategy complies with:
 
@@ -616,37 +743,38 @@ Review and Monitoring:
     p = doc.add_paragraph()
     run = p.add_run(references_text)
     run.font.name = 'Calibri'
-    run.font.color.rgb = RGBColor(0, 0, 0)
+    run.font.size = Pt(11)
     
-    doc.add_paragraph()
+    # Add space before signature
     doc.add_paragraph()
     
-    # Footer with signature
+    # Footer with signature - Enhanced
     p = doc.add_paragraph()
-    p.add_run('Document Prepared By:').bold = True
-    for run in p.runs:
-        run.font.name = 'Calibri'
-        run.font.color.rgb = RGBColor(0, 0, 0)
+    p.paragraph_format.space_before = Pt(20)
+    run = p.add_run('Document Prepared By:')
+    run.bold = True
+    run.font.name = 'Calibri'
+    run.font.size = Pt(11)
     
     p = doc.add_paragraph()
     run = p.add_run(f"Retrofit Coordinator: Brian McKevitt MCIOB")
     run.font.name = 'Calibri'
-    run.font.color.rgb = RGBColor(0, 0, 0)
+    run.font.size = Pt(11)
     
     p = doc.add_paragraph()
     run = p.add_run(f"Date: {datetime.now().strftime('%d/%m/%Y')}")
     run.font.name = 'Calibri'
-    run.font.color.rgb = RGBColor(0, 0, 0)
+    run.font.size = Pt(11)
     
+    # Document reference - smaller and centered
     doc.add_paragraph()
-    
-    # Document reference
     footer = doc.add_paragraph()
     footer_run = footer.add_run(f"Document Reference: ATS-{datetime.now().strftime('%Y%m%d')}\nGenerated: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
     footer_run.font.name = 'Calibri'
     footer_run.font.size = Pt(9)
-    footer_run.font.color.rgb = RGBColor(0, 0, 0)
+    footer_run.font.color.rgb = RGBColor(128, 128, 128)
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    footer.paragraph_format.space_before = Pt(20)
     
     return doc
 
@@ -722,6 +850,11 @@ async def ats_generator_route(request: Request, user_row):
         if not address:
             return HTMLResponse(content="<h1>Please provide address</h1>", status_code=400)
         
+        # Get property age from form
+        property_age = form_data.get('property_age')
+        if not property_age:
+            return HTMLResponse(content="<h1>Please select property age/period</h1>", status_code=400)
+        
         selected_measures = form_data.getlist('measures')
         if not selected_measures:
             return HTMLResponse(content="<h1>Please select at least one measure</h1>", status_code=400)
@@ -744,17 +877,24 @@ async def ats_generator_route(request: Request, user_row):
         
         merged_data = {**cr_data, **site_notes_data}
         
+        # Get age-specific baseline information
+        age_info = get_age_specific_baseline(property_age)
+        
         data = {
             'address': address,
             'property_type': merged_data.get('property_type', 'Detached house'),
             'construction': merged_data.get('construction', 'Cavity wall construction'),
+            'age': age_info['display_age'],
             'assessor': merged_data.get('assessor', '[Assessor]'),
             'inspection_date': merged_data.get('inspection_date', '[Date]'),
             'measures_text': generate_measures_text(selected_measures),
             'impact_text': generate_impact_text(selected_measures),
             'control_measures': generate_control_measures(selected_measures, 'timber' in merged_data.get('construction', '').lower()),
             'verification': generate_verification_text(selected_measures, has_high_risk),
-            'has_high_risk': has_high_risk
+            'has_high_risk': has_high_risk,
+            'existing_condition': age_info['description'],
+            'target_air_perm': age_info['target'],
+            'age_notes': age_info['notes']
         }
         
         doc = create_ats_document(data)
