@@ -15,6 +15,7 @@ from billing import get_billing_page, get_topup_page, post_topup
 from timestamp_tool import get_timestamp_tool_page, post_timestamp_tool
 from retrofit_tool import get_retrofit_tool_page, post_retrofit_process
 from ats_tool import ats_generator_route
+from adf_tool import adf_checklist_route
 
 app = FastAPI()
 from fastapi.staticfiles import StaticFiles
@@ -563,6 +564,24 @@ async def route_ats_generator(request: Request):
     if isinstance(user_row, RedirectResponse):
         return user_row
     return await ats_generator_route(request, user_row)
+
+# ==================================================================================
+# ADF CHECKLIST TOOL ROUTES
+# ==================================================================================
+
+@app.get("/tool/adf-checklist", response_class=HTMLResponse)
+async def route_adf_checklist(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return await adf_checklist_route(request, user_row)
+
+@app.post("/tool/adf-checklist")
+async def route_adf_checklist_process(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return await adf_checklist_route(request, user_row)
 
 @app.post("/tool/ats-generator")
 async def route_ats_generator_process(request: Request):
