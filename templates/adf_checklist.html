@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADF Checklist Generator - AutoDate</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .container {
+            max-width: 900px;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            margin: 20px auto;
+        }
+        .tool-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .tool-header h1 {
+            color: #667eea;
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 2rem;
+        }
+        .tool-header .subtitle {
+            color: #6c757d;
+            font-size: 1.1rem;
+        }
+        .balance-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 50px;
+            display: inline-block;
+            font-weight: bold;
+            margin: 15px 0;
+            font-size: 1.1rem;
+        }
+        .info-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+        .info-box strong {
+            color: #856404;
+        }
+        .upload-zone {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .upload-zone:hover {
+            background: #e8ebff;
+            border-color: #764ba2;
+            transform: translateY(-2px);
+        }
+        .upload-zone.dragover {
+            background: #e8ebff;
+            border-color: #28a745;
+        }
+        .upload-zone input[type="file"] {
+            display: none;
+        }
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        .upload-zone h5 {
+            color: #667eea;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .file-name {
+            color: #28a745;
+            font-weight: bold;
+            margin-top: 15px;
+            font-size: 0.95rem;
+        }
+        .form-control, .form-control:focus {
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 1rem;
+        }
+        .form-control:focus {
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        .btn-generate {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            padding: 16px 40px;
+            font-size: 1.2rem;
+            border-radius: 50px;
+            font-weight: bold;
+            width: 100%;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+        }
+        .btn-generate:hover {
+            transform: scale(1.02);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+        .btn-back {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+        .btn-back:hover {
+            background: #5a6268;
+            color: white;
+            transform: translateX(-5px);
+        }
+        .required {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        label {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/dashboard" class="btn-back">← Back to Dashboard</a>
+        
+        <div class="tool-header">
+            <h1>📋 ADF Checklist Generator</h1>
+            <p class="subtitle">Approved Document F - Table D1 Compliance</p>
+            <div class="balance-badge">💰 Balance: £{{ "%.2f"|format(balance) }}</div>
+        </div>
+
+        <div class="info-box">
+            <p class="mb-2"><strong>ℹ️ Cost:</strong> £{{ "%.2f"|format(cost) }} per checklist</p>
+            <p class="mb-2"><strong>📄 Upload:</strong> Condition Report PDF (required) + Site Notes PDF (optional)</p>
+            <p class="mb-0"><strong>📥 Output:</strong> Completed ADF Table D1 Ventilation Checklist (Word document)</p>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data" id="adfForm">
+            
+            <!-- Property Address -->
+            <div class="mb-4">
+                <label for="address" class="form-label">
+                    🏠 Property Address <span class="required">*</span>
+                </label>
+                <input 
+                    type="text" 
+                    class="form-control" 
+                    id="address" 
+                    name="address" 
+                    placeholder="e.g., 53 Rectory Road, Blackpool, FY4 1HG" 
+                    required
+                >
+            </div>
+
+            <!-- Condition Report Upload -->
+            <div class="mb-4">
+                <label class="form-label">
+                    📄 Condition Report PDF <span class="required">*</span>
+                </label>
+                <div class="upload-zone" id="crZone" onclick="document.getElementById('condition_report').click()">
+                    <div class="upload-icon">📄</div>
+                    <h5>Click or Drag & Drop</h5>
+                    <p class="text-muted mb-0">Condition Report PDF</p>
+                    <input 
+                        type="file" 
+                        id="condition_report" 
+                        name="condition_report" 
+                        accept=".pdf" 
+                        required 
+                        onchange="showFileName('condition_report', 'cr_filename')"
+                    >
+                    <div id="cr_filename" class="file-name"></div>
+                </div>
+            </div>
+
+            <!-- Site Notes Upload (Optional) -->
+            <div class="mb-4">
+                <label class="form-label">
+                    📋 Site Notes PDF <span class="text-muted">(Optional)</span>
+                </label>
+                <div class="upload-zone" id="snZone" onclick="document.getElementById('site_notes').click()">
+                    <div class="upload-icon">📋</div>
+                    <h5>Click or Drag & Drop</h5>
+                    <p class="text-muted mb-0">Site Notes PDF (Optional)</p>
+                    <input 
+                        type="file" 
+                        id="site_notes" 
+                        name="site_notes" 
+                        accept=".pdf" 
+                        onchange="showFileName('site_notes', 'sn_filename')"
+                    >
+                    <div id="sn_filename" class="file-name"></div>
+                </div>
+            </div>
+
+            <!-- Generate Button -->
+            <button type="submit" class="btn btn-generate">
+                🚀 Generate ADF Checklist (£{{ "%.2f"|format(cost) }})
+            </button>
+        </form>
+    </div>
+
+    <script>
+        function showFileName(inputId, displayId) {
+            const input = document.getElementById(inputId);
+            const display = document.getElementById(displayId);
+            if (input.files.length > 0) {
+                display.textContent = '✓ ' + input.files[0].name;
+            }
+        }
+
+        // Drag and drop for Condition Report
+        const crZone = document.getElementById('crZone');
+        const crInput = document.getElementById('condition_report');
+        
+        crZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            crZone.classList.add('dragover');
+        });
+        
+        crZone.addEventListener('dragleave', () => {
+            crZone.classList.remove('dragover');
+        });
+        
+        crZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            crZone.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length > 0) {
+                crInput.files = e.dataTransfer.files;
+                showFileName('condition_report', 'cr_filename');
+            }
+        });
+
+        // Drag and drop for Site Notes
+        const snZone = document.getElementById('snZone');
+        const snInput = document.getElementById('site_notes');
+        
+        snZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            snZone.classList.add('dragover');
+        });
+        
+        snZone.addEventListener('dragleave', () => {
+            snZone.classList.remove('dragover');
+        });
+        
+        snZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            snZone.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length > 0) {
+                snInput.files = e.dataTransfer.files;
+                showFileName('site_notes', 'sn_filename');
+            }
+        });
+
+        // Form submission loading state
+        document.getElementById('adfForm').addEventListener('submit', function(e) {
+            const btn = document.querySelector('.btn-generate');
+            btn.innerHTML = '⏳ Generating...';
+            btn.disabled = true;
+        });
+    </script>
+</body>
+</html>
