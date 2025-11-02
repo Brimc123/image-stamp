@@ -415,6 +415,18 @@ def dashboard(request: Request):
                     <span class="new-badge">✨ New</span>
                 </div>
             </a>
+
+<a href="/tool/adf-checklist" class="tool-card">
+                <span class="tool-icon">📋</span>
+                <h2 class="tool-title">ADF Table D1 Generator</h2>
+                <p class="tool-description">
+                    Generate Approved Document F Table D1 checklists from Condition Reports. Automatically extracts background ventilation, trickle vents, and extract fan data for compliance verification.
+                </p>
+                <div class="tool-footer">
+                    <span class="tool-price">💰 £5.00 per use</span>
+                    <span class="new-badge">✨ New</span>
+                </div>
+            </a>
         </div>
     </div>
 </body>
