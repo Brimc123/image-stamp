@@ -45,18 +45,31 @@ async def parse_ventilation_data(pdf_file):
                 if room_match:
                     current_room = room_match.group(1).strip()
                 
-                # Extract background ventilation area - FIXED PATTERN
-                # Pattern matches: "Background Ventilation Area (mm2)4500" or "(mm21)0000"
+                # Extract background ventilation area - HEAVILY DEBUGGED
+                # Print the text snippet we're searching
+                vent_idx = text.find('Ventilation')
+                if vent_idx > -1:
+                    snippet = text[vent_idx:min(vent_idx+200, len(text))]
+                    print(f"\n🔍 DEBUG - Found 'Ventilation' on page {page_num}")
+                    print(f"   Text snippet: {repr(snippet)[:150]}")
+                
                 bg_patterns = [
-                    r'Background\s+Ventilation\s+Area\s*\(mm2?\)(\d+)',
-                    r'Background\s+Ventilation\s+Area\s*\(mm2\d?\)(\d+)',
-                    r'\(mm2\d?\)(\d{4,5})',  # Fallback for just the value
+                    r'Background\s+Ventilation\s+Area\s*\(mm2(\d)\)(\d+)',  # Matches (mm21)0000
+                    r'Background\s+Ventilation\s+Area\s*\(mm2\)\s*(\d{4,5})',  # Normal format
                 ]
                 
                 for pattern in bg_patterns:
                     match = re.search(pattern, text, re.IGNORECASE)
                     if match:
-                        area = int(match.group(1))
+                        # Handle both pattern formats
+                        groups = match.groups()
+                        if len(groups) == 2 and len(groups[1]) > 1:
+                            # First pattern: digit inside parens + remaining digits
+                            area = int(groups[0] + groups[1])
+                        else:
+                            # Second pattern: just the number
+                            area = int(groups[0])
+                        
                         parsed['total_bg_vent_area'] += area
                         parsed['total_rooms_checked'] += 1
                         
@@ -67,18 +80,27 @@ async def parse_ventilation_data(pdf_file):
                                 'bg_vent_area': area
                             })
                         
-                        print(f"   ✅ Page {page_num} - {current_room}: {area}mm²")
+                        print(f"   ✅ Page {page_num} - {current_room}: {area}mm² (matched pattern: {pattern})")
                         break
                 
                 # Check for trickle vents
                 if re.search(r'Do\s+they\s+have\s+trickle\s+vents\?\s*Yes', text, re.IGNORECASE):
                     parsed['has_trickle_vents'] = True
                 
-                # Check for extract fans - IMPROVED DETECTION
-                # Pattern: "Does the room have fans fittedY?es" (no space before Yes)
-                fan_fitted_match = re.search(r'Does\s+the\s+room\s+have\s+fans\s+fitted[YN]?\??\s*(Yes|No)', text, re.IGNORECASE)
+                # Check for extract fans - IMPROVED DETECTION with DEBUG
+                if 'fan' in text.lower():
+                    print(f"   🔍 Page {page_num} - Looking for fans...")
+                    # Look for the fan question
+                    fan_idx = text.lower().find('fan')
+                    fan_section = text[fan_idx:min(fan_idx+100, len(text))]
+                    print(f"      Fan section text: {repr(fan_section[:80])}")
+                
+                # Match "fans fittedY?es" or "fans fittedN?o"
+                fan_fitted_match = re.search(r'fans\s+fitted([YN])\?([eo])s?', text, re.IGNORECASE)
                 if fan_fitted_match:
-                    if fan_fitted_match.group(1).lower() == 'yes':
+                    print(f"   🎯 Page {page_num} - Fan match found: {fan_fitted_match.group(0)}")
+                    answer = fan_fitted_match.group(1).upper()  # Y or N
+                    if answer == 'Y':
                         parsed['has_extract_fans'] = True
                         if current_room and current_room not in parsed['extract_fan_rooms']:
                             parsed['extract_fan_rooms'].append(current_room)
@@ -163,7 +185,7 @@ def generate_adf_checklist(address, vent_data):
     title_run.font.size = Pt(16)
     title_run.font.color.rgb = RGBColor(255, 255, 255)
     
-    # Add background to title (via shading)
+    # Add background to title
     pPr = title_para._element.get_or_add_pPr()
     shading = OxmlElement('w:shd')
     shading.set(qn('w:fill'), '2E5C8A')
@@ -242,7 +264,7 @@ def generate_adf_checklist(address, vent_data):
         table = doc.add_table(rows=1, cols=3)
         add_table_borders(table)
         
-        # Header row with colored background
+        # Header row
         hdr_cells = table.rows[0].cells
         hdr_cells[0].text = 'Question'
         hdr_cells[1].text = 'Yes'
@@ -402,7 +424,7 @@ async def adf_checklist_route(request: Request, user_row):
         if site_notes and hasattr(site_notes, 'read'):
             print("📋 Parsing Site Notes...")
             site_notes_data = await parse_ventilation_data(site_notes)
-            # Merge data (site notes can add to totals)
+            # Merge data
             if site_notes_data.get('total_bg_vent_area', 0) > 0:
                 vent_data['total_bg_vent_area'] += site_notes_data['total_bg_vent_area']
             if site_notes_data.get('has_extract_fans'):
