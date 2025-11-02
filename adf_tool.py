@@ -5,7 +5,7 @@ import io
 from datetime import datetime
 from docx import Document
 from docx.shared import Pt, RGBColor, Inches
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 import pdfplumber
@@ -19,63 +19,112 @@ templates = Jinja2Templates(directory="templates")
 ADF_COST = 5.00
 
 async def parse_ventilation_data(pdf_file):
-    """Extract ventilation data from Condition Report or Site Notes PDF"""
+    """Extract ventilation data from Condition Report or Site Notes PDF with improved parsing"""
     parsed = {
         'total_bg_vent_area': 0,
         'has_trickle_vents': False,
         'has_extract_fans': False,
+        'extract_fan_rooms': [],
         'fan_control': None,
         'vent_system': 'natural',
-        'rooms': {}
+        'rooms': {},
+        'total_rooms_checked': 0,
+        'room_details': []
     }
     
     try:
         content = await pdf_file.read()
         with pdfplumber.open(io.BytesIO(content)) as pdf:
-            text = "\n".join([p.extract_text() or "" for p in pdf.pages])
+            current_room = None
             
-            # Extract background ventilation area (mm²)
-            bg_patterns = [
-                r'Background\s+Ventilation\s+Area.*?(\d+)\s*mm',
-                r'Trickle\s+Vent.*?(\d+)\s*mm',
-                r'Background\s+Ventilator.*?(\d+)\s*mm²'
-            ]
-            
-            for pattern in bg_patterns:
-                match = re.search(pattern, text, re.IGNORECASE)
-                if match:
-                    parsed['total_bg_vent_area'] += int(match.group(1))
-            
-            # Check for trickle vents
-            if re.search(r'trickle\s+vent', text, re.IGNORECASE):
-                parsed['has_trickle_vents'] = True
-            
-            # Check for extract fans
-            if re.search(r'extract\s+fan', text, re.IGNORECASE):
-                parsed['has_extract_fans'] = True
+            for page_num, page in enumerate(pdf.pages, 1):
+                text = page.extract_text() or ""
                 
-                # Determine fan control type
-                if re.search(r'(pull\s+chord|manual)', text, re.IGNORECASE):
-                    parsed['fan_control'] = 'manual'
-                elif re.search(r'(automatic|timer|humidistat)', text, re.IGNORECASE):
+                # Identify room headers
+                room_match = re.search(r'^(Living room|Kitchen|Bathroom|Bedroom \d+|Utility)', text, re.MULTILINE | re.IGNORECASE)
+                if room_match:
+                    current_room = room_match.group(1).strip()
+                
+                # Extract background ventilation area - FIXED PATTERN
+                # Pattern matches: "Background Ventilation Area (mm2)4500" or "(mm21)0000"
+                bg_patterns = [
+                    r'Background\s+Ventilation\s+Area\s*\(mm2?\)(\d+)',
+                    r'Background\s+Ventilation\s+Area\s*\(mm2\d?\)(\d+)',
+                    r'\(mm2\d?\)(\d{4,5})',  # Fallback for just the value
+                ]
+                
+                for pattern in bg_patterns:
+                    match = re.search(pattern, text, re.IGNORECASE)
+                    if match:
+                        area = int(match.group(1))
+                        parsed['total_bg_vent_area'] += area
+                        parsed['total_rooms_checked'] += 1
+                        
+                        if current_room:
+                            parsed['rooms'][current_room] = area
+                            parsed['room_details'].append({
+                                'room': current_room,
+                                'bg_vent_area': area
+                            })
+                        
+                        print(f"   ✅ Page {page_num} - {current_room}: {area}mm²")
+                        break
+                
+                # Check for trickle vents
+                if re.search(r'Do\s+they\s+have\s+trickle\s+vents\?\s*Yes', text, re.IGNORECASE):
+                    parsed['has_trickle_vents'] = True
+                
+                # Check for extract fans - IMPROVED DETECTION
+                # Pattern: "Does the room have fans fittedY?es" (no space before Yes)
+                fan_fitted_match = re.search(r'Does\s+the\s+room\s+have\s+fans\s+fitted[YN]?\??\s*(Yes|No)', text, re.IGNORECASE)
+                if fan_fitted_match:
+                    if fan_fitted_match.group(1).lower() == 'yes':
+                        parsed['has_extract_fans'] = True
+                        if current_room and current_room not in parsed['extract_fan_rooms']:
+                            parsed['extract_fan_rooms'].append(current_room)
+                            print(f"   ✅ Page {page_num} - Fan found in {current_room}")
+                
+                # Check fan control type
+                if re.search(r'permanently|on\s+permanently', text, re.IGNORECASE):
                     parsed['fan_control'] = 'automatic'
+                elif re.search(r'pull\s+chord|manual', text, re.IGNORECASE):
+                    parsed['fan_control'] = 'manual'
             
             # Determine ventilation system type
-            if re.search(r'MVHR|mechanical\s+ventilation\s+with\s+heat\s+recovery', text, re.IGNORECASE):
+            full_text = "\n".join([p.extract_text() or "" for p in pdf.pages])
+            
+            if re.search(r'MVHR|mechanical\s+ventilation\s+with\s+heat\s+recovery', full_text, re.IGNORECASE):
                 parsed['vent_system'] = 'mvhr'
-            elif re.search(r'continuous\s+mechanical\s+extract|CME', text, re.IGNORECASE):
+            elif re.search(r'continuous\s+mechanical\s+extract|CME', full_text, re.IGNORECASE):
                 parsed['vent_system'] = 'continuous_extract'
-            elif re.search(r'natural\s+ventilation', text, re.IGNORECASE):
+            elif re.search(r'natural\s+ventilation', full_text, re.IGNORECASE):
                 parsed['vent_system'] = 'natural'
+            
+            print(f"\n📊 PARSING SUMMARY:")
+            print(f"   Total Background Ventilation: {parsed['total_bg_vent_area']}mm²")
+            print(f"   Rooms with BG Vent: {parsed['total_rooms_checked']}")
+            print(f"   Trickle Vents: {parsed['has_trickle_vents']}")
+            print(f"   Extract Fans: {parsed['has_extract_fans']}")
+            print(f"   Fan Rooms: {', '.join(parsed['extract_fan_rooms']) if parsed['extract_fan_rooms'] else 'None'}")
+            print(f"   System Type: {parsed['vent_system']}")
                 
     except Exception as e:
-        print(f"Error parsing PDF: {e}")
+        print(f"❌ Error parsing PDF: {e}")
+        import traceback
+        traceback.print_exc()
     
     return parsed
 
 
+def set_cell_background(cell, color):
+    """Set background color for a table cell"""
+    shading_elm = OxmlElement('w:shd')
+    shading_elm.set(qn('w:fill'), color)
+    cell._element.get_or_add_tcPr().append(shading_elm)
+
+
 def add_table_borders(table):
-    """Add borders to table"""
+    """Add professional borders to table"""
     tbl = table._tbl
     tblPr = tbl.tblPr
     if tblPr is None:
@@ -86,16 +135,16 @@ def add_table_borders(table):
     for border_name in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
         border = OxmlElement(f'w:{border_name}')
         border.set(qn('w:val'), 'single')
-        border.set(qn('w:sz'), '4')
+        border.set(qn('w:sz'), '6')
         border.set(qn('w:space'), '0')
-        border.set(qn('w:color'), '000000')
+        border.set(qn('w:color'), '2E5C8A')
         tblBorders.append(border)
     
     tblPr.append(tblBorders)
 
 
 def generate_adf_checklist(address, vent_data):
-    """Generate completed ADF Table D1 checklist document"""
+    """Generate professionally formatted ADF Table D1 checklist document"""
     doc = Document()
     
     # Set margins
@@ -106,23 +155,76 @@ def generate_adf_checklist(address, vent_data):
         section.left_margin = Inches(0.75)
         section.right_margin = Inches(0.75)
     
-    # Title
-    title = doc.add_paragraph()
-    title_run = title.add_run('APPROVED DOCUMENT F - TABLE D1\nCHECKLIST FOR VENTILATION PROVISION IN EXISTING DWELLINGS')
+    # Main Title with blue background
+    title_para = doc.add_paragraph()
+    title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_run = title_para.add_run('APPROVED DOCUMENT F - TABLE D1')
     title_run.bold = True
-    title_run.font.size = Pt(14)
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_run.font.size = Pt(16)
+    title_run.font.color.rgb = RGBColor(255, 255, 255)
     
-    # Property details
+    # Add background to title (via shading)
+    pPr = title_para._element.get_or_add_pPr()
+    shading = OxmlElement('w:shd')
+    shading.set(qn('w:fill'), '2E5C8A')
+    pPr.append(shading)
+    
+    # Subtitle
+    subtitle = doc.add_paragraph()
+    subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    subtitle_run = subtitle.add_run('CHECKLIST FOR VENTILATION PROVISION IN EXISTING DWELLINGS')
+    subtitle_run.bold = True
+    subtitle_run.font.size = Pt(12)
+    subtitle_run.font.color.rgb = RGBColor(46, 92, 138)
+    
     doc.add_paragraph()
     
-    p = doc.add_paragraph()
-    p.add_run('Property Address: ').bold = True
-    p.add_run(address)
+    # Property details box
+    details_table = doc.add_table(rows=3, cols=2)
+    details_table.style = 'Light Grid Accent 1'
     
-    p = doc.add_paragraph()
-    p.add_run('Assessment Date: ').bold = True
-    p.add_run(datetime.now().strftime('%d/%m/%Y'))
+    details_table.cell(0, 0).text = 'Property Address:'
+    details_table.cell(0, 0).paragraphs[0].runs[0].bold = True
+    details_table.cell(0, 1).text = address
+    
+    details_table.cell(1, 0).text = 'Assessment Date:'
+    details_table.cell(1, 0).paragraphs[0].runs[0].bold = True
+    details_table.cell(1, 1).text = datetime.now().strftime('%d/%m/%Y')
+    
+    details_table.cell(2, 0).text = 'Assessor:'
+    details_table.cell(2, 0).paragraphs[0].runs[0].bold = True
+    details_table.cell(2, 1).text = 'Auto-generated via AutoDate.co.uk'
+    
+    doc.add_paragraph()
+    
+    # Summary findings box
+    summary = doc.add_paragraph()
+    summary_run = summary.add_run('📊 SUMMARY FINDINGS')
+    summary_run.bold = True
+    summary_run.font.size = Pt(14)
+    summary_run.font.color.rgb = RGBColor(46, 92, 138)
+    
+    summary_table = doc.add_table(rows=4, cols=2)
+    summary_table.style = 'Light Shading Accent 1'
+    
+    summary_table.cell(0, 0).text = 'Total Background Ventilation Area:'
+    summary_table.cell(0, 1).text = f"{vent_data.get('total_bg_vent_area', 0)} mm²"
+    
+    summary_table.cell(1, 0).text = 'Trickle Vents Present:'
+    summary_table.cell(1, 1).text = '✓ Yes' if vent_data.get('has_trickle_vents') else '✗ No'
+    
+    summary_table.cell(2, 0).text = 'Extract Fans Present:'
+    if vent_data.get('has_extract_fans') and vent_data.get('extract_fan_rooms'):
+        fans_text = f"✓ Yes ({', '.join(vent_data['extract_fan_rooms'])})"
+    elif vent_data.get('has_extract_fans'):
+        fans_text = '✓ Yes'
+    else:
+        fans_text = '✗ No'
+    summary_table.cell(2, 1).text = fans_text
+    
+    summary_table.cell(3, 0).text = 'Ventilation System Type:'
+    sys_type = vent_data.get('vent_system', 'natural').replace('_', ' ').title()
+    summary_table.cell(3, 1).text = sys_type
     
     doc.add_paragraph()
     
@@ -131,13 +233,16 @@ def generate_adf_checklist(address, vent_data):
     
     # NATURAL VENTILATION SECTION
     if system_type == 'natural':
-        heading = doc.add_heading('Natural Ventilation', level=2)
-        heading.runs[0].font.color.rgb = RGBColor(0, 0, 0)
+        heading = doc.add_paragraph()
+        heading_run = heading.add_run('🏠 NATURAL VENTILATION')
+        heading_run.bold = True
+        heading_run.font.size = Pt(14)
+        heading_run.font.color.rgb = RGBColor(46, 92, 138)
         
         table = doc.add_table(rows=1, cols=3)
         add_table_borders(table)
         
-        # Header row
+        # Header row with colored background
         hdr_cells = table.rows[0].cells
         hdr_cells[0].text = 'Question'
         hdr_cells[1].text = 'Yes'
@@ -145,152 +250,109 @@ def generate_adf_checklist(address, vent_data):
         
         for cell in hdr_cells:
             cell.paragraphs[0].runs[0].font.bold = True
+            cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
             cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            set_cell_background(cell, '2E5C8A')
+        
+        total_bg = vent_data.get('total_bg_vent_area', 0)
+        has_fans = vent_data.get('has_extract_fans', False)
+        has_trickle = vent_data.get('has_trickle_vents', False)
+        fan_control = vent_data.get('fan_control')
         
         # Questions for Natural Ventilation
         questions = [
             ('What is the total equivalent area of background ventilators currently in dwelling?', 
-             f"{vent_data.get('total_bg_vent_area', 0)}mm²", ''),
+             f"{total_bg}mm²", '', ''),
             
             ('Does each habitable room satisfy the minimum equivalent area standards in Table 1.7?',
-             '✓' if vent_data.get('total_bg_vent_area', 0) > 0 else '', 
-             '' if vent_data.get('total_bg_vent_area', 0) > 0 else '✓'),
+             '✓' if total_bg >= 5000 else '', 
+             '', 
+             '✗' if total_bg < 5000 else ''),
             
             ('Have all background ventilators been left in the open position?',
-             '✓' if vent_data.get('has_trickle_vents') else '', 
-             '' if vent_data.get('has_trickle_vents') else '✓'),
+             '✓' if has_trickle else '', 
+             '', 
+             '✗' if not has_trickle else ''),
             
             ('Are fans and background ventilators in the same room at least 0.5m apart?',
-             '✓', ''),
+             '✓', '', ''),
             
             ('Are there working intermittent extract fans in all wet rooms?',
-             '✓' if vent_data.get('has_extract_fans') else '', 
-             '' if vent_data.get('has_extract_fans') else '✓'),
+             '✓' if has_fans else '', 
+             '', 
+             '✗' if not has_fans else ''),
             
             ('Is there the correct number of intermittent extract fans to satisfy the standards in Table 1.1?',
-             '✓' if vent_data.get('has_extract_fans') else '', 
-             '' if vent_data.get('has_extract_fans') else '✓'),
+             '✓' if has_fans else '', 
+             '', 
+             '✗' if not has_fans else ''),
             
             ('Does the location of fans satisfy the standards in paragraph 1.20?',
-             '✓', ''),
+             '✓', '', ''),
             
             ('Do all automatic controls have a manual override?',
-             '✓' if vent_data.get('fan_control') == 'automatic' else '', 
-             '' if vent_data.get('fan_control') != 'automatic' else '✓'),
+             '✓' if fan_control != 'automatic' else '', 
+             '', 
+             '✗' if fan_control == 'automatic' else ''),
             
             ('Does each room have a system for purge ventilation (e.g. windows)?',
-             '✓', ''),
+             '✓', '', ''),
             
             ('Do the openings in the rooms satisfy the minimum opening area standards in Table 1.4?',
-             '✓', ''),
+             '✓', '', ''),
             
             ('Do all internal doors have sufficient undercut to allow air transfer between rooms (10mm above floor finish)?',
-             '✓', ''),
+             '✓', '', ''),
         ]
         
-        for question, yes_val, no_val in questions:
+        for i, (question, yes_val, no_val, explicit_val) in enumerate(questions):
             row = table.add_row().cells
             row[0].text = question
-            row[1].text = yes_val
-            row[2].text = no_val
+            
+            if explicit_val:
+                if '✗' in explicit_val:
+                    row[2].text = explicit_val
+                    set_cell_background(row[2], 'FFE6E6')
+                else:
+                    row[1].text = yes_val
+                    set_cell_background(row[1], 'E6FFE6')
+            elif 'mm²' in yes_val:
+                row[1].text = yes_val
+            else:
+                row[1].text = yes_val
+                if yes_val:
+                    set_cell_background(row[1], 'E6FFE6')
             
             row[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
             row[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    # CONTINUOUS MECHANICAL EXTRACT SECTION
-    elif system_type == 'continuous_extract':
-        heading = doc.add_heading('Continuous Mechanical Extract Ventilation', level=2)
-        heading.runs[0].font.color.rgb = RGBColor(0, 0, 0)
-        
-        table = doc.add_table(rows=1, cols=3)
-        add_table_borders(table)
-        
-        hdr_cells = table.rows[0].cells
-        hdr_cells[0].text = 'Question'
-        hdr_cells[1].text = 'Yes'
-        hdr_cells[2].text = 'No'
-        
-        for cell in hdr_cells:
-            cell.paragraphs[0].runs[0].font.bold = True
-            cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
-        questions = [
-            ('Does the system have a central extract fan, individual room extract fans, or both?',
-             '✓', ''),
-            ('Does the total combined continuous rate of mechanical extract ventilation satisfy the standards in Table 1.3?',
-             '✓', ''),
-            ('Does each minimum mechanical extract ventilation high rate satisfy the standards in Table 1.2?',
-             '✓', ''),
-            ('Is it certain that there are no background ventilators in wet rooms?',
-             '✓', ''),
-            ('Do all habitable rooms have a minimum equivalent area of 5000mm²?',
-             '✓', ''),
-            ('Does each room have a system for purge ventilation (e.g. windows)?',
-             '✓', ''),
-            ('Do the openings in the rooms satisfy the minimum opening area standards in Table 1.4?',
-             '✓', ''),
-            ('Do all internal doors have sufficient undercut (10mm above floor finish)?',
-             '✓', ''),
-        ]
-        
-        for question, yes_val, no_val in questions:
-            row = table.add_row().cells
-            row[0].text = question
-            row[1].text = yes_val
-            row[2].text = no_val
             
-            row[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            row[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    # MVHR SECTION
-    elif system_type == 'mvhr':
-        heading = doc.add_heading('Mechanical Ventilation with Heat Recovery (MVHR)', level=2)
-        heading.runs[0].font.color.rgb = RGBColor(0, 0, 0)
-        
-        table = doc.add_table(rows=1, cols=3)
-        add_table_borders(table)
-        
-        hdr_cells = table.rows[0].cells
-        hdr_cells[0].text = 'Question'
-        hdr_cells[1].text = 'Yes'
-        hdr_cells[2].text = 'No'
-        
-        for cell in hdr_cells:
-            cell.paragraphs[0].runs[0].font.bold = True
-            cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
-        questions = [
-            ('Does each habitable room have mechanical supply ventilation?',
-             '✓', ''),
-            ('Does the total continuous rate of mechanical ventilation with heat recovery satisfy the standards in Table 1.3?',
-             '✓', ''),
-            ('Does each minimum mechanical extract ventilation high rate satisfy the standards in Table 1.2?',
-             '✓', ''),
-            ('Have all background ventilators been removed or sealed shut?',
-             '✓', ''),
-            ('Does each room have a system for purge ventilation (e.g. windows)?',
-             '✓', ''),
-            ('Do the openings in the rooms satisfy the minimum opening area standards in Table 1.4?',
-             '✓', ''),
-            ('Do all internal doors have sufficient undercut (10mm above floor finish)?',
-             '✓', ''),
-        ]
-        
-        for question, yes_val, no_val in questions:
-            row = table.add_row().cells
-            row[0].text = question
-            row[1].text = yes_val
-            row[2].text = no_val
-            
-            row[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            row[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            # Zebra striping
+            if i % 2 == 0:
+                set_cell_background(row[0], 'F5F5F5')
     
     # Notes
     doc.add_paragraph()
     notes = doc.add_paragraph()
-    notes.add_run('NOTES:').bold = True
-    doc.add_paragraph('1. Make a visual check for mould or condensation. If either are present, install additional ventilation provisions or seek specialist advice.')
-    doc.add_paragraph('2. All references to tables and paragraphs are to Approved Document F, Volume 1: Dwellings.')
+    notes_run = notes.add_run('⚠️ IMPORTANT NOTES')
+    notes_run.bold = True
+    notes_run.font.size = Pt(12)
+    notes_run.font.color.rgb = RGBColor(204, 102, 0)
+    
+    note1 = doc.add_paragraph(style='List Number')
+    note1.add_run('Make a visual check for mould or condensation. If either are present, install additional ventilation provisions or seek specialist advice.')
+    
+    note2 = doc.add_paragraph(style='List Number')
+    note2.add_run('All references to tables and paragraphs are to Approved Document F, Volume 1: Dwellings (2021 edition).')
+    
+    doc.add_paragraph()
+    
+    # Footer
+    footer_para = doc.add_paragraph()
+    footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    footer_run = footer_para.add_run('Generated by AutoDate.co.uk ADF Checklist Generator')
+    footer_run.font.size = Pt(9)
+    footer_run.font.italic = True
+    footer_run.font.color.rgb = RGBColor(128, 128, 128)
     
     return doc
 
@@ -331,15 +393,24 @@ async def adf_checklist_route(request: Request, user_row):
         if not condition_report or not hasattr(condition_report, 'read'):
             return HTMLResponse(content="<h1>Please upload Condition Report PDF</h1>", status_code=400)
         
+        print("📄 Parsing Condition Report...")
         # Parse Condition Report
         vent_data = await parse_ventilation_data(condition_report)
         
         # Optional Site Notes
         site_notes = form_data.get("site_notes")
         if site_notes and hasattr(site_notes, 'read'):
+            print("📋 Parsing Site Notes...")
             site_notes_data = await parse_ventilation_data(site_notes)
-            # Merge data (site notes can override condition report data)
-            vent_data.update({k: v for k, v in site_notes_data.items() if v})
+            # Merge data (site notes can add to totals)
+            if site_notes_data.get('total_bg_vent_area', 0) > 0:
+                vent_data['total_bg_vent_area'] += site_notes_data['total_bg_vent_area']
+            if site_notes_data.get('has_extract_fans'):
+                vent_data['has_extract_fans'] = True
+            if site_notes_data.get('extract_fan_rooms'):
+                vent_data['extract_fan_rooms'].extend(site_notes_data['extract_fan_rooms'])
+        
+        print(f"✅ Final Parsed Data: {vent_data}")
         
         # Generate checklist
         doc = generate_adf_checklist(address, vent_data)
@@ -355,7 +426,7 @@ async def adf_checklist_route(request: Request, user_row):
         
         # Generate filename
         clean_address = re.sub(r'[^\w\s-]', '', address).strip().replace(' ', '_')[:50]
-        filename = f"ADF_TableD1_{clean_address}.docx"
+        filename = f"ADF_TableD1_{clean_address}_{datetime.now().strftime('%Y%m%d')}.docx"
         
         return StreamingResponse(
             file_stream,
