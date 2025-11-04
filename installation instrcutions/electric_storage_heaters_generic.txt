@@ -1,0 +1,289 @@
+ELECTRIC STORAGE HEATERS - INSTALLATION INSTRUCTIONS
+PAS 2035 COMPLIANT INSTALLATION PROCEDURE
+
+═══════════════════════════════════════════════════════════════════════
+
+1. PRE-INSTALLATION REQUIREMENTS
+
+1.1 COMPETENCY & QUALIFICATIONS
+• Installer must be qualified electrician (Part P registered)
+• Competent to work with high heat retention storage heater systems
+• Understanding of Economy 7/10 tariff systems
+• Familiar with manufacturer's installation requirements
+• Public Liability Insurance in place
+
+1.2 SITE SURVEY & ASSESSMENT
+• Confirm heat loss calculations completed for each room
+• Verify heater sizes appropriate for room dimensions
+• Check electrical supply capacity adequate for total load
+• Verify Economy 7 or similar off-peak tariff available
+• Assess wall construction for mounting suitability
+• Identify existing heater positions and wiring
+• Check for adequate clearances around proposed locations
+• Confirm smart meter installed if required for tariff
+
+1.3 CUSTOMER CONSULTATION
+• Explain storage heater operation and charging times
+• Discuss Economy 7/10 tariff requirements and timing
+• Advise on input/output controls and settings
+• Explain smart controls and programming if applicable
+• Discuss expected running costs vs existing system
+• Provide written quotation including all costs
+
+═══════════════════════════════════════════════════════════════════════
+
+2. REMOVAL OF EXISTING HEATERS (IF APPLICABLE)
+
+2.1 SAFE REMOVAL PROCEDURE
+• Isolate electrical supply at consumer unit
+• Verify isolation with voltage tester
+• Label circuits clearly
+• Disconnect heater from electrical supply
+• Remove heater carefully (storage heaters are heavy - typically 50-150kg)
+• Use appropriate manual handling equipment
+• Dispose of old heater in accordance with WEEE regulations
+• Check condition of existing wiring and junction boxes
+
+2.2 WALL PREPARATION
+• Make good any wall damage from old heater removal
+• Check wall is sound, dry, and capable of supporting new heater weight
+• Repair any cracks or damage
+• Ensure wall is level and plumb
+
+═══════════════════════════════════════════════════════════════════════
+
+3. HEATER SIZING & POSITIONING
+
+3.1 HEATER SELECTION
+• Select heater capacity based on room heat loss calculation
+• Typical sizing: 0.5-1.5kW per room depending on insulation and room size
+• Consider room usage patterns and heating requirements
+• Ensure heater output matches heat demand
+• Select appropriate control type (manual, programmable, or smart)
+
+3.2 POSITIONING REQUIREMENTS
+• Install under windows where possible (prevents cold downdrafts)
+• Maintain minimum clearances:
+  - 50mm from floor (or as per manufacturer specification)
+  - 50mm from walls/corners
+  - 100mm from curtains/furniture
+  - 300mm from ceiling
+  - 500mm in front for air circulation
+• Avoid positioning behind doors or furniture
+• Ensure adequate air circulation around heater
+• Position away from thermostats or temperature sensors
+• Consider room layout and furniture placement
+
+═══════════════════════════════════════════════════════════════════════
+
+4. ELECTRICAL INSTALLATION
+
+4.1 ELECTRICAL SUPPLY REQUIREMENTS
+• Each heater requires dedicated radial circuit
+• Circuit protection: MCB rated appropriately for heater load
+• Cable sizing: Minimum 2.5mm² (check manufacturer and regulations)
+• Install RCD protection (30mA)
+• Heaters must be connected to off-peak supply for charging
+• Some models require both off-peak (charging) and continuous (fan) supplies
+
+4.2 WIRING CONFIGURATION
+Standard configurations:
+• OFF-PEAK ONLY: Single feed from Economy 7 supply for basic heaters
+• DUAL SUPPLY: Off-peak for charging + continuous for fan/boost (High Heat Retention models)
+• SMART CONTROL: May require additional control cable for wireless/smart controls
+
+4.3 CIRCUIT INSTALLATION
+• Run cable from consumer unit to heater location
+• Use appropriate cable route (surface, buried, or concealed)
+• Install junction box or connection unit near heater
+• Ensure all connections comply with BS 7671 wiring regulations
+• Use heat-resistant cable at heater connection point
+• Fit cable correctly into heater terminals (not under strain)
+• Terminate cables securely with no exposed conductors
+
+4.4 OFF-PEAK SUPPLY CONNECTION
+• Connect heater charging circuit to Economy 7 supply
+• Verify correct tariff meter and supply
+• Ensure off-peak timing matches energy supplier settings
+• Label circuits clearly: "Storage Heater - Off Peak Supply"
+• Test supply timing with supplier if required
+
+═══════════════════════════════════════════════════════════════════════
+
+5. HEATER MOUNTING & INSTALLATION
+
+5.1 WALL MOUNTING (TYPICAL METHOD)
+• Mark heater position on wall using spirit level
+• Mark fixing points using heater template or measurements
+• Drill fixing holes using appropriate drill and bit for wall type
+• Insert wall plugs suitable for wall construction and heater weight
+• Position mounting brackets and secure with appropriate fixings
+• Verify brackets are level and secure
+• Lift heater onto brackets (use two people - heaters are heavy)
+• Secure heater to brackets using manufacturer's fixings
+• Check heater is level and stable
+
+5.2 FLOOR-STANDING MODELS
+• Position heater on floor in marked location
+• Ensure heater is stable and level
+• Some models may require wall brackets for stability
+• Maintain clearances as specified
+• Ensure heater cannot be easily moved or tipped
+
+5.3 ELECTRICAL CONNECTION
+• Connect electrical supply to heater terminals as per manufacturer's wiring diagram
+• Typical connections:
+  - L (Live) - Brown
+  - N (Neutral) - Blue
+  - E (Earth) - Green/Yellow
+• For dual-supply heaters, connect both charging and continuous supplies correctly
+• Ensure all connections are tight and secure
+• Fit any cable clamps or strain relief as required
+• Refit heater cover/panels
+
+═══════════════════════════════════════════════════════════════════════
+
+6. CONTROL INSTALLATION
+
+6.1 INTEGRAL CONTROLS
+• Set input charge control (controls how much heat is stored)
+• Set output control (controls heat release rate)
+• Some models have automatic charge control linked to room thermostat
+• Set room temperature target if programmable
+
+6.2 PROGRAMMABLE/SMART CONTROLS
+• Install room sensor in appropriate location (away from heater, draughts, direct sunlight)
+• Pair wireless controls with heaters following manufacturer's procedure
+• Configure heating schedule and temperatures
+• Set Economy 7 timing in control system
+• Test wireless communication between control and heater
+• Provide user with control instructions and login details if cloud-connected
+
+6.3 THERMOSTAT SETTINGS
+• Set appropriate temperature for each room (typically 18-21°C)
+• Configure setback temperatures for night/away periods
+• Program heating schedule if applicable
+• Enable smart features such as open window detection if available
+
+═══════════════════════════════════════════════════════════════════════
+
+7. COMMISSIONING & TESTING
+
+7.1 ELECTRICAL TESTING
+• Conduct full electrical installation test:
+  - Continuity of protective conductors
+  - Insulation resistance test (minimum 1MΩ)
+  - Polarity check
+  - Earth fault loop impedance
+  - RCD operation test
+• Verify supply voltage correct
+• Check off-peak supply timing
+• Measure current draw under load
+
+7.2 HEATER FUNCTION TESTING
+• Switch on electrical supply at consumer unit
+• Verify heater receives power (indicator light/display)
+• Test all controls and functions
+• For off-peak: May need to wait for charging period or use manual boost
+• Check fan operation if fitted (High Heat Retention models)
+• Verify thermostatic control operates correctly
+• Test safety cutouts (overheat protection)
+• Check heater heats up during off-peak period
+• Verify output control functions correctly
+
+7.3 SAFETY CHECKS
+• Verify all covers and panels securely fitted
+• Check no exposed live parts
+• Ensure heater stable and secure on wall/floor
+• Verify adequate clearances maintained
+• Check cables not subject to heat damage
+• Ensure earth bonding correct
+
+═══════════════════════════════════════════════════════════════════════
+
+8. CUSTOMER HANDOVER
+
+8.1 DEMONSTRATION & INSTRUCTION
+• Demonstrate how to set input charge control
+• Explain output control operation
+• Show how to use manual boost if fitted
+• Demonstrate programmable controls and scheduling
+• Explain Economy 7 charging times
+• Advise on optimal settings for different weather conditions
+• Show how to adjust room temperature
+• Demonstrate smart control app if applicable
+
+8.2 DOCUMENTATION
+• Provide manufacturer's user manual
+• Supply warranty information and registration details
+• Issue electrical installation certificate (Part P)
+• Provide emergency contact details
+• Give maintenance schedule and requirements
+• Issue insurance-backed guarantee
+
+8.3 CUSTOMER ADVICE
+• Explain heating patterns differ from gas central heating (constant background heat)
+• Advise on pre-heating rooms before very cold weather
+• Explain importance of correct charge settings (avoid overcharging)
+• Recommend not covering heaters or restricting airflow
+• Advise annual inspection recommended
+• Explain Economy 7 tariff optimization
+• Provide guidance on expected running costs
+
+═══════════════════════════════════════════════════════════════════════
+
+9. MAINTENANCE & SERVICING
+
+9.1 ANNUAL CHECKS (RECOMMENDED)
+• Visual inspection of heaters for damage
+• Check electrical connections remain tight
+• Clean dust/debris from heater vents and grilles
+• Verify controls operate correctly
+• Check room temperatures achieve set points
+• Inspect cables for any heat damage
+• Verify no furniture blocking heaters
+• Test RCD operation
+
+9.2 USER MAINTENANCE
+• Clean exterior surfaces with damp cloth
+• Vacuum grilles periodically to remove dust
+• Check and adjust charge settings seasonally
+• Monitor electricity usage and costs
+• Report any unusual smells or noises immediately
+
+═══════════════════════════════════════════════════════════════════════
+
+10. COMPLIANCE & STANDARDS
+
+This installation complies with:
+• PAS 2035:2023 - Retrofitting dwellings for improved energy efficiency
+• BS 7671:2018+A2:2022 (IET Wiring Regulations) - 18th Edition
+• Building Regulations Part L1B & Part P
+• Electrical Equipment (Safety) Regulations 2016
+• BEAMA guidance for storage heater installation
+
+═══════════════════════════════════════════════════════════════════════
+
+11. IMPORTANT SAFETY NOTES
+
+• WEIGHT: Storage heaters are extremely heavy (50-150kg) - use proper manual handling
+• HEAT: Core temperatures exceed 600°C - never open heater when charged
+• ASBESTOS: Some older storage heaters contain asbestos - specialist removal required
+• ELECTRICAL: All work must be Part P compliant - issue certificate
+• CLEARANCES: Must maintain minimum clearances to prevent fire risk
+• VENTILATION: Never block air vents or grilles
+• COVERS: Never dry clothes or place items on storage heaters
+• CHILDREN: Consider safety guards if young children present
+• ECONOMY 7: Verify tariff active before installation - essential for operation
+
+═══════════════════════════════════════════════════════════════════════
+
+INSTALLATION COMPLETED BY: _________________________________
+
+PART P CERTIFICATE NUMBER: _____________________
+
+DATE: _____________________
+
+TOTAL INSTALLED CAPACITY: _____________ kW
+
+═══════════════════════════════════════════════════════════════════════

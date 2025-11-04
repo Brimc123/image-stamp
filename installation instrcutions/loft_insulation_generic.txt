@@ -1,0 +1,147 @@
+LOFT INSULATION - INSTALLATION INSTRUCTIONS
+PAS 2035 COMPLIANT INSTALLATION PROCEDURE
+
+═══════════════════════════════════════════════════════════════════════
+
+1. PRE-INSTALLATION REQUIREMENTS
+
+1.1 HEALTH & SAFETY
+• Wear appropriate PPE: dust mask (FFP3 rated), safety goggles, gloves, and protective clothing
+• Ensure adequate ventilation in the loft space
+• Use appropriate lighting equipment
+• Ensure safe access via suitable ladder or loft ladder
+• Lay boarding across joists for safe working platform
+• Never stand between joists - always work from boards
+• Be aware of low headroom and protruding nails
+
+1.2 SITE ASSESSMENT
+• Confirm loft space is accessible and has minimum 400mm headroom
+• Check for adequate ventilation (eaves ventilation, ridge vents)
+• Inspect roof condition - check for leaks, damaged tiles, or structural issues
+• Identify and mark location of electrical cables, water pipes, and services
+• Check existing insulation type and depth
+• Identify any recessed light fittings requiring protection
+• Locate water tanks and ensure adequate insulation around (but not underneath) them
+• Check for evidence of condensation, damp, or pest infestation
+
+1.3 PREPARATION WORKS
+• Clear loft space of stored items where insulation will be installed
+• Ensure all electrical work is completed to Part P standards before installation
+• Install loft caps over any recessed downlighters to prevent overheating
+• Ensure adequate ventilation maintained at eaves (minimum 25mm air gap)
+• Seal any gaps in the ceiling below to prevent air leakage
+• Install warning notice near loft hatch: "CAUTION - INSULATION INSTALLED TO 270-300MM DEPTH - DO NOT COMPRESS"
+
+═══════════════════════════════════════════════════════════════════════
+
+2. INSTALLATION PROCEDURE
+
+2.1 MATERIAL HANDLING
+• Store insulation in dry conditions prior to installation
+• Allow insulation materials to reach ambient temperature before use
+• Handle rolls carefully to avoid damage and compression
+• Check product meets required thermal performance (minimum 0.16 W/m²K)
+
+2.2 INSTALLATION METHOD - COLD LOFT (BETWEEN JOISTS)
+• Start installation from eaves working towards centre of loft
+• Lay first layer of insulation between joists, ensuring it reaches the eaves but does not block ventilation
+• Butt joints tightly together with no gaps
+• Cut insulation to fit neatly around pipes, cables, and services (do not compress)
+• Ensure insulation is pushed right to the eaves but maintains 25mm ventilation gap
+• For top-up insulation, lay second layer perpendicular to joists to minimize cold bridging
+• Target depth: 270mm minimum (typically 100mm between joists + 170mm over joists)
+• Do not insulate underneath cold water tanks (keep warmth rising from rooms below)
+• Insulate all pipes and water tanks to prevent freezing
+
+2.3 INSULATION AROUND SERVICES
+• Electrical cables: Lay cables on TOP of insulation or clip to joists above insulation level
+• Do NOT bury cables in insulation as this can cause overheating
+• Water pipes: Ensure pipes are insulated separately with pipe insulation
+• Ensure pipes are positioned above insulation where possible to benefit from warmth below
+• Recessed lights: Install appropriate fire-rated covers (loft caps) before insulating
+• Maintain minimum 100mm clearance around flues and chimneys
+• Ensure insulation does not block any ventilation pathways
+
+2.4 LOFT HATCHES
+• Insulate loft hatch to same standard as main loft area
+• Fit draught excluder around hatch opening
+• Install hatch insulation using rigid insulation board or insulated hatch kit
+• Ensure hatch can still open and close properly after insulation fitted
+
+2.5 EAVES VENTILATION
+• CRITICAL: Maintain continuous ventilation at eaves
+• Install eaves ventilation trays if not already present
+• Ensure minimum 25mm air gap between insulation and roof deck at eaves
+• Check ventilation is not blocked by insulation
+
+═══════════════════════════════════════════════════════════════════════
+
+3. QUALITY CHECKS
+
+3.1 INSTALLATION VERIFICATION
+• Confirm insulation depth meets specification (270mm minimum)
+• Check for gaps between insulation sections
+• Verify eaves ventilation is maintained and not blocked
+• Confirm all services are properly protected
+• Check loft hatch is insulated and draught-sealed
+• Verify warning notices are installed
+• Ensure no insulation is compressed or damaged
+
+3.2 FINAL INSPECTION
+• Photograph installed insulation showing depth and coverage
+• Record insulation type, thickness, and thermal performance
+• Document any areas not insulated (e.g., access routes, around chimneys)
+• Provide homeowner with installation certificate and product warranties
+
+═══════════════════════════════════════════════════════════════════════
+
+4. CUSTOMER HANDOVER
+
+4.1 INFORMATION TO PROVIDE
+• Explain importance of not compressing insulation
+• Advise on safe loft access and storage considerations
+• Provide warning about increased trip hazard due to insulation depth
+• Explain importance of maintaining ventilation
+• Provide product warranties and guarantees
+• Issue insurance-backed guarantee certificate
+
+4.2 MAINTENANCE ADVICE
+• Inspect annually for settlement, damage, or pest infestation
+• Check loft ventilation remains clear
+• Monitor for any signs of condensation or damp
+• Do not store heavy items on insulation as this will compress and reduce performance
+• Consider installing loft boarding if storage required
+
+═══════════════════════════════════════════════════════════════════════
+
+5. COMPLIANCE & STANDARDS
+
+This installation procedure complies with:
+• PAS 2035:2023 - Retrofitting dwellings for improved energy efficiency
+• Building Regulations Part L1B - Conservation of fuel and power in existing dwellings
+• BS 5250:2021 - Management of moisture in buildings
+• TrustMark Standards
+
+Thermal Performance Target: U-value of 0.16 W/m²K or better
+
+═══════════════════════════════════════════════════════════════════════
+
+6. IMPORTANT SAFETY NOTES
+
+• DO NOT insulate under water tanks - keep ceiling warm beneath tanks
+• DO NOT bury electrical cables in insulation
+• DO NOT block ventilation at eaves or ridge
+• DO NOT install insulation around or too close to flues/chimneys (maintain 100mm gap)
+• DO NOT walk between joists without boarding
+• ALWAYS maintain electrical safety - cables must not overheat
+• ALWAYS maintain fire safety - minimum clearances around heat sources
+
+═══════════════════════════════════════════════════════════════════════
+
+INSTALLATION COMPLETED BY: _________________________________
+
+DATE: _____________________
+
+CERTIFICATE NUMBER: _____________________
+
+═══════════════════════════════════════════════════════════════════════

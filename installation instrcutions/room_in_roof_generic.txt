@@ -1,0 +1,278 @@
+ROOM IN ROOF INSULATION - INSTALLATION INSTRUCTIONS
+PAS 2035 COMPLIANT INSTALLATION PROCEDURE
+
+═══════════════════════════════════════════════════════════════════════
+
+1. PRE-INSTALLATION REQUIREMENTS
+
+1.1 COMPETENCY & QUALIFICATIONS
+• Installer must be competent in insulation installation
+• Understanding of Building Regulations Part L and ventilation requirements
+• Familiar with moisture management in roof spaces
+• Competent in working at height safely
+• Knowledge of fire safety requirements for insulation materials
+
+1.2 SITE SURVEY & ASSESSMENT
+• Inspect roof structure and condition (check for leaks, rot, structural issues)
+• Assess existing insulation and identify insulation strategy
+• Measure areas requiring insulation (sloping ceilings, vertical walls, flat ceilings)
+• Check for adequate ventilation (50mm continuous air gap above insulation required)
+• Identify services (electrical cables, pipes, ventilation)
+• Assess accessibility and safe working area
+• Check for signs of condensation, damp, or pest infestation
+• Verify ceiling heights meet Building Regulations after insulation
+• Identify any recessed lights requiring protection
+
+1.3 DESIGN CONSIDERATIONS
+• Target U-value: 0.18 W/m²K or better
+• Insulation thickness determined by required U-value and product thermal performance
+• Maintain continuous insulation layer (avoid cold bridges)
+• Plan ventilation strategy (minimum 50mm gap between insulation and roof deck)
+• Consider vapour control layer requirements
+• Plan for service penetrations and openings
+• Ensure compliance with fire safety requirements (Part B)
+
+═══════════════════════════════════════════════════════════════════════
+
+2. PREPARATION WORKS
+
+2.1 SAFETY MEASURES
+• Erect appropriate working platforms and access equipment
+• Use PPE: dust mask (FFP3), safety goggles, gloves, protective clothing
+• Ensure adequate lighting in work area
+• Protect floors and furnishings with dust sheets
+• Establish safe storage area for materials
+• Plan waste disposal (segregate materials for recycling)
+
+2.2 ROOM PREPARATION
+• Remove or protect existing room contents
+• Protect flooring with heavy-duty dust sheets
+• Remove any existing wall coverings if required
+• Strip out old insulation if necessary
+• Clear roof space of stored items
+• Check and repair any roof leaks before proceeding
+• Treat any timber defects (rot, woodworm)
+
+2.3 STRUCTURAL CHECKS
+• Verify rafters are sound and adequately sized
+• Check for adequate support for additional loading
+• Identify and mark all services (electrical, plumbing)
+• Ensure roof structure is square and true
+• Check ceiling joists can support new insulation and boards
+
+═══════════════════════════════════════════════════════════════════════
+
+3. VENTILATION INSTALLATION
+
+3.1 RAFTER-LEVEL VENTILATION
+CRITICAL: Maintain minimum 50mm continuous ventilation gap between insulation and roof deck
+• Install rigid ventilation channels/trays between rafters
+• Ensure channels extend from eaves to ridge
+• Channels must not compress or restrict airflow
+• Fix securely to prevent displacement
+• Ensure continuous airflow path maintained
+
+3.2 EAVES VENTILATION
+• Install eaves ventilation to achieve equivalent area of 25mm continuous gap
+• Ensure ventilation connects to rafter-level airflow
+• Install insect mesh where required
+• Do not block with insulation
+
+3.3 RIDGE VENTILATION
+• Install ridge ventilation if required by design
+• Ensure adequate free area for ventilation
+• Connect to rafter-level ventilation channels
+• Maintain manufacturer's installation requirements
+
+═══════════════════════════════════════════════════════════════════════
+
+4. INSULATION INSTALLATION
+
+4.1 BETWEEN-RAFTER INSULATION (FIRST LAYER)
+• Measure rafter spacing and depth
+• Cut insulation to fit snugly between rafters
+• Friction-fit insulation to hold in place (if using flexible insulation)
+• Ensure no gaps at edges or joints
+• Cut around services carefully (do not compress insulation)
+• Maintain ventilation gap above insulation (minimum 50mm)
+• Support rigid board insulation with battens if required
+
+4.2 BELOW-RAFTER INSULATION (SECOND LAYER)
+• Install horizontal battens across rafters if required for services/fixing
+• Cut rigid insulation boards to size
+• Install boards tight to first layer of insulation
+• Stagger joints between layers to avoid cold bridging
+• Cut boards neatly around windows and openings
+• Fill any gaps with appropriate expanding foam or insulation strips
+• Tape joints between boards to improve airtightness
+
+4.3 VAPOUR CONTROL LAYER (IF REQUIRED)
+• Install vapour control layer (VCL) on warm side of insulation
+• Overlap joints by minimum 150mm
+• Tape all joints with appropriate VCL tape
+• Seal around all penetrations (cables, pipes)
+• Ensure continuity with VCL in adjacent areas
+• Take VCL behind any internal partition walls
+• Seal edges to roof structure
+
+4.4 VERTICAL WALL SECTIONS (KNEE WALLS)
+• Insulate vertical stud walls to same standard as sloping ceiling
+• Install insulation between studs
+• Add second layer if required to achieve U-value
+• Maintain continuity with sloping roof insulation (no cold bridges)
+• Install VCL on warm side
+• Ensure no gaps at junctions
+
+4.5 FLAT CEILING SECTIONS (IF APPLICABLE)
+• Install insulation between and below ceiling joists
+• Ensure continuity with sloping ceiling insulation
+• Maintain ventilation in loft space above (if cold roof)
+• Do not block ventilation pathways
+
+═══════════════════════════════════════════════════════════════════════
+
+5. SERVICES INSTALLATION
+
+5.1 ELECTRICAL SERVICES
+• Route electrical cables on warm side of insulation where possible
+• Do NOT bury cables in insulation (overheating risk)
+• Clip cables to ceiling boards or run in trunking
+• Install appropriate fire-rated downlight covers for recessed lights
+• Maintain minimum clearances from heat sources
+• Ensure all electrical work complies with Part P
+
+5.2 PLUMBING SERVICES
+• Ensure pipes are on warm side of insulation
+• Insulate exposed pipes separately with pipe insulation
+• Ensure adequate access for maintenance
+• Protect pipes from freezing
+
+═══════════════════════════════════════════════════════════════════════
+
+6. FINISHING WORKS
+
+6.1 PLASTERBOARD INSTALLATION
+• Install appropriate plasterboard (typically 12.5mm tapered edge)
+• Fix to battens or directly to insulation boards using appropriate fixings
+• Stagger board joints
+• Cut boards neatly around openings
+• Ensure adequate fixing to support weight and prevent sagging
+• Leave appropriate gaps for expansion
+
+6.2 JOINTING & FINISHING
+• Tape and fill all joints with appropriate jointing compound
+• Apply in multiple coats as required
+• Sand smooth when dry
+• Fill any screw holes or damage
+• Prepare surface for final decoration
+
+6.3 FINISHING DETAILS
+• Install window reveals and trims
+• Fit architraves around openings
+• Install skirting boards
+• Caulk gaps around edges and penetrations
+• Ensure neat, professional finish
+
+═══════════════════════════════════════════════════════════════════════
+
+7. QUALITY CHECKS & COMMISSIONING
+
+7.1 INSTALLATION VERIFICATION
+• Verify insulation thickness meets specification
+• Check for gaps, compression, or thermal bridges
+• Confirm ventilation gaps maintained (50mm minimum)
+• Verify VCL continuity and sealing
+• Check all services properly protected and routed
+• Confirm fire safety measures in place
+• Verify minimum ceiling heights achieved (2.3m minimum for habitable rooms)
+
+7.2 THERMAL PERFORMANCE
+• Calculate actual U-value achieved
+• Verify meets or exceeds design specification (target: 0.18 W/m²K or better)
+• Consider thermal imaging survey to identify any defects
+
+7.3 AIRTIGHTNESS
+• Check all joints and penetrations sealed
+• Verify VCL integrity
+• Consider smoke test to identify air leakage paths
+
+═══════════════════════════════════════════════════════════════════════
+
+8. CUSTOMER HANDOVER
+
+8.1 DOCUMENTATION
+• Provide installation certificate with U-value calculation
+• Supply product warranties and guarantees
+• Issue insurance-backed guarantee
+• Provide maintenance guidance
+• Include product data sheets
+
+8.2 CUSTOMER ADVICE
+• Explain importance of adequate ventilation in room
+• Advise on condensation prevention (regular ventilation, avoid drying clothes in room)
+• Recommend use of extractor fans in bathrooms
+• Explain importance of heating and ventilating room regularly
+• Advise not to block ventilation paths
+• Provide emergency contact details
+• Recommend annual inspection of roof space
+
+═══════════════════════════════════════════════════════════════════════
+
+9. MAINTENANCE REQUIREMENTS
+
+9.1 ANNUAL INSPECTION (RECOMMENDED)
+• Check roof for leaks or damage
+• Inspect visible insulation for damage, compression, or displacement
+• Verify ventilation paths remain clear
+• Check for signs of condensation or damp
+• Inspect for pest infestation
+• Check condition of internal finishes
+
+9.2 ONGOING MAINTENANCE
+• Regular room ventilation (open windows daily)
+• Heat room adequately to prevent condensation
+• Report any roof leaks immediately
+• Do not store items in roof space that could compress insulation
+• Do not block ventilation paths
+
+═══════════════════════════════════════════════════════════════════════
+
+10. COMPLIANCE & STANDARDS
+
+This installation complies with:
+• PAS 2035:2023 - Retrofitting dwellings for improved energy efficiency
+• Building Regulations Approved Document L1B (Conservation of fuel and power)
+• Building Regulations Approved Document C (Resistance to moisture)
+• Building Regulations Approved Document F (Ventilation)
+• Building Regulations Approved Document B (Fire safety)
+• BS 5250:2021 - Management of moisture in buildings
+• BS 8000-0:2014 - Workmanship on building sites
+
+Target U-value: 0.18 W/m²K or better
+Minimum ventilation gap: 50mm continuous above insulation
+
+═══════════════════════════════════════════════════════════════════════
+
+11. IMPORTANT SAFETY NOTES
+
+• VENTILATION: 50mm continuous gap between insulation and roof deck is CRITICAL
+• CONDENSATION: Inadequate ventilation causes condensation and rot - maintain airflow
+• ELECTRICAL: Never bury cables in insulation - overheating and fire risk
+• FIRE SAFETY: Use appropriate materials and maintain fire barriers
+• HEIGHT: Minimum 2.3m ceiling height required for habitable rooms
+• STRUCTURAL: Ensure roof structure adequate for additional loading
+• ACCESS: Maintain access to roof space for maintenance and inspection
+• WORKMANSHIP: Poor installation leads to thermal bridging and condensation issues
+• VAPOUR CONTROL: Essential to prevent interstitial condensation in cold climates
+
+═══════════════════════════════════════════════════════════════════════
+
+INSTALLATION COMPLETED BY: _________________________________
+
+DATE: _____________________
+
+ACHIEVED U-VALUE: _____________ W/m²K
+
+INSULATION AREA: _____________ m²
+
+═══════════════════════════════════════════════════════════════════════

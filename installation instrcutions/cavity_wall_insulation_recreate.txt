@@ -1,0 +1,452 @@
+CAVITY WALL INSULATION - INSTALLATION INSTRUCTIONS
+PAS 2035 COMPLIANT INSTALLATION PROCEDURE
+
+═══════════════════════════════════════════════════════════════════════
+
+1. PRE-INSTALLATION REQUIREMENTS
+
+1.1 COMPETENCY & CERTIFICATION
+• Installer must hold appropriate certification (CIGA, BBA, BSI approved)
+• Competent in cavity wall assessment and installation techniques
+• Understanding of Building Regulations and PAS 2030/2035
+• Familiar with moisture management and damp prevention
+• Knowledge of different insulation materials and their applications
+• Understanding of wall tie condition assessment
+
+1.2 SITE SURVEY & ASSESSMENT (CRITICAL)
+**Cavity wall insulation is NOT suitable for all properties**
+
+Conduct thorough survey to assess suitability:
+
+**Wall Construction Check:**
+• Confirm cavity wall construction (not solid wall)
+• Measure cavity width (minimum 50mm required, ideally 75mm+)
+• Check wall ties present and in good condition
+• Identify wall construction materials (brick, block, stone)
+• Assess external wall condition and exposure rating
+
+**Exposure Assessment:**
+• Property location and exposure to wind-driven rain
+• Sheltered (suitable for CWI)
+• Moderate (may be suitable - assessment required)
+• Severe/Very Severe (NOT suitable for CWI - high risk)
+• Use BRE exposure maps or local knowledge
+
+**Cavity Inspection:**
+• Use borescope inspection to check cavity condition:
+  - Cavity clear of debris and mortar droppings
+  - Wall ties visible and in good condition
+  - No significant bridging or blockages
+  - Cavity dry with no signs of moisture penetration
+• Inspect at multiple locations (minimum 4 inspection holes)
+
+**Damp Assessment:**
+• Check for existing damp issues:
+  - Rising damp
+  - Penetrating damp
+  - Condensation
+• Use moisture meter on internal wall surfaces
+• Look for staining, mould, or previous damp damage
+• **DO NOT INSTALL if damp issues present - resolve first**
+
+**Wall Condition:**
+• Check external render/pointing condition
+• Identify any cracks or defects
+• Check DPC (damp proof course) present and intact
+• Verify no bridging of DPC with soil, paths, or debris
+• Check airbricks/vents not blocked
+
+1.3 SUITABILITY EXCLUSIONS
+Do NOT install cavity wall insulation if:
+• Cavity width less than 50mm
+• Property in severe/very severe exposure zone
+• Existing damp problems present
+• Wall ties corroded or missing
+• Cavity significantly obstructed
+• External walls in poor condition (cracked render, failed pointing)
+• Property has history of penetrating damp
+• Below ground cavities present without tanking
+
+═══════════════════════════════════════════════════════════════════════
+
+2. MATERIAL SELECTION
+
+2.1 INSULATION TYPES
+
+**Mineral Wool (Blown Fiber):**
+• Glass or rock wool fibers
+• Most common CWI material
+• Good thermal performance
+• Water repellent treatment
+• Suitable for most cavities
+
+**Polystyrene Beads:**
+• EPS beads with adhesive coating
+• Good thermal performance
+• Water resistant
+• Suitable for wider cavities (75mm+)
+
+**Polyurethane Foam:**
+• Expanding foam insulation
+• Excellent thermal performance
+• Water resistant when cured
+• Used in specific applications
+
+**Extraction Systems:**
+• Some materials can be extracted if issues arise
+• Mineral wool can usually be extracted
+• Foam typically cannot be extracted
+
+2.2 MATERIAL SPECIFICATIONS
+• Material must meet relevant British Standards
+• BBA or equivalent certification required
+• Water repellent additives essential
+• Appropriate for cavity width and exposure
+• Comply with Building Regulations thermal requirements
+
+═══════════════════════════════════════════════════════════════════════
+
+3. PREPARATION WORKS
+
+3.1 CUSTOMER PREPARATION
+• Inform customer of process and duration
+• Advise on noise and dust (minimal but present)
+• Request access to all external walls
+• Move items away from external walls internally
+• Cover or protect valued items
+• Ensure access to all rooms for internal inspection
+
+3.2 SITE PREPARATION
+• Erect access equipment (scaffolding or platforms if required)
+• Ensure safe working area around property
+• Protect ground surfaces (driveways, patios)
+• Identify and mark services (gas, electric, water)
+• Plan hole drilling pattern
+• Set up equipment and materials
+• Ensure adequate ventilation of installation area
+
+3.3 EQUIPMENT SETUP
+• Position blowing machine/injection equipment
+• Connect hoses to equipment
+• Test equipment operation
+• Prepare insulation material
+• Ensure adequate material supply for complete installation
+• Set up vacuum/extraction equipment if required
+
+═══════════════════════════════════════════════════════════════════════
+
+4. INSTALLATION PROCEDURE
+
+4.1 HOLE DRILLING PATTERN
+• Standard pattern: 1m horizontal spacing, 1m vertical spacing (staggered)
+• Drill from outside wall face
+• Typical hole diameter: 22mm or 25mm (depending on material and equipment)
+• Drill at mortar joints where possible (not through bricks)
+• Avoid drilling near windows, doors, and openings
+• Start from top of wall working downward
+• Drill full depth of external wall leaf (typically 100-110mm)
+
+**Drilling Locations:**
+• First row: 150-200mm below eaves/top of wall
+• Middle rows: 1m spacing vertically
+• Bottom row: 150-200mm above ground/DPC level
+• Columns: 1m spacing horizontally, staggered between rows
+
+4.2 CAVITY INSPECTION DURING DRILLING
+• Inspect cavity through drill holes using borescope
+• Verify cavity clear and suitable for insulation
+• Check wall tie condition
+• Confirm no unexpected obstructions
+• Measure actual cavity width
+• Stop installation if unsuitable conditions discovered
+
+4.3 INSULATION INSTALLATION
+
+**General Procedure:**
+• Start installation from bottom of wall working upward
+• Insert injection nozzle into drill hole
+• Fill cavity with insulation material
+• Work systematically across wall
+• Monitor filling process to ensure complete coverage
+• Watch for material appearing at adjacent holes (indicates blockage)
+
+**Mineral Wool Installation:**
+• Blow mineral wool fibers into cavity under pressure
+• Control flow rate to achieve correct density
+• Typical density: 25-30 kg/m³ for 50mm cavity, 30-35 kg/m³ for wider cavities
+• Fill each hole section until material rebounds
+• Move nozzle to next hole when section filled
+• Ensure consistent packing throughout cavity
+
+**Polystyrene Bead Installation:**
+• Mix beads with adhesive as per manufacturer's instructions
+• Inject bead/adhesive mix into cavity
+• Ensure adequate coverage and bonding
+• Monitor setting time
+• Adhesive must coat beads adequately for water resistance
+
+**Polyurethane Foam Installation:**
+• Inject foam in controlled manner
+• Allow for expansion of foam
+• Do not overfill (excessive pressure can damage walls)
+• Monitor curing process
+• Ensure even distribution throughout cavity
+
+4.4 QUALITY CONTROL DURING INSTALLATION
+• Monitor insulation density/coverage continuously
+• Check pressure gauges on equipment
+• Listen/feel for material flow
+• Watch for material escaping from vents or openings
+• Verify material consumption matches expected volume
+• Adjust technique if coverage issues identified
+• Use thermal imaging if available to verify coverage
+
+4.5 SPECIAL DETAILS
+
+**Around Openings:**
+• Take extra care around windows and doors
+• Drill additional holes if required for complete coverage
+• Ensure insulation does not block weep vents
+• Maintain clearance from window/door frames
+
+**At Floor Levels:**
+• Ensure insulation fills full height of cavity at each floor
+• Check for obstructions at floor joist positions
+• May require additional holes at floor levels
+
+**At Services:**
+• Identify all service penetrations before drilling
+• Avoid drilling near gas, electric, or water services
+• Maintain clearance from flues and vents
+• Do not block airbricks or ventilation
+
+═══════════════════════════════════════════════════════════════════════
+
+5. HOLE CLOSING AND MAKING GOOD
+
+5.1 FILLING INJECTION HOLES
+• Fill drill holes with matching mortar/filler
+• Use mortar color-matched to existing pointing
+• For rendered walls, use appropriate render mix
+• For brick walls, use colored mortar to match
+• Ensure holes completely filled and flush with surface
+• Compact filler to prevent shrinkage
+
+5.2 FINISHING
+• Point filled holes to match existing pointing
+• Allow mortar/filler to cure before decoration
+• Clean down walls and remove dust
+• Check work from distance to ensure acceptable appearance
+• Touch up if required
+
+═══════════════════════════════════════════════════════════════════════
+
+6. POST-INSTALLATION CHECKS
+
+6.1 COMPLETION VERIFICATION
+• Verify all holes drilled and filled
+• Check all holes properly made good
+• Confirm expected quantity of insulation material used
+• Calculate coverage: volume of cavities vs material used
+• Typical coverage: 50mm cavity requires approximately 1.5-2kg/m² mineral wool
+
+6.2 THERMAL IMAGING (RECOMMENDED)
+• Use thermal imaging camera to verify coverage
+• Identify any cold spots indicating poor coverage
+• Check particularly around openings and junctions
+• Rectify any identified deficiencies
+
+6.3 INTERNAL INSPECTION
+• Inspect all rooms for signs of insulation material inside
+• Check for material at sockets, vents, or services
+• Verify no damage to internal finishes
+• Clean up any dust or debris
+
+═══════════════════════════════════════════════════════════════════════
+
+7. GUARANTEE AND CERTIFICATION
+
+7.1 INSTALLATION GUARANTEE
+• Provide 25-year insurance-backed guarantee (minimum)
+• Register installation with guarantee provider
+• Provide guarantee certificate to customer
+• Explain guarantee terms and exclusions
+• Provide guarantee provider contact details
+
+7.2 INSTALLATION CERTIFICATE
+• Complete installation certificate with:
+  - Property details
+  - Installation date
+  - Insulation material type and quantity used
+  - Cavity width and wall area
+  - Achieved U-value (typically 0.30-0.35 W/m²K)
+  - Guarantee details
+  - Installer certification details
+
+7.3 COMPLIANCE DOCUMENTATION
+• Provide evidence of compliance with Building Regulations
+• Provide PAS 2030/2035 compliance documentation
+• Register installation with TrustMark (if applicable)
+• Notify Building Control if required
+
+═══════════════════════════════════════════════════════════════════════
+
+8. CUSTOMER HANDOVER
+
+8.1 COMPLETION DISCUSSION
+• Explain what has been done
+• Show customer external making good work
+• Discuss expected benefits:
+  - Warmer walls and rooms
+  - Reduced heating costs (typically 15-20%)
+  - Reduced condensation on cold walls
+  - Improved comfort
+• Explain guarantee coverage and duration
+
+8.2 IMPORTANT CUSTOMER ADVICE
+
+**Ventilation:**
+• Property may feel warmer - maintain adequate ventilation
+• Continue to use trickle vents and open windows regularly
+• Use extractor fans in kitchen and bathroom
+• Do not block airbricks or vents
+
+**Monitoring:**
+• Monitor walls for any signs of damp in first few months
+• Some temporary condensation may occur as property adjusts
+• Report any persistent damp issues immediately
+• Keep external walls and gutters maintained
+
+**What to Expect:**
+• Walls will feel warmer to touch (less heat loss)
+• Rooms should warm up faster
+• Less condensation on walls (but maintain ventilation)
+• Heating bills should reduce
+• Property should feel more comfortable
+
+**Maintenance:**
+• Maintain external walls in good condition
+• Repair any cracks in render or pointing promptly
+• Keep gutters clear and downpipes working
+• Maintain DPC clear of soil/debris
+• Regular external maintenance essential
+
+8.3 DOCUMENTATION PROVIDED
+• Installation certificate
+• 25-year guarantee certificate
+• Product warranty information
+• Maintenance advice sheet
+• Complaint procedure information
+• Emergency contact details
+• Building Regulations compliance certificate
+
+═══════════════════════════════════════════════════════════════════════
+
+9. POST-INSTALLATION SUPPORT
+
+9.1 FOLLOW-UP
+• Recommend follow-up inspection after 6-12 months
+• Check customer satisfaction
+• Address any concerns promptly
+• Verify no damp issues developed
+• Check external making good still satisfactory
+
+9.2 ISSUE RESOLUTION
+• Respond promptly to any customer concerns
+• Investigate any reported damp issues immediately
+• Determine cause (installation issue vs external defect vs condensation)
+• Rectify installation issues at no cost to customer
+• Refer to guarantee provider if required
+
+═══════════════════════════════════════════════════════════════════════
+
+10. COMPLIANCE & STANDARDS
+
+This installation complies with:
+• PAS 2030:2019 - Improving the energy efficiency of existing buildings
+• PAS 2035:2023 - Retrofitting dwellings for improved energy efficiency
+• Building Regulations Approved Document L1B (Conservation of fuel and power)
+• Building Regulations Approved Document C (Resistance to moisture)
+• BS 5617:1985 - Specification for urea-formaldehyde (UF) foam systems
+• BS 8208-1:1985 - Guide to assessment of suitability of external cavity walls
+• BS 5250:2021 - Management of moisture in buildings
+• Relevant BBA certificates for materials used
+• CIGA standards for installation
+
+Target U-value: 0.30-0.35 W/m²K (depending on cavity width and material)
+
+═══════════════════════════════════════════════════════════════════════
+
+11. CRITICAL SAFETY & RISK WARNINGS
+
+⚠️ EXPOSURE ZONE: Never install in severe/very severe exposure areas - high penetrating damp risk
+⚠️ DAMP: Never install on walls with existing damp problems - will make worse
+⚠️ CAVITY WIDTH: Minimum 50mm cavity required - narrower cavities unsuitable
+⚠️ WALL CONDITION: External walls must be in good condition - repair defects first
+⚠️ VENTILATION: Adequate property ventilation essential - condensation risk increases
+⚠️ GUARANTEES: Only install if can provide 25-year insurance-backed guarantee
+⚠️ EXTRACTION: Some materials cannot be removed if problems occur
+⚠️ BRIDGING: Poor installation can bridge cavity and cause damp
+⚠️ ASSESSMENT: Thorough pre-installation survey essential - do not skip
+
+═══════════════════════════════════════════════════════════════════════
+
+12. COMMON ISSUES AND PREVENTION
+
+12.1 PENETRATING DAMP
+**Causes:**
+• Installation in unsuitable exposure zone
+• Poor external wall condition
+• Bridging of insulation across cavity
+• Failed render or pointing
+
+**Prevention:**
+• Thorough exposure assessment before installation
+• Repair external defects before installation
+• Correct installation density and technique
+• Regular external maintenance
+
+12.2 CONDENSATION ISSUES
+**Causes:**
+• Inadequate ventilation
+• Changed moisture balance in property
+• Customer behavior (drying clothes indoors, etc.)
+
+**Prevention:**
+• Customer education on ventilation importance
+• Ensure adequate background ventilation
+• Advise on condensation prevention measures
+
+12.3 INSTALLATION DEFECTS
+**Causes:**
+• Incomplete cavity coverage
+• Wrong material density
+• Bypassing obstructions
+
+**Prevention:**
+• Systematic installation procedure
+• Quality control throughout installation
+• Thermal imaging verification
+• Correct material quantity usage
+
+═══════════════════════════════════════════════════════════════════════
+
+INSTALLATION COMPLETED BY: _________________________________
+
+CERTIFICATION NUMBER: _____________________
+
+DATE: _____________________
+
+INSULATION MATERIAL: _________________________________
+
+CAVITY WIDTH: _____________ mm
+
+WALL AREA INSULATED: _____________ m²
+
+MATERIAL QUANTITY USED: _____________ kg or m³
+
+ACHIEVED U-VALUE: _____________ W/m²K
+
+GUARANTEE CERTIFICATE NUMBER: _____________________
+
+═══════════════════════════════════════════════════════════════════════

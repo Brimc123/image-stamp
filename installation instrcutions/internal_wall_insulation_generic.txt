@@ -1,0 +1,340 @@
+INTERNAL WALL INSULATION - INSTALLATION INSTRUCTIONS
+PAS 2035 COMPLIANT INSTALLATION PROCEDURE
+(Rigid Board Dry-Lining System)
+
+═══════════════════════════════════════════════════════════════════════
+
+1. PRE-INSTALLATION REQUIREMENTS
+
+1.1 COMPETENCY & QUALIFICATIONS
+• Installer must be competent in internal wall insulation systems
+• Understanding of moisture management and condensation risks
+• Familiar with ventilation requirements and Building Regulations
+• Competent in dry-lining installation techniques
+• Knowledge of damp remediation and treatment
+
+1.2 SITE SURVEY & ASSESSMENT (CRITICAL)
+• Conduct thorough damp survey - IWI can only be installed on dry walls
+• Check for rising damp, penetrating damp, or condensation issues
+• Identify and resolve any damp issues BEFORE installation
+• Assess wall construction and condition
+• Measure room dimensions and calculate area to be insulated
+• Check existing ventilation provision
+• Identify services (electrical, plumbing, gas)
+• Assess window and door reveals
+• Check floor and ceiling junctions
+• Identify any thermal bridges requiring attention
+• Measure room dimensions to verify minimum room sizes maintained after insulation
+
+1.3 DAMP ASSESSMENT & TREATMENT
+CRITICAL: IWI must NOT be installed on damp walls
+• Conduct moisture meter readings on all walls
+• Investigate and resolve any damp issues:
+  - Rising damp: Install or repair DPC
+  - Penetrating damp: Repair external defects
+  - Condensation: Improve ventilation
+• Allow walls to dry completely before proceeding
+• Treat any mould growth with fungicidal wash
+• Consider breathable insulation systems for solid walls with minor moisture issues
+
+1.4 VENTILATION REQUIREMENTS
+• IWI reduces wall breathability - adequate ventilation is ESSENTIAL
+• Existing trickle vents must be retained or upgraded
+• Consider additional ventilation (mechanical ventilation with heat recovery)
+• Background ventilation required: minimum 8,000mm² per habitable room
+• Extract ventilation required in kitchens and bathrooms
+• Advise customer on ventilation requirements and behaviour changes
+
+═══════════════════════════════════════════════════════════════════════
+
+2. PREPARATION WORKS
+
+2.1 ROOM PREPARATION
+• Remove all furniture and floor coverings from work area
+• Protect remaining items with dust sheets
+• Remove pictures, mirrors, shelves, and wall fixtures
+• Remove electrical sockets and switches (isolate first)
+• Remove radiators and heating pipework where necessary
+• Remove skirting boards
+• Remove door architraves and window boards
+• Strip wallpaper and loose paint
+• Clear room to bare walls
+
+2.2 WALL PREPARATION
+• Repair any cracks or damage in existing wall
+• Remove any loose or friable material
+• Treat any biological growth (mould, algae) with fungicidal wash
+• Fill major defects with appropriate filler
+• Ensure wall surface is clean, dry, and dust-free
+• Level any significant irregularities (render patches if required)
+• Prime wall surface if required by adhesive manufacturer
+
+2.3 SERVICE RELOCATION
+• Plan relocation of electrical outlets, switches, and accessories
+• Extend electrical cables to allow for increased wall thickness
+• Relocate or extend plumbing and gas pipes
+• Consider surface-mounted trunking for cables where appropriate
+• All electrical work must comply with Part P Building Regulations
+
+═══════════════════════════════════════════════════════════════════════
+
+3. INSTALLATION PLANNING
+
+3.1 INSULATION THICKNESS SELECTION
+• Calculate appropriate thickness based on:
+  - Required U-value (typically 0.30 W/m²K or better)
+  - Room size constraints (minimum room dimensions must be maintained)
+  - Existing wall U-value
+• Typical thicknesses: 50mm, 75mm, or 100mm
+• Consider tapered boards at window/door reveals
+
+3.2 FIXING METHOD SELECTION
+• Mechanical fixing to timber battens (most common)
+• Dot and dab adhesive method (suitable for flat, sound walls)
+• Combined method (battens + adhesive)
+• Select based on wall condition, straightness, and room dimensions
+
+═══════════════════════════════════════════════════════════════════════
+
+4. INSULATION BOARD INSTALLATION
+
+4.1 BATTEN INSTALLATION METHOD (RECOMMENDED)
+• Fix timber battens vertically to wall at 400mm or 600mm centres
+• Use appropriate fixings for wall type (masonry screws, anchors)
+• Pack out battens to achieve level plane (use packers)
+• Use spirit level to ensure battens are plumb and in same plane
+• Install additional noggins around openings and service locations
+• Treat timber battens with preservative if required
+
+4.2 INSULATION BOARD FIXING
+• Measure and cut insulation boards to size
+• Cut neatly using fine-toothed saw or insulation saw
+• Fit boards between battens, ensuring tight fit
+• Secure boards mechanically or with adhesive as per system requirements
+• Stagger joints between boards
+• Ensure boards are flush with batten faces
+• Cut boards neatly around services and obstacles
+• Fill gaps between boards with expanding foam or insulation strips
+
+4.3 DOT AND DAB METHOD (IF APPLICABLE)
+• Apply adhesive in dabs to back of board (not wall)
+• Use appropriate dabs pattern (typically 10-15 dabs per board)
+• Place board on wall and press firmly
+• Use long level to ensure board is plumb and true
+• Adjust position before adhesive sets
+• Allow adhesive to cure as per manufacturer's instructions
+
+4.4 WINDOW AND DOOR REVEALS
+• Insulate reveals to prevent thermal bridging and condensation
+• Use tapered insulation boards or cut boards to create splayed reveals
+• Ensure insulation is continuous around opening perimeters
+• Maintain adequate clearance for window/door operation
+• Consider condensation risk at reveals - adequate ventilation essential
+• Install window boards on insulated substrate
+
+4.5 CEILING AND FLOOR JUNCTIONS
+• Ensure continuity of insulation at ceiling junction
+• Coordinate with ceiling insulation if present
+• Seal junction to prevent air leakage
+• At floor junction, insulate down to floor level
+• Seal gap between insulation and floor with flexible sealant
+• Consider thermal bridge at floor junction
+
+═══════════════════════════════════════════════════════════════════════
+
+5. VAPOUR CONTROL LAYER (IF REQUIRED)
+
+5.1 VCL INSTALLATION
+• Some systems require separate vapour control layer on warm side
+• Install continuous VCL over insulation boards
+• Overlap joints by minimum 150mm
+• Tape all joints with appropriate VCL tape
+• Seal around all penetrations (pipes, cables, sockets)
+• Seal edges to ceiling, floor, and adjacent walls
+• Ensure complete continuity with no gaps
+
+═══════════════════════════════════════════════════════════════════════
+
+6. PLASTERBOARD INSTALLATION
+
+6.1 BOARD FIXING
+• Install plasterboard over insulation (typically 12.5mm tapered edge)
+• Fix to battens using appropriate screws (32mm drywall screws)
+• Screw spacing: 150mm around perimeter, 300mm in field
+• Countersink screws slightly below surface (but not breaking paper)
+• Stagger board joints (do not align with insulation board joints)
+• Cut boards neatly around openings and services
+• Cut holes for electrical boxes and services
+
+6.2 JOINTING AND FINISHING
+• Apply jointing tape to all joints
+• Apply joint compound in multiple coats
+• Sand smooth when dry
+• Fill screw holes with joint compound
+• Apply final skim coat if required
+• Sand final surface smooth
+• Prepare for decoration
+
+═══════════════════════════════════════════════════════════════════════
+
+7. SERVICES REINSTATEMENT
+
+7.1 ELECTRICAL SERVICES
+• Install new electrical back boxes at correct depth
+• Extend cables to new socket/switch positions
+• Seal around back boxes with fire-rated sealant
+• Reinstate switches, sockets, and accessories
+• All work must be tested and certified (Part P)
+
+7.2 HEATING SERVICES
+• Extend radiator pipework to new wall surface position
+• Refit radiators on extended brackets
+• Ensure valves and connections accessible
+• Test for leaks and proper operation
+• Consider relocating radiators to internal walls if possible
+
+7.3 OTHER SERVICES
+• Extend any other services (TV, telephone, data)
+• Seal all penetrations through insulation and VCL
+
+═══════════════════════════════════════════════════════════════════════
+
+8. FINISHING WORKS
+
+8.1 TRIM INSTALLATION
+• Install new skirting boards (or extend existing)
+• Fit door architraves (may need wider profile)
+• Install window boards and trim
+• Fit coving or cornice if required
+• Caulk gaps around trim
+
+8.2 DOOR AND WINDOW ADJUSTMENTS
+• Doors may need adjustment or replacement due to reduced room size
+• Check door swing clearance
+• Adjust door stops and hinges if required
+• Check window operation and accessibility
+• Adjust window furniture if required
+
+═══════════════════════════════════════════════════════════════════════
+
+9. QUALITY CHECKS & COMMISSIONING
+
+9.1 INSTALLATION VERIFICATION
+• Check for gaps in insulation coverage
+• Verify continuity of insulation and VCL
+• Check all junctions sealed (ceiling, floor, reveals)
+• Confirm thermal bridges minimized
+• Verify adequate room ventilation installed
+• Check room dimensions still meet Building Regulations minimums
+• Test electrical installations
+
+9.2 THERMAL PERFORMANCE
+• Calculate achieved U-value
+• Verify meets design specification (typically 0.30 W/m²K or better)
+• Document any areas not insulated or requiring attention
+
+9.3 MOISTURE MANAGEMENT
+• Verify adequate ventilation provision
+• Check for any signs of condensation
+• Ensure customer understands ventilation requirements
+
+═══════════════════════════════════════════════════════════════════════
+
+10. CUSTOMER HANDOVER
+
+10.1 CRITICAL CUSTOMER ADVICE
+• VENTILATION IS ESSENTIAL - explain importance of regular room ventilation
+• Advise to open windows daily, even in winter
+• Explain use of trickle vents (keep open)
+• Recommend use of extractor fans when cooking/bathing
+• Advise against drying clothes indoors without ventilation
+• Explain condensation risks if ventilation inadequate
+• Provide written ventilation guidance
+
+10.2 DOCUMENTATION
+• Provide installation certificate with U-value calculation
+• Supply product warranties and guarantees
+• Issue insurance-backed guarantee (25-year minimum)
+• Provide ventilation requirements in writing
+• Include maintenance guidance
+• Provide emergency contact details
+
+10.3 BEHAVIOURAL CHANGES
+• Heating: May need adjustment due to improved insulation
+• Ventilation: Must ventilate regularly to prevent condensation
+• Thermostat settings: May be able to reduce temperatures
+• Energy bills: Should see reduction in heating costs
+• Condensation: Report any issues immediately
+
+═══════════════════════════════════════════════════════════════════════
+
+11. MAINTENANCE & MONITORING
+
+11.1 REGULAR CHECKS (CUSTOMER)
+• Monitor for any signs of condensation on windows or walls
+• Check for any damp patches or mould growth
+• Ensure ventilation systems working correctly
+• Report any issues immediately
+• Maintain regular heating and ventilation
+
+11.2 ANNUAL INSPECTION (RECOMMENDED)
+• Visual inspection of decorated surfaces for defects
+• Check for signs of condensation or moisture problems
+• Verify ventilation systems operating correctly
+• Check heating system operation
+• Monitor energy consumption
+
+═══════════════════════════════════════════════════════════════════════
+
+12. COMPLIANCE & STANDARDS
+
+This installation complies with:
+• PAS 2035:2023 - Retrofitting dwellings for improved energy efficiency
+• Building Regulations Approved Document L1B (Conservation of fuel and power)
+• Building Regulations Approved Document C (Resistance to moisture)
+• Building Regulations Approved Document F (Ventilation)
+• Building Regulations Approved Document P (Electrical safety)
+• BS 5250:2021 - Management of moisture in buildings
+• BS 8000-0:2014 - Workmanship on building sites
+
+Target U-value: 0.30 W/m²K or better
+Minimum room dimensions: Must comply with Building Regulations
+
+═══════════════════════════════════════════════════════════════════════
+
+13. CRITICAL SAFETY & RISK WARNINGS
+
+• DAMP: Never install IWI on damp walls - resolve moisture issues first
+• VENTILATION: Inadequate ventilation WILL cause condensation and mould
+• CONDENSATION: IWI reduces wall breathability - ventilation is CRITICAL
+• ROOM SIZE: Ensure minimum room dimensions maintained (Building Regs)
+• THERMAL BRIDGING: Critical at reveals, junctions, and penetrations
+• ELECTRICAL: All work must be Part P compliant and certified
+• FIRE SAFETY: Use appropriate fire-rated materials and maintain fire barriers
+• INTERSTITIAL CONDENSATION: Poor installation causes condensation within wall
+• CUSTOMER BEHAVIOUR: Customer must ventilate regularly - education essential
+
+═══════════════════════════════════════════════════════════════════════
+
+IMPORTANT NOTE ABOUT OMITTED ROOMS
+
+If certain rooms are omitted from the IWI installation:
+• This creates thermal bridges at party walls and junctions
+• Condensation risk increases at omitted room boundaries  
+• Clearly document omitted rooms and advise customer of implications
+• Consider partial treatment or alternative measures
+• Explain potential condensation risk to customer in writing
+
+═══════════════════════════════════════════════════════════════════════
+
+INSTALLATION COMPLETED BY: _________________________________
+
+DATE: _____________________
+
+ACHIEVED U-VALUE: _____________ W/m²K
+
+INSULATION AREA: _____________ m²
+
+ROOMS OMITTED: _________________________________
+
+═══════════════════════════════════════════════════════════════════════

@@ -1,0 +1,258 @@
+AIR SOURCE HEAT PUMP - INSTALLATION INSTRUCTIONS
+PAS 2035 COMPLIANT INSTALLATION PROCEDURE
+
+═══════════════════════════════════════════════════════════════════════
+
+1. PRE-INSTALLATION REQUIREMENTS
+
+1.1 COMPETENCY & CERTIFICATION
+• Installer must hold MCS certification for heat pump installation
+• Electrical work must be carried out by qualified electrician (Part P compliant)
+• Plumbing work must comply with Water Regulations
+• Installation must follow manufacturer's instructions and MCS standards
+
+1.2 SITE SURVEY & ASSESSMENT
+• Confirm heat loss calculations completed and heat pump sized correctly
+• Verify electrical supply is adequate (typically 32A single phase minimum)
+• Check location complies with planning requirements and permitted development
+• Assess acoustic impact on neighbours (MCS noise requirements)
+• Confirm adequate space for outdoor unit (minimum clearances per manufacturer)
+• Verify internal space available for buffer vessel/hot water cylinder
+• Check existing heating system compatibility (radiators, pipework)
+• Assess need for system upgrades (larger radiators, underfloor heating)
+
+1.3 CUSTOMER CONSULTATION
+• Explain heat pump operation and differences from gas boiler
+• Discuss running costs and expected savings
+• Confirm understanding of lower flow temperatures (typically 45-55°C)
+• Advise on hot water cylinder requirements
+• Discuss noise levels and outdoor unit location
+• Obtain written permission for installation location
+
+═══════════════════════════════════════════════════════════════════════
+
+2. OUTDOOR UNIT INSTALLATION
+
+2.1 LOCATION SELECTION
+• Position to minimize noise impact (away from bedrooms/boundaries where possible)
+• Ensure adequate airflow around unit (minimum clearances per manufacturer)
+• Avoid locations where discharged air could recirculate into unit
+• Consider prevailing wind direction and weather protection
+• Ensure easy access for maintenance and servicing
+• Check planning requirements - minimum 1m from boundary if possible
+
+2.2 BASE PREPARATION
+• Install solid, level base (concrete pad or paving slabs)
+• Base must be larger than unit footprint (minimum 100mm all sides)
+• Ensure adequate drainage for condensate
+• Install anti-vibration mounts to reduce noise transmission
+• Ensure base is level (maximum 1° deviation)
+• Consider raised platform if flood risk area
+
+2.3 OUTDOOR UNIT MOUNTING
+• Securely fix unit to base using manufacturer-supplied fixings
+• Install unit level and square
+• Ensure adequate clearance for airflow (typically 300mm sides, 1000mm front)
+• Connect condensate drainage pipe to appropriate drain
+• Ensure unit is weatherproof and secure against wind loading
+
+═══════════════════════════════════════════════════════════════════════
+
+3. REFRIGERANT PIPEWORK INSTALLATION
+
+3.1 PIPE ROUTING
+• Plan shortest practical route between indoor and outdoor units
+• Minimize bends and elevation changes where possible
+• Use pre-insulated refrigerant pipework
+• Protect pipework from physical damage
+• Route through wall using appropriate core drill and sleeve
+• Seal wall penetrations to prevent air/water ingress
+
+3.2 REFRIGERANT CONNECTION
+• Use appropriate pipe sizes as specified by manufacturer
+• Ensure clean, dry pipework (use nitrogen purge if required)
+• Make flare connections according to manufacturer's specifications
+• Torque all connections to correct specification
+• Conduct pressure test (typically 40 bar for 24 hours minimum)
+• Check for leaks using electronic leak detector
+• Vacuum system to remove moisture and air (minimum 500 microns)
+• Commission refrigerant circuit according to manufacturer's procedure
+
+═══════════════════════════════════════════════════════════════════════
+
+4. HYDRAULIC SYSTEM INSTALLATION
+
+4.1 SYSTEM DESIGN
+• Install buffer vessel if required (typically 200-300L)
+• Size hot water cylinder appropriately (typically 250-300L)
+• Install system filter to protect heat pump
+• Include isolation valves for maintenance
+• Install pressure relief valve and expansion vessel
+• Ensure adequate system volume for stable operation
+
+4.2 PIPEWORK INSTALLATION
+• Use appropriate pipe sizes for flow rates
+• Insulate all pipework to minimize heat loss
+• Install with correct fall for air removal
+• Include automatic air vents at high points
+• Install drain valves at low points
+• Use inhibitor suitable for heat pump systems
+
+4.3 RADIATOR CIRCUIT
+• Verify existing radiators are adequately sized for lower flow temperatures
+• Replace or upgrade radiators if undersized (heat output calculations required)
+• Install thermostatic radiator valves (TRVs) for zoning
+• Ensure system is hydraulically balanced
+• Consider adding additional radiators or increasing sizes
+
+4.4 HOT WATER SYSTEM
+• Install indirect hot water cylinder with heat pump compatible coil
+• Size coil for adequate heat transfer at lower temperatures
+• Install circulation pump if required
+• Include immersion heater as backup
+• Install temperature and pressure relief valve
+• Insulate cylinder and pipework to 50mm minimum
+
+═══════════════════════════════════════════════════════════════════════
+
+5. ELECTRICAL INSTALLATION
+
+5.1 POWER SUPPLY
+• Install dedicated circuit from consumer unit
+• Use appropriately rated cable and circuit breaker
+• Install RCD protection
+• Ensure adequate earth bonding
+• Label circuit clearly at consumer unit
+• Test and certify electrical installation
+
+5.2 CONTROLS INSTALLATION
+• Install weather compensation sensor externally (north facing wall)
+• Position room thermostat in appropriate location (living room, away from heat sources)
+• Install cylinder thermostat at correct height
+• Wire controls according to manufacturer's wiring diagram
+• Test all control functions
+
+5.3 COMMISSIONING & TESTING
+• Complete manufacturer's commissioning checklist
+• Set flow temperature appropriately (typically 45-50°C heating, 50-55°C hot water)
+• Configure weather compensation curve
+• Test defrost cycle operation
+• Verify all safety devices functioning
+• Check refrigerant pressures against manufacturer's specification
+• Measure electrical consumption and verify efficiency
+
+═══════════════════════════════════════════════════════════════════════
+
+6. SYSTEM FLUSHING & FILLING
+
+6.1 SYSTEM PREPARATION
+• Flush heating system thoroughly before connecting heat pump
+• Use system cleaner if existing system dirty
+• Flush until water runs clear
+• Neutralize and drain cleaning chemicals completely
+
+6.2 SYSTEM FILLING
+• Fill system with clean water and appropriate inhibitor
+• Use heat pump compatible inhibitor (consult manufacturer)
+• Vent all air from system
+• Check and adjust system pressure (typically 1.5 bar cold)
+• Check for leaks throughout system
+
+═══════════════════════════════════════════════════════════════════════
+
+7. PERFORMANCE VERIFICATION
+
+7.1 INITIAL CHECKS
+• Verify heat pump starts and runs correctly
+• Check flow temperatures achieve set points
+• Monitor system pressures (refrigerant and water)
+• Check for unusual noise or vibration
+• Verify hot water production meets requirements
+• Test defrost cycle operation
+
+7.2 EFFICIENCY TESTING
+• Measure electrical input power
+• Measure heat output (flow rate × temperature difference)
+• Calculate Coefficient of Performance (COP)
+• Verify performance meets design specification
+• Record baseline performance data
+
+═══════════════════════════════════════════════════════════════════════
+
+8. CUSTOMER HANDOVER
+
+8.1 SYSTEM DEMONSTRATION
+• Demonstrate basic operation and controls
+• Explain heating modes and settings
+• Show how to adjust temperature set points
+• Demonstrate hot water boost function
+• Explain defrost cycle (normal operation)
+• Show how to check system pressure
+
+8.2 DOCUMENTATION
+• Provide complete installation manual
+• Supply manufacturer's operating instructions
+• Issue MCS installation certificate
+• Provide warranty documentation
+• Give energy performance predictions
+• Issue insurance-backed guarantee
+
+8.3 CUSTOMER ADVICE
+• Explain optimal operating strategy (constant low temperature vs on/off)
+• Advise on typical running costs
+• Explain annual maintenance requirements
+• Provide emergency contact details
+• Explain noise during defrost cycle is normal
+• Advise not to adjust refrigerant or electrical components
+
+═══════════════════════════════════════════════════════════════════════
+
+9. MAINTENANCE REQUIREMENTS
+
+9.1 ANNUAL SERVICE (MUST BE CARRIED OUT)
+• Visual inspection of outdoor unit
+• Check refrigerant pressures
+• Inspect electrical connections
+• Check condensate drainage
+• Verify control operation
+• Test safety devices
+• Check system inhibitor concentration
+• Clean filters
+• Lubricate moving parts if required
+• Check and record performance data
+
+═══════════════════════════════════════════════════════════════════════
+
+10. COMPLIANCE & STANDARDS
+
+This installation complies with:
+• MCS 020 - Heat Pump Standard
+• PAS 2035:2023 - Retrofitting dwellings for improved energy efficiency
+• Building Regulations Part L1B & Part P
+• BS EN 378 - Refrigerating systems and heat pumps
+• Water Regulations
+• Electrical Regulations BS 7671
+
+═══════════════════════════════════════════════════════════════════════
+
+11. IMPORTANT SAFETY NOTES
+
+• REFRIGERANT: Only F-Gas certified engineers may work on refrigerant circuit
+• ELECTRICAL: All electrical work must be Part P compliant and certified
+• NOISE: Consider neighbour impact - MCS noise requirements apply
+• LEGIONELLA: Hot water must reach minimum 60°C weekly to prevent bacteria
+• PRESSURE: Never exceed maximum system pressure
+• VENTILATION: Ensure adequate air circulation around outdoor unit
+• MAINTENANCE: Annual service required to maintain warranty and performance
+
+═══════════════════════════════════════════════════════════════════════
+
+INSTALLATION COMPLETED BY: _________________________________
+
+MCS CERTIFICATE NUMBER: _____________________
+
+DATE: _____________________
+
+SCOP (Seasonal Coefficient of Performance): _____________________
+
+═══════════════════════════════════════════════════════════════════════

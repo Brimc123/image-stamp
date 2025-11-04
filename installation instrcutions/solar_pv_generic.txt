@@ -1,0 +1,479 @@
+SOLAR PV - INSTALLATION INSTRUCTIONS
+PAS 2035 COMPLIANT INSTALLATION PROCEDURE
+
+═══════════════════════════════════════════════════════════════════════
+
+1. PRE-INSTALLATION REQUIREMENTS
+
+1.1 COMPETENCY & CERTIFICATION
+• Installer must hold MCS certification for solar PV installation
+• Electrical work must be carried out by qualified electrician (18th Edition)
+• Competent in roof work and working at height
+• Understanding of DC and AC electrical systems
+• Familiar with G98/G99 grid connection requirements
+• Understanding of DNO (Distribution Network Operator) notification procedures
+
+1.2 SITE SURVEY & ASSESSMENT
+• Conduct detailed roof survey:
+  - Roof orientation (South facing optimal, East/West acceptable)
+  - Roof pitch (30-40° optimal for UK)
+  - Shading analysis (trees, buildings, chimneys)
+  - Roof structure and condition assessment
+  - Available roof area for panels
+  - Access routes and working area
+• Assess electrical system:
+  - Consumer unit capacity and condition
+  - Earthing system type (TN-S, TN-C-S, TT)
+  - Available space for inverter and AC isolator
+  - Cable route from roof to consumer unit
+  - Generation meter location
+• Check planning requirements (conservation areas, listed buildings)
+• Verify insurance covers solar PV installation
+
+1.3 SYSTEM DESIGN
+• Size system based on:
+  - Available roof area
+  - Client energy consumption
+  - Budget and ROI requirements
+  - DNO export limitations (typically 3.68kW per phase)
+• Select appropriate equipment:
+  - PV panels (monocrystalline or polycrystalline)
+  - Inverter (string, micro-inverters, or optimizers)
+  - Mounting system suitable for roof type
+  - Generation meter
+  - Isolators and protection devices
+• Calculate system performance:
+  - Expected annual generation (kWh)
+  - Performance ratio
+  - Payback period
+  - Carbon savings
+
+═══════════════════════════════════════════════════════════════════════
+
+2. HEALTH & SAFETY PLANNING
+
+2.1 RISK ASSESSMENT
+• Complete comprehensive risk assessment
+• Identify hazards:
+  - Working at height
+  - Roof fragility
+  - Manual handling
+  - Electrical hazards (DC and AC)
+  - Weather conditions
+  - Tools and equipment
+• Implement control measures for all identified risks
+
+2.2 WORKING AT HEIGHT
+• Erect appropriate edge protection (scaffolding or guardrails)
+• Use appropriate access equipment (scaffolding, towers, ladders)
+• Ensure roof loading capacity adequate for workers and materials
+• Implement fall arrest systems if required
+• Check weather conditions (no work in high winds, ice, or heavy rain)
+• Use appropriate PPE (safety harness, hard hat, safety boots)
+
+2.3 ELECTRICAL SAFETY
+• Understand DC electrical hazards (cannot be easily isolated)
+• Plan emergency isolation procedures
+• Use appropriate PPE (insulated tools, gloves)
+• Ensure adequate training in DC systems
+• Plan cable routes to minimize DC cable runs inside building
+
+═══════════════════════════════════════════════════════════════════════
+
+3. ROOF MOUNTING SYSTEM INSTALLATION
+
+3.1 ROOF PREPARATION
+• Inspect roof condition thoroughly
+• Repair any defects before installation
+• Check roof structure adequate for additional loading
+• Mark panel layout on roof using chalk lines or template
+• Plan cable entry point into building
+• Protect roof covering during installation
+
+3.2 MOUNTING SYSTEM INSTALLATION (PITCHED ROOF)
+
+**For Tile/Slate Roofs:**
+• Remove tiles/slates at anchor point locations
+• Install roof hooks/anchors:
+  - Fix securely to rafters (not battens)
+  - Use appropriate fixings (typically M10 or M12 coach screws)
+  - Seal around anchors with appropriate flashing/sealant
+  - Ensure weatherproof installation
+• Reinstall tiles/slates around anchors
+• Install mounting rails:
+  - Attach rails to roof anchors using appropriate clamps
+  - Ensure rails are level and parallel
+  - Typical rail spacing: 1000mm (check panel specifications)
+  - Rails must be securely fixed and capable of withstanding wind loading
+
+**For Metal Roof Systems:**
+• Use appropriate mounting system for roof profile
+• Fix directly to structural members (purlins)
+• Ensure weatherproof sealing at all penetrations
+• Use load-spreading pads where required
+
+**For Flat Roofs:**
+• Use ballasted mounting system (no roof penetrations) OR
+• Use mechanically fixed system with membrane penetration seals
+• Ensure adequate ballast weight for wind loading
+• Check roof loading capacity adequate
+• Maintain access routes on roof
+• Ensure drainage not impeded
+
+3.3 EARTHING AND BONDING
+• Install earthing conductor along mounting rails
+• Bond all metallic components together
+• Connect to main earthing terminal in property
+• Use appropriate earth cable size (typically 6mm² minimum)
+• Ensure continuity throughout mounting system
+
+═══════════════════════════════════════════════════════════════════════
+
+4. SOLAR PANEL INSTALLATION
+
+4.1 PANEL HANDLING
+• Handle panels carefully (glass can break)
+• Always lift panels by frame (never by cables)
+• Use two people to carry panels (panels are heavy and awkward)
+• Store panels securely when not installing
+• Protect panels from impact damage
+• Keep panel surfaces clean
+
+4.2 PANEL MOUNTING
+• Position first panel on mounting rails
+• Secure using mid clamps and end clamps as per manufacturer's instructions
+• Torque clamps to correct specification (typically 10-12 Nm)
+• Ensure panels are square and aligned correctly
+• Continue installing panels in rows
+• Maintain required gaps between panels (typically 10-20mm)
+• Leave adequate edge clearance from roof edges (minimum 300mm)
+
+4.3 ELECTRICAL CONNECTIONS (DC SIDE)
+• Connect panels in series to form strings:
+  - Positive of panel 1 to negative of panel 2
+  - Continue for all panels in string
+  - Use appropriate MC4 connectors
+  - Ensure connections are tight and weatherproof
+• String configuration:
+  - Design strings to match inverter MPPT input voltage range
+  - Typical string size: 8-12 panels per string (check inverter specs)
+  - Multiple strings connect in parallel at inverter
+• Cable management:
+  - Secure DC cables to mounting system using cable clips
+  - Avoid cable damage from sharp edges
+  - Keep cables out of direct sunlight where possible
+  - Maintain separation between DC+ and DC- cables
+
+═══════════════════════════════════════════════════════════════════════
+
+5. DC CABLE INSTALLATION
+
+5.1 CABLE SIZING
+• Select DC cable size based on:
+  - String current (ISC × 1.25 safety factor)
+  - Cable run length
+  - Acceptable voltage drop (maximum 3%)
+• Typical cable size: 4mm² or 6mm² for domestic installations
+• Use solar-rated DC cable (UV resistant, double insulated)
+
+5.2 CABLE ROUTING
+• Route DC cables from roof array to inverter location
+• Minimize cable run length where possible
+• Keep DC cables outside building where possible
+• If DC cables must enter building:
+  - Use shortest practical route
+  - Install in conduit or trunking
+  - Mark clearly "SOLAR DC CABLES - LIVE IN DAYLIGHT"
+  - Install emergency DC isolator at roof level if cable run >2m inside
+• Protect cables from mechanical damage
+• Seal cable entry point weatherproof
+
+5.3 DC ISOLATORS
+• Install DC isolator accessible from ground level (or at inverter)
+• Located between PV array and inverter
+• Must be lockable in off position
+• Clearly labeled: "PV MAIN SWITCH - DOUBLE POLE ISOLATOR"
+• Warning label: "DUAL SUPPLY - ISOLATE BOTH AC AND DC"
+
+═══════════════════════════════════════════════════════════════════════
+
+6. INVERTER INSTALLATION
+
+6.1 INVERTER LOCATION SELECTION
+• Install in cool, dry, well-ventilated location
+• Avoid direct sunlight, moisture, and heat sources
+• Typical locations: garage, utility room, loft (if adequate access)
+• Ensure adequate clearances for ventilation:
+  - Sides: typically 300mm
+  - Top/bottom: typically 500mm
+• Accessible for maintenance and monitoring
+• Within reasonable cable distance of consumer unit
+
+6.2 INVERTER MOUNTING
+• Mount on solid wall using appropriate fixings
+• Install at eye level for easy monitoring (typically 1.5-1.8m height)
+• Ensure inverter is level
+• Verify secure fixing capable of supporting inverter weight
+• Leave adequate space for cable connections
+
+6.3 INVERTER CONNECTIONS
+
+**DC Side:**
+• Connect DC cables from PV array to DC input terminals
+• Observe correct polarity (+ to +, - to -)
+• Torque connections to manufacturer's specification
+• Verify DC voltage before connection (use multimeter)
+• Check DC voltage within inverter operating range
+
+**AC Side:**
+• Connect AC output to AC isolator
+• Wire according to manufacturer's instructions
+• Ensure earth connection is secure
+• Verify correct voltage and frequency (230V, 50Hz)
+
+**Communication/Monitoring:**
+• Connect internet/WiFi for monitoring (if applicable)
+• Configure monitoring settings
+• Set up user account for remote monitoring
+
+═══════════════════════════════════════════════════════════════════════
+
+7. AC ELECTRICAL INSTALLATION
+
+7.1 AC ISOLATOR
+• Install AC isolator adjacent to consumer unit
+• Must be lockable in off position
+• Clearly labeled: "PV GENERATION - AC ISOLATOR"
+• Install to BS 7671 standards
+
+7.2 CONSUMER UNIT CONNECTION
+• Install dedicated circuit breaker in consumer unit:
+  - Typically 16A or 20A Type B MCB
+  - RCD protection required (30mA)
+  - Connect to busbar (not incoming supply)
+• Run cable from AC isolator to consumer unit
+• Use appropriately sized cable (typically 2.5mm² or 4mm²)
+• Label circuit clearly: "PV GENERATION"
+
+7.3 GENERATION METER
+• Install generation meter (if required for FIT/SEG)
+• Position near consumer unit
+• Connect between inverter and consumer unit
+• Meter must be MID-approved for payment schemes
+• Record initial reading
+
+7.4 EARTHING AND BONDING
+• Verify adequate earthing system for property
+• Bond inverter chassis to main earthing terminal
+• Bond mounting system to main earthing terminal
+• Ensure earth continuity throughout installation
+• Test earth loop impedance
+
+═══════════════════════════════════════════════════════════════════════
+
+8. TESTING AND COMMISSIONING
+
+8.1 PRE-COMMISSIONING CHECKS
+• Verify all mechanical fixings secure
+• Check all electrical connections tight
+• Verify correct polarity (DC and AC)
+• Ensure all isolators in OFF position
+• Check system earthing and bonding complete
+• Remove any panel shipping protection
+
+8.2 DC TESTING
+• Measure open circuit voltage (VOC) of each string:
+  - Use multimeter on DC side
+  - Compare to expected value (number of panels × panel VOC)
+  - Typically 250-450V DC for domestic strings
+• Measure short circuit current (ISC) - use appropriate meter
+• Check polarity correct (+ and -)
+• Verify string voltages balanced (if multiple strings)
+
+8.3 INSULATION RESISTANCE TESTING
+• Disconnect inverter DC input
+• Test insulation resistance positive to earth
+• Test insulation resistance negative to earth
+• Minimum acceptable value: 1MΩ (ideally >100MΩ)
+• If low reading, check for damaged cables or moisture ingress
+
+8.4 AC TESTING
+• Test earth continuity
+• Test earth loop impedance
+• Test RCD operation (30mA trip time <40ms)
+• Verify correct polarity
+• Check voltage at consumer unit
+• Test isolator operation
+
+8.5 INVERTER COMMISSIONING
+• Close DC isolator
+• Close AC isolator
+• Power up inverter
+• Monitor inverter display for:
+  - Correct DC voltage
+  - System generating (if sufficient sunlight)
+  - No error codes
+• Configure inverter settings:
+  - Grid voltage and frequency (G98/G99 settings)
+  - Export limits if applicable
+  - Communication settings
+• Allow inverter to synchronize with grid (typically 5 minutes)
+• Verify generation starts when sun is shining
+
+8.6 SYSTEM PERFORMANCE VERIFICATION
+• Measure AC output power (use clamp meter or inverter display)
+• Compare to expected output for current irradiance
+• Check inverter efficiency (AC output / DC input)
+• Verify all strings generating equally
+• Monitor system for at least 30 minutes
+• Check no error codes or warnings
+
+═══════════════════════════════════════════════════════════════════════
+
+9. DOCUMENTATION AND CERTIFICATION
+
+9.1 INSTALLATION DOCUMENTATION
+• Complete MCS installation certificate
+• Provide electrical installation certificate (BS 7671)
+• Complete manufacturer's commissioning sheets
+• Provide as-built drawings showing:
+  - Panel layout
+  - String configuration
+  - Cable routes
+  - Equipment locations
+• Record test results (DC voltage, insulation resistance, earth loop)
+• Photograph installation (roof, inverter, consumer unit)
+
+9.2 SYSTEM INFORMATION
+• Record system details:
+  - Total system size (kWp)
+  - Number of panels and panel specifications
+  - Inverter make, model, and serial number
+  - Generation meter details
+  - Orientation and pitch
+  - Estimated annual generation
+  - MCS certificate number
+
+9.3 DNO NOTIFICATION
+• Submit G98 notification to DNO (systems up to 3.68kW per phase)
+• Submit G99 application for larger systems (approval required before connection)
+• Await DNO confirmation before customer uses system
+• Provide copy of DNO confirmation to customer
+
+═══════════════════════════════════════════════════════════════════════
+
+10. CUSTOMER HANDOVER
+
+10.1 SYSTEM DEMONSTRATION
+• Explain system operation and components
+• Show how to monitor generation (inverter display or app)
+• Demonstrate isolator locations and emergency shutdown procedure
+• Explain normal operation (sounds, LED indicators)
+• Show how to check system is working correctly
+
+10.2 CUSTOMER ADVICE
+• System requires minimal maintenance
+• Keep panels clean (rain usually sufficient, professional cleaning if heavily soiled)
+• Do not go on roof or touch panels/cables
+• Monitor generation regularly via app or inverter display
+• Report any unusual operation, error codes, or performance drop
+• Annual visual inspection recommended (from ground level)
+• Notify insurance company of installation
+
+10.3 PERFORMANCE EXPECTATIONS
+• Explain seasonal variations in generation
+• Provide estimated annual generation figure (kWh)
+• Explain payback period and financial benefits
+• Discuss optimizing self-consumption vs export
+• Explain FIT or SEG payment scheme if applicable
+
+10.4 DOCUMENTATION PROVIDED
+• MCS installation certificate
+• Electrical installation certificate  
+• Product warranties (typically 25 years panels, 5-10 years inverter)
+• User manuals for all equipment
+• Insurance-backed guarantee (MCS requirement)
+• DNO notification confirmation
+• System performance estimate
+• Monitoring system login details
+• Emergency contact details
+
+═══════════════════════════════════════════════════════════════════════
+
+11. MAINTENANCE REQUIREMENTS
+
+11.1 CUSTOMER MAINTENANCE
+• Monitor generation daily/weekly via app
+• Visual inspection from ground (check for damage)
+• Keep inverter area clear and well-ventilated
+• Report any error codes or unusual operation
+• Check generation meter periodically
+
+11.2 PROFESSIONAL MAINTENANCE (ANNUAL RECOMMENDED)
+• Visual inspection of array (from roof if safe access)
+• Check panel condition (cracks, delamination, discoloration)
+• Inspect mounting system security
+• Check all electrical connections remain tight
+• Test string voltages and currents
+• Clean panels if required
+• Check inverter operation and settings
+• Update firmware if required
+• Test isolator operation
+• Provide maintenance report to customer
+
+═══════════════════════════════════════════════════════════════════════
+
+12. COMPLIANCE & STANDARDS
+
+This installation complies with:
+• MCS 012 - Solar PV Standard
+• BS 7671:2018+A2:2022 (IET Wiring Regulations) - 18th Edition
+• Building Regulations Part L (Conservation of fuel and power)
+• Building Regulations Part P (Electrical safety)
+• G98 / G99 - Grid connection requirements
+• BS EN 62446 - Grid connected photovoltaic systems (installation and commissioning)
+• Health & Safety at Work Act 1974
+• Work at Height Regulations 2005
+
+═══════════════════════════════════════════════════════════════════════
+
+13. CRITICAL SAFETY WARNINGS
+
+⚠️ DC VOLTAGE: PV arrays generate DC voltage in daylight - CANNOT be switched off
+⚠️ HIGH VOLTAGE: String voltages can exceed 400V DC - potentially lethal
+⚠️ ROOF WORK: Working at height - proper access equipment and edge protection essential
+⚠️ DUAL SUPPLY: System has both AC and DC supplies - isolate BOTH for safety
+⚠️ DO NOT TOUCH: Never touch panels, cables, or connections when sun is shining
+⚠️ EMERGENCY: If fire or emergency, isolate AC AND DC supplies immediately
+⚠️ MAINTENANCE: Only qualified personnel should work on solar PV systems
+⚠️ DNO APPROVAL: Do not connect to grid without DNO approval (G99 systems)
+
+═══════════════════════════════════════════════════════════════════════
+
+EMERGENCY SHUTDOWN PROCEDURE
+
+In case of emergency (fire, electrical fault):
+1. Turn OFF AC isolator (near consumer unit)
+2. Turn OFF DC isolator (near inverter or at roof)
+3. Turn OFF main isolator at consumer unit
+4. Keep people away from panels and equipment
+5. Call emergency services if required
+6. DO NOT attempt to cover panels - voltage still present
+
+═══════════════════════════════════════════════════════════════════════
+
+INSTALLATION COMPLETED BY: _________________________________
+
+MCS CERTIFICATE NUMBER: _____________________
+
+DATE: _____________________
+
+SYSTEM SIZE: _____________ kWp
+
+NUMBER OF PANELS: _____________
+
+ESTIMATED ANNUAL GENERATION: _____________ kWh
+
+DNO REFERENCE: _____________________
+
+═══════════════════════════════════════════════════════════════════════

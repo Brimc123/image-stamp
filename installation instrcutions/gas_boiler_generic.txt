@@ -1,0 +1,456 @@
+GAS BOILER - INSTALLATION INSTRUCTIONS
+PAS 2035 COMPLIANT INSTALLATION PROCEDURE
+
+═══════════════════════════════════════════════════════════════════════
+
+⚠️ CRITICAL SAFETY REQUIREMENT ⚠️
+
+GAS BOILER INSTALLATION MUST ONLY BE CARRIED OUT BY A GAS SAFE REGISTERED ENGINEER
+
+All work on gas appliances and associated pipework must comply with:
+• Gas Safety (Installation and Use) Regulations 1998
+• Building Regulations Part J (Heat producing appliances)
+• Building Regulations Part L (Conservation of fuel and power)
+• BS 6798 - Installation of gas-fired boilers
+
+═══════════════════════════════════════════════════════════════════════
+
+1. PRE-INSTALLATION REQUIREMENTS
+
+1.1 COMPETENCY & REGISTRATION
+• Installer MUST be Gas Safe registered
+• Must hold appropriate competency for boiler type being installed
+• Commercial Category competency required for commercial properties
+• Understanding of condensing boiler technology
+• Familiar with Building Regulations and gas safety requirements
+• Competent in system design and heat loss calculations
+
+1.2 SITE SURVEY & ASSESSMENT
+• Conduct heat loss calculation for property
+• Verify boiler size appropriate for heat demand (do not oversize)
+• Assess existing heating system condition and compatibility
+• Check gas supply capacity adequate for new boiler
+• Verify electrical supply available (typically 3A fused spur)
+• Assess flue route and termination location
+• Check adequate ventilation for boiler location
+• Identify condensate drainage route
+• Assess water supply and pressure
+• Check adequate space for boiler and clearances
+
+1.3 GAS SUPPLY VERIFICATION
+• Confirm gas meter capacity adequate for new boiler
+• Check gas pipe sizing adequate for demand and run length
+• Measure existing gas pressure (standing and working)
+• Calculate gas pipe sizing if modifications required
+• Identify gas isolation valve location
+
+1.4 SYSTEM COMPATIBILITY CHECK
+• Check existing radiators adequately sized for condensing temperatures
+• Verify pipework sizing adequate
+• Assess need for system cleanse and filter installation
+• Check for microbore pipework (may need upgrading)
+• Identify any system modifications required
+
+═══════════════════════════════════════════════════════════════════════
+
+2. PREPARATION WORKS
+
+2.1 REMOVAL OF EXISTING BOILER (IF APPLICABLE)
+• Isolate gas supply at emergency control valve
+• Isolate electrical supply
+• Drain heating system (or isolate boiler section)
+• Disconnect gas supply at isolation valve
+• Disconnect heating flow and return pipework
+• Disconnect hot water pipework
+• Disconnect flue system
+• Remove boiler safely
+• Cap off redundant flue penetration if new flue route used
+• Dispose of old boiler in accordance with WEEE regulations
+
+2.2 PREPARATION FOR NEW BOILER
+• Clean and prepare wall surface for boiler mounting
+• Mark boiler position using template
+• Check wall is capable of supporting boiler weight
+• Drill fixing holes for mounting bracket
+• Install wall mounting bracket securely (use appropriate fixings for wall type)
+• Check bracket is level and secure
+• Plan cable and pipe routes
+
+═══════════════════════════════════════════════════════════════════════
+
+3. FLUE SYSTEM INSTALLATION
+
+3.1 FLUE TYPE SELECTION
+• Horizontal flue through external wall (most common)
+• Vertical flue through roof
+• Plume management kit if required (near boundaries/windows)
+• Flue length and bend limitations per manufacturer's specifications
+
+3.2 FLUE INSTALLATION REQUIREMENTS
+• Use only manufacturer-approved flue components
+• Maintain minimum clearances from openings (windows, doors, vents)
+• Typical clearances: 300mm below openings, 300mm horizontally
+• Ensure flue terminates in safe location away from:
+  - Building openings (windows, doors, air vents)
+  - Adjacent boundaries (minimum 600mm)
+  - Public areas
+  - Where plume could cause nuisance
+• Maintain minimum/maximum flue lengths per manufacturer
+• Support flue adequately (horizontal runs must be supported)
+• Seal flue penetration through wall/roof with weatherproof seal
+• Install flue with slight fall back to boiler for condensate drainage
+• Fit flue terminal guard if required (public access areas)
+
+3.3 FLUE INSTALLATION PROCEDURE
+• Core drill hole through external wall (use correct diameter)
+• Install flue liner through wall
+• Connect flue components to boiler flue outlet
+• Ensure all joints properly sealed
+• Check flue is secure and correctly terminated
+• Fit external terminal (maintain correct projection)
+• Seal around flue penetration internally and externally
+• Check flue is gas-tight (test during commissioning)
+
+═══════════════════════════════════════════════════════════════════════
+
+4. BOILER INSTALLATION
+
+4.1 MOUNTING THE BOILER
+• Hang boiler on mounting bracket
+• Check boiler is level and secure
+• Verify adequate clearances for servicing:
+  - Front: Minimum 600mm for access
+  - Sides: As per manufacturer (typically 50-100mm minimum)
+  - Top: As per manufacturer (typically 300mm minimum)
+• Ensure boiler is securely fixed and cannot be dislodged
+
+4.2 GAS CONNECTION
+• Install gas isolation valve adjacent to boiler (if not present)
+• Use rigid gas pipe or appropriate flexible connection
+• Size gas pipe adequately (typically 22mm for most domestic boilers)
+• Make gas connection to boiler using appropriate fittings
+• Support pipework adequately
+• Test gas connection for leaks (use leak detection spray or electronic detector)
+• Label gas isolation valve clearly
+
+4.3 HEATING SYSTEM CONNECTION
+• Connect heating flow and return pipes to boiler
+• Use appropriate fittings and ensure connections tight
+• Install isolation valves on flow and return for servicing
+• Ensure adequate support for pipework
+• Maintain adequate clearances from electrical components
+
+4.4 HOT WATER CONNECTION (COMBI BOILERS)
+• Connect cold water inlet to boiler
+• Install isolation valve on cold supply
+• Connect hot water outlet from boiler
+• Ensure adequate pipe sizing (typically 22mm)
+• Check cold water pressure adequate (typically 1-4 bar)
+• Install pressure reducing valve if mains pressure exceeds boiler maximum
+
+4.5 CONDENSATE DRAINAGE
+• Connect condensate pipe to boiler condensate outlet
+• Route condensate to appropriate drainage point:
+  - Internal foul drain (preferred)
+  - External drain
+  - Soakaway (only if no other option)
+• Use minimum 21.5mm (3/4") pipe diameter internally
+• Increase to 32mm if any external runs
+• Ensure pipe has continuous fall (minimum 3° angle)
+• Install condensate trap if required by manufacturer
+• Protect external condensate pipe from freezing:
+  - Insulate pipe adequately
+  - Increase diameter to 32mm minimum
+  - Keep runs as short as possible
+  - Consider trace heating in severe frost areas
+
+═══════════════════════════════════════════════════════════════════════
+
+5. ELECTRICAL INSTALLATION
+
+5.1 ELECTRICAL CONNECTION
+• Install 3A fused spur adjacent to boiler
+• Wire permanent live, switched live, neutral, and earth
+• Use appropriate cable size (typically 1.0mm² or 1.5mm²)
+• Connect to boiler following manufacturer's wiring diagram
+• Ensure RCD protection provided
+• Test electrical connections and verify correct voltage
+• All electrical work must comply with Part P Building Regulations
+
+5.2 CONTROLS INSTALLATION
+• Install room thermostat in appropriate location:
+  - Main living area (typically living room or hallway)
+  - Away from heat sources, draughts, and direct sunlight
+  - At height of approximately 1.5m
+  - Not in kitchen or bathroom
+• Install programmer/timer for heating schedules
+• Wire controls to boiler following manufacturer's wiring diagram
+• Consider weather compensation controls for improved efficiency
+• Install cylinder thermostat if system boiler with separate cylinder
+
+═══════════════════════════════════════════════════════════════════════
+
+6. SYSTEM PREPARATION
+
+6.1 SYSTEM CLEANSING (ESSENTIAL)
+• Flush heating system thoroughly before connecting new boiler
+• Use proprietary system cleaner for heavily contaminated systems
+• Circulate cleaner through system as per instructions
+• Flush with clean water until runs clear
+• Install magnetic system filter (essential for warranty)
+• Install filter on heating return before boiler
+
+6.2 SYSTEM FILLING
+• Close all drain valves
+• Open all radiator valves
+• Fill system slowly via filling loop
+• Vent all radiators starting from lowest
+• Continue filling to correct pressure (typically 1.0-1.5 bar cold)
+• Add system inhibitor (dose as per manufacturer)
+• Ensure inhibitor compatible with boiler manufacturer's warranty requirements
+• Record inhibitor product and dose rate
+
+═══════════════════════════════════════════════════════════════════════
+
+7. COMMISSIONING
+
+7.1 PRE-COMMISSIONING CHECKS
+• Verify all installation work completed correctly
+• Check all isolation valves open
+• Verify gas supply connected and valve open
+• Check electrical supply connected and energized
+• Confirm flue correctly installed and sealed
+• Verify condensate drainage connected
+• Check system filled and pressurized
+• Ensure all packaging and shipping brackets removed from boiler
+
+7.2 GAS SOUNDNESS TESTING
+• Perform gas tightness test on all new/modified gas pipework
+• Test at working pressure for minimum 2 minutes
+• Use manometer or electronic pressure tester
+• Check for any pressure drop (zero pressure drop acceptable)
+• Identify and rectify any leaks before proceeding
+
+7.3 INITIAL BOILER START-UP
+• Turn on electrical supply
+• Turn on gas supply
+• Power up boiler
+• Follow manufacturer's commissioning procedure
+• Monitor first ignition and burner operation
+• Check for smooth operation and no unusual noises
+• Verify flame picture correct (view through inspection window if provided)
+• Check flue gases evacuating correctly
+
+7.4 GAS RATE VERIFICATION
+• Measure gas consumption using meter timing method
+• Calculate gas rate (m³/hr or ft³/hr)
+• Verify gas rate matches manufacturer's specification
+• Adjust if required following manufacturer's procedure
+• Typically within ±5% of rated input
+
+7.5 SYSTEM COMMISSIONING
+• Set boiler parameters:
+  - Maximum flow temperature (typically 75°C for existing radiators, 50-55°C for condensing mode)
+  - Hot water temperature (typically 60°C)
+  - Pump speed (adjust for system resistance)
+• Balance heating system:
+  - Lockshield radiators to achieve equal temperature drop across all radiators
+  - Typical design temperature drop: 20°C (80°C flow, 60°C return for high temp, or 50°C flow, 30°C return for low temp)
+• Test hot water production (combi boilers)
+• Check system pressure under operating conditions
+• Verify no leaks throughout system
+
+7.6 COMBUSTION ANALYSIS
+• Conduct flue gas analysis using calibrated analyzer
+• Measure:
+  - Oxygen (O2) levels
+  - Carbon dioxide (CO2) levels  
+  - Carbon monoxide (CO) levels
+  - Flue gas temperature
+  - Combustion efficiency
+• Record readings on commissioning sheet
+• Verify readings within manufacturer's acceptable range:
+  - CO level: Maximum 200ppm (preferably <50ppm)
+  - CO2: Typically 8-10% (gas boilers)
+  - Efficiency: >85% (condensing boilers should exceed 90%)
+• Adjust if required and re-test
+
+7.7 SAFETY DEVICE TESTING
+• Test flame failure device (FSD)
+• Test overheat thermostat operation
+• Test pressure relief valve (if fitted)
+• Verify low water pressure cut-out operates
+• Test all interlocks and safety systems
+
+═══════════════════════════════════════════════════════════════════════
+
+8. CONTROLS COMMISSIONING
+
+8.1 HEATING CONTROLS SETUP
+• Program heating schedule to customer requirements
+• Set room temperature set point (typically 21°C)
+• Configure setback temperatures for night/away (typically 16-18°C)
+• Test thermostat calls for heat correctly
+• Verify boiler responds to control signals
+• Set TRV positions on individual radiators
+
+8.2 HOT WATER CONTROLS (SYSTEM BOILERS)
+• Set cylinder thermostat to 60°C (legionella prevention)
+• Test hot water zone operates independently
+• Verify priority hot water operation if configured
+
+8.3 ADVANCED CONTROLS (IF FITTED)
+• Configure weather compensation curve
+• Set up zoning controls if multi-zone system
+• Program smart controls and connect to WiFi if applicable
+• Test all control modes and functions
+
+═══════════════════════════════════════════════════════════════════════
+
+9. FINAL CHECKS & TESTING
+
+9.1 OPERATIONAL TESTING
+• Run boiler through complete heating cycle
+• Verify smooth modulation and cycling
+• Check all radiators heat up correctly
+• Test hot water production (flow rate and temperature)
+• Monitor system pressure remains stable
+• Check for any leaks throughout system
+• Verify condensate draining correctly
+• Confirm no unusual noises or vibration
+
+9.2 VENTILATION CHECK
+• Verify adequate ventilation for boiler location (if required)
+• Check air vents unobstructed
+• Measure room ventilation if boiler in confined space
+• Ensure combustion air supply adequate
+
+9.3 DOCUMENTATION
+• Complete manufacturer's commissioning checklist
+• Record all settings and parameters
+• Complete Gas Safe benchmark checklist
+• Photograph installation and gas meter reading
+• Record serial numbers (boiler, controls, filter)
+
+═══════════════════════════════════════════════════════════════════════
+
+10. CUSTOMER HANDOVER
+
+10.1 SYSTEM DEMONSTRATION
+• Demonstrate boiler operation and controls
+• Show how to adjust room temperature
+• Explain heating programmer/timer operation
+• Demonstrate hot water controls (if applicable)
+• Show how to check system pressure
+• Demonstrate how to re-pressurize system using filling loop
+• Show location of isolation valves and emergency controls
+• Explain boiler status indicators and error codes
+
+10.2 IMPORTANT CUSTOMER ADVICE
+• Annual service essential (explain importance)
+• System filter requires periodic cleaning (typically 12 months)
+• Maintain system pressure between 1.0-1.5 bar
+• Never adjust gas valve or internal settings
+• Report any unusual smells, noises, or operation immediately
+• Explain condensing boiler operation (normal to see plume)
+• Advise on optimal temperature settings for efficiency
+• Provide emergency contact details
+
+10.3 DOCUMENTATION PROVIDED
+• Manufacturer's user manual
+• Warranty registration details
+• Gas Safe installation certificate (CP12 if rental)
+• Building Regulations compliance certificate
+• Commissioning records and test results
+• Emergency contact details
+• Maintenance schedule
+• Filter cleaning instructions
+
+10.4 WARRANTY REGISTRATION
+• Register boiler warranty with manufacturer immediately
+• Provide customer with warranty certificate
+• Explain warranty terms and annual service requirements
+• Register system filter to maintain boiler warranty
+
+═══════════════════════════════════════════════════════════════════════
+
+11. BUILDING CONTROL NOTIFICATION
+
+11.1 BUILDING REGULATIONS COMPLIANCE
+• Notify Building Control of installation (if required)
+• Complete Competent Person Scheme notification OR
+• Apply for Building Regulations approval
+• Provide compliance certificate to customer
+• File copy of notification/approval for records
+
+═══════════════════════════════════════════════════════════════════════
+
+12. MAINTENANCE REQUIREMENTS
+
+12.1 ANNUAL SERVICE (MANDATORY)
+Essential for warranty and safety:
+• Visual inspection of boiler and flue system
+• Combustion analysis and burner adjustment
+• Clean burner and heat exchanger if required
+• Check and clean ignition system
+• Test all safety devices
+• Check gas rate and pressure
+• Inspect and test flue system
+• Check condensate drainage
+• Clean or replace system filter
+• Inspect electrical connections
+• Check system pressure and inhibitor concentration
+• Test controls operation
+• Provide service report to customer
+
+12.2 PERIODIC CHECKS (CUSTOMER)
+• Check system pressure monthly (top up if below 1.0 bar)
+• Monitor boiler operation for any changes
+• Check for any leaks around boiler or pipework
+• Ensure adequate ventilation maintained
+• Keep boiler area clear of storage/obstructions
+
+═══════════════════════════════════════════════════════════════════════
+
+13. COMPLIANCE & STANDARDS
+
+This installation complies with:
+• Gas Safety (Installation and Use) Regulations 1998
+• Building Regulations Approved Document J (Heat-producing appliances)
+• Building Regulations Approved Document L1B (Conservation of fuel and power)
+• BS 6798:2009 - Installation and maintenance of gas-fired boilers
+• BS 5440:2008 - Installation of flues and ventilation for gas appliances
+• BS 6891:2015 - Installation and maintenance of gas pipework
+• BS 7671:2018 - Wiring Regulations (Electrical work)
+• Water Supply (Water Fittings) Regulations 1999
+
+═══════════════════════════════════════════════════════════════════════
+
+14. CRITICAL SAFETY WARNINGS
+
+⚠️ GAS SAFE REGISTRATION: Only Gas Safe registered engineers may work on gas appliances
+⚠️ CARBON MONOXIDE: Poorly installed/maintained boilers can produce CO - fit CO alarm
+⚠️ VENTILATION: Adequate ventilation essential - never block air vents
+⚠️ FLUE: Regular flue checks essential - blockage can cause CO production
+⚠️ COMBUSTION AIR: Ensure adequate air supply for combustion
+⚠️ ANNUAL SERVICE: Essential for safety and efficiency - not optional
+⚠️ MODIFICATIONS: Never modify gas controls or settings
+⚠️ SMELL GAS: If gas smell detected - turn off supply, ventilate, call National Gas Emergency: 0800 111 999
+
+═══════════════════════════════════════════════════════════════════════
+
+INSTALLATION COMPLETED BY: _________________________________
+
+GAS SAFE REGISTRATION NUMBER: _____________________
+
+DATE: _____________________
+
+BOILER MODEL: _________________________________
+
+SERIAL NUMBER: _____________________
+
+BOILER OUTPUT: _____________ kW
+
+EFFICIENCY: _____________ %
+
+═══════════════════════════════════════════════════════════════════════
