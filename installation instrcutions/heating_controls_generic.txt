@@ -1,0 +1,403 @@
+HEATING CONTROLS - INSTALLATION INSTRUCTIONS
+PAS 2035 COMPLIANT INSTALLATION PROCEDURE
+(Programmable Room Thermostats & Thermostatic Radiator Valves)
+
+═══════════════════════════════════════════════════════════════════════
+
+1. PRE-INSTALLATION REQUIREMENTS
+
+1.1 COMPETENCY & QUALIFICATIONS
+• Installer must be competent in heating system controls
+• Understanding of heating system operation and control strategies
+• Electrical work must comply with Part P Building Regulations (18th Edition)
+• Familiarity with manufacturer's installation requirements
+• Understanding of zoning and system hydraulics
+• Knowledge of Building Regulations Part L requirements
+
+1.2 SYSTEM ASSESSMENT
+• Identify existing heating system type (gas boiler, heat pump, electric)
+• Assess current control configuration
+• Check boiler/heat source compatibility with new controls
+• Verify electrical supply available for controls
+• Identify existing wiring and control setup
+• Assess radiator valve types and condition
+• Check system hydraulics and balancing
+
+1.3 CONTROL STRATEGY DESIGN
+• Determine optimal control configuration:
+  - Time control (programmer/timer)
+  - Temperature control (room thermostat)
+  - Zone control (if multiple zones)
+  - Individual radiator control (TRVs)
+• Ensure compliance with Building Regulations Part L
+• Consider system efficiency improvements
+• Plan wire routes and control locations
+
+═══════════════════════════════════════════════════════════════════════
+
+2. PROGRAMMABLE ROOM THERMOSTAT INSTALLATION
+
+2.1 LOCATION SELECTION (CRITICAL)
+**Choose location carefully - affects entire system performance**
+
+Ideal location:
+• Main living area (living room or hallway)
+• Wall at height of approximately 1.5m
+• Away from direct heat sources:
+  - Radiators
+  - Fires or stoves
+  - Televisions or other electrical equipment
+  - Direct sunlight
+  - Lamps or spotlights
+• Away from draughts:
+  - External doors
+  - Windows
+  - Air vents
+• Not in kitchen or bathroom
+• Representative of general house temperature
+• Accessible for user adjustment
+
+Avoid:
+• Above radiators
+• Near external walls or windows
+• In rarely used rooms
+• Behind doors or furniture
+• In direct sunlight
+• Near heat-producing equipment
+
+2.2 WIRING INSTALLATION
+
+**Wired Thermostats:**
+• Run cable from thermostat location to boiler/control center
+• Use appropriate cable (typically 2-core + earth or 3-core + earth)
+• Cable can be surface mounted in trunking or concealed in walls
+• Minimum cable size: 0.75mm² (1.0mm² recommended)
+• Label cables clearly at both ends
+• Follow manufacturer's wiring diagram precisely
+
+**Wireless Thermostats:**
+• Install receiver unit near boiler/control center
+• Wire receiver according to manufacturer's instructions
+• Typical connections:
+  - Permanent live (L)
+  - Neutral (N)
+  - Earth (E)
+  - Switched live to boiler (call for heat)
+• Install batteries in thermostat
+• Pair thermostat with receiver following pairing procedure
+
+2.3 THERMOSTAT MOUNTING
+• Mark fixing positions using spirit level (ensure level)
+• Drill fixing holes using appropriate drill and bit for wall type
+• Insert wall plugs suitable for wall construction
+• Feed cable through back box (wired models)
+• Secure back box to wall
+• Strip and prepare cable ends
+• Connect wires to thermostat terminals as per wiring diagram:
+  - Live (L) - typically Brown
+  - Switched Live - typically Black or Blue
+  - Neutral (N) - typically Blue (if required)
+  - Earth (E) - Green/Yellow
+• Secure all connections (ensure tight and no exposed conductors)
+• Fit thermostat onto back box
+• Check thermostat is level and secure
+
+2.4 THERMOSTAT COMMISSIONING
+• Power up system at consumer unit
+• Check thermostat powers on (display illuminates)
+• Set current time and date
+• Set desired temperature (typically 21°C)
+• Program heating schedule:
+  - Weekday schedule (typical: 06:00-08:00, 16:00-22:00)
+  - Weekend schedule (adjust as required)
+  - Setback temperature for night/away (typically 16-18°C)
+• Test thermostat calls for heat:
+  - Increase temperature above room temperature
+  - Verify boiler fires up
+  - Check heating circulation starts
+• Wireless models: verify signal strength adequate
+• Adjust settings as required for optimal comfort and efficiency
+
+═══════════════════════════════════════════════════════════════════════
+
+3. THERMOSTATIC RADIATOR VALVE (TRV) INSTALLATION
+
+3.1 PRE-INSTALLATION PREPARATION
+• Isolate heating system and drain down
+• OR isolate individual radiators if possible (easier method)
+• Protect floor coverings with dust sheets
+• Have bucket/container ready for residual water
+• Check radiator valves not seized or corroded
+• Identify flow and return connections
+
+3.2 REMOVAL OF EXISTING VALVE (IF APPLICABLE)
+• Close radiator isolation valves (both ends)
+• Bleed radiator to release pressure
+• Place container under valve connection
+• Unscrew radiator valve from radiator using adjustable spanner
+• Unscrew valve from pipe connection
+• Clean pipe threads (remove old PTFE tape and debris)
+• Check radiator thread condition (replace radiator tail if damaged)
+
+3.3 TRV INSTALLATION PROCEDURE
+
+**Valve Body Installation:**
+• Wrap pipe thread with PTFE tape (clockwise, 3-4 wraps)
+• Hand-tighten valve onto radiator tail
+• Use adjustable spanner to tighten (do not over-tighten)
+• Connect valve to pipe (compression or threaded connection)
+• Ensure valve installed in correct flow direction (check arrow on valve body)
+• Torque to manufacturer's specification
+
+**Important Notes:**
+• TRVs should be installed on FLOW side of radiator (not return)
+• Check system design - may require bypass if all radiators have TRVs
+• Ensure at least one radiator (typically bathroom) has no TRV or lockshield fully open
+
+**TRV Head Installation:**
+• Remove transport cap from valve body
+• Position TRV head onto valve body
+• Ensure correct alignment (follow manufacturer's instructions)
+• Secure head to body:
+  - Push-fit models: push firmly until click
+  - Screw-fit models: tighten retaining ring
+  - Clip-fit models: slide on and secure clip
+• For electronic TRVs: insert batteries and follow pairing procedure
+
+3.4 TRV POSITIONING
+• Mount TRV horizontally where possible (for accurate temperature sensing)
+• Vertical mounting acceptable if necessary (follow manufacturer's guidance)
+• Ensure TRV head is not obstructed by:
+  - Curtains
+  - Furniture
+  - Radiator shelves
+• Keep clear airflow around TRV sensor
+
+3.5 SYSTEM REFILLING
+• Close all TRVs to setting 3 (mid-position)
+• Refill heating system slowly
+• Vent all radiators starting from lowest point
+• Continue filling until correct system pressure (typically 1.0-1.5 bar)
+• Check all TRV connections for leaks
+• Tighten if required (do not over-tighten)
+
+3.6 TRV COMMISSIONING
+• Power up heating system
+• Set all TRVs to maximum (5 or *) initially
+• Run system until all radiators hot
+• Balance radiators:
+  - Adjust lockshield valves to achieve equal temperatures
+  - Typical temperature drop across radiator: 10-12°C
+• Set TRVs to desired settings:
+  - Setting 1: ~10°C (frost protection)
+  - Setting 2: ~15°C (low background heat)
+  - Setting 3: ~20°C (comfortable living)
+  - Setting 4: ~23°C (warm)
+  - Setting 5: ~28°C (maximum/valve fully open)
+• Test TRV operation:
+  - Turn to maximum - valve should open
+  - Turn to minimum - valve should close
+  - Feel valve body warming when open
+
+**Electronic/Smart TRVs:**
+• Install batteries
+• Pair with gateway/hub (if wireless system)
+• Configure via app:
+  - Set room names
+  - Create heating schedules
+  - Set target temperatures
+• Test wireless communication
+• Verify app control functions correctly
+
+═══════════════════════════════════════════════════════════════════════
+
+4. SYSTEM INTEGRATION
+
+4.1 CONTROL HIERARCHY
+Ensure controls work together correctly:
+• Room thermostat controls overall system (main zone)
+• TRVs control individual room temperatures
+• Room thermostat room must NOT have TRV (or TRV set to maximum)
+• Programmer controls timing of heating periods
+
+4.2 BYPASS VALVE (IF REQUIRED)
+If all radiators have TRVs:
+• System requires automatic bypass valve
+• Prevents boiler short-cycling when TRVs close
+• Install bypass on heating system pipework
+• Set bypass pressure differential (typically 0.2-0.4 bar)
+• Consult boiler manufacturer's requirements
+
+4.3 PUMP SETTINGS
+• Check circulation pump speed appropriate
+• Adjust if required for system performance
+• Lower speeds improve efficiency and reduce noise
+• Ensure adequate flow to all radiators
+
+═══════════════════════════════════════════════════════════════════════
+
+5. TESTING AND COMMISSIONING
+
+5.1 SYSTEM FUNCTION TESTING
+• Test thermostat calls for heat correctly
+• Verify boiler responds to thermostat
+• Check all radiators heat when system running
+• Test TRVs close when room reaches temperature
+• Verify system stops when thermostat satisfied
+• Check programmer timing functions correctly
+• Test all heating schedules operate as programmed
+
+5.2 PERFORMANCE VERIFICATION
+• Check system reaches temperature efficiently
+• Verify no short-cycling of boiler
+• Check even heat distribution throughout property
+• Ensure quiet operation (no noise from valves)
+• Verify pressure remains stable
+
+5.3 ELECTRICAL TESTING (WIRED CONTROLS)
+• Conduct electrical installation test:
+  - Continuity of protective conductors
+  - Insulation resistance test
+  - Polarity check
+  - Verification of correct voltage
+• Complete Minor Electrical Installation Works Certificate
+
+═══════════════════════════════════════════════════════════════════════
+
+6. CUSTOMER HANDOVER
+
+6.1 THERMOSTAT DEMONSTRATION
+• Show how to adjust temperature set point
+• Demonstrate programming (if programmable):
+  - Setting daily schedule
+  - Adjusting time periods
+  - Setting temperatures
+  - Weekend vs weekday programs
+  - Holiday mode (if available)
+• Show boost/override function
+• Explain frost protection mode
+• Demonstrate app control (smart thermostats)
+
+6.2 TRV OPERATION GUIDANCE
+• Explain TRV settings (1-5 scale and temperatures)
+• Demonstrate how to adjust TRV
+• Explain TRV closes when temperature reached (valve will be cool)
+• Advise not to turn TRVs off completely (maintain background heat)
+• Show how to check if TRV working (feel valve body)
+• For smart TRVs: demonstrate app control
+
+6.3 SYSTEM OPTIMIZATION ADVICE
+• Explain efficient use of controls:
+  - Lower temperature when out/asleep
+  - Gradual temperature changes more efficient than boost
+  - Close doors to maintain room temperatures
+  - TRVs allow different room temperatures
+• Recommend optimal settings:
+  - Living areas: 20-21°C
+  - Bedrooms: 18°C
+  - Hallways: 18-19°C
+  - Unused rooms: 12-15°C (frost protection)
+• Explain expected energy savings
+• Discuss comfort improvements
+
+6.4 DOCUMENTATION PROVIDED
+• User manuals for thermostat and TRVs
+• Programming guide with quick reference
+• Electrical installation certificate (if wired work)
+• Warranty information
+• App download instructions (smart controls)
+• Installer contact details
+• Troubleshooting guide
+
+═══════════════════════════════════════════════════════════════════════
+
+7. MAINTENANCE REQUIREMENTS
+
+7.1 THERMOSTAT MAINTENANCE
+• Check batteries annually (wireless models)
+• Clean display and housing with damp cloth
+• Verify time/date settings correct (after power cuts)
+• Update firmware if available (smart models)
+• Check wall mounting secure
+
+7.2 TRV MAINTENANCE
+• Exercise TRVs annually (turn from max to min and back)
+• Check for sticking valves (especially after summer)
+• Clean TRV heads with damp cloth
+• Check batteries annually (electronic TRVs)
+• Verify TRVs operate smoothly
+• Check for leaks at connections
+
+7.3 ANNUAL SYSTEM CHECK
+• Verify all controls operating correctly
+• Check programming remains appropriate for occupants
+• Test emergency/frost protection modes
+• Verify wireless communication (if applicable)
+• Check system timing accurate
+• Confirm no control failures or errors
+
+═══════════════════════════════════════════════════════════════════════
+
+8. COMPLIANCE & STANDARDS
+
+This installation complies with:
+• Building Regulations Approved Document L1B (Conservation of fuel and power)
+• Building Regulations Approved Document P (Electrical safety)
+• BS 7671:2018+A2:2022 (IET Wiring Regulations) - 18th Edition
+• BS EN 215 - Thermostatic radiator valves requirements and test methods
+• BS EN 12098-5 - Controls for heating systems
+• PAS 2035:2023 - Retrofitting dwellings for improved energy efficiency
+
+═══════════════════════════════════════════════════════════════════════
+
+9. IMPORTANT SAFETY & OPERATIONAL NOTES
+
+⚠️ THERMOSTAT LOCATION: Incorrect location causes poor control and wasted energy
+⚠️ TRV ON THERMOSTAT RADIATOR: Never fit TRV to radiator in same room as thermostat
+⚠️ ELECTRICAL WORK: All electrical work must be Part P compliant and certified
+⚠️ SYSTEM PRESSURE: Check system pressure correct after TRV installation
+⚠️ BYPASS VALVE: Required if all radiators have TRVs - prevents boiler damage
+⚠️ BALANCING: System must be properly balanced for efficient operation
+⚠️ WINTER SHUTDOWN: Never turn heating completely off in winter - frost damage risk
+⚠️ STICKING VALVES: Exercise TRVs annually to prevent sticking
+
+═══════════════════════════════════════════════════════════════════════
+
+10. COMMON ISSUES AND SOLUTIONS
+
+10.1 THERMOSTAT ISSUES
+**Issue:** Thermostat not calling for heat
+**Solution:** Check batteries (wireless), verify wiring connections, check boiler power
+
+**Issue:** Heating won't turn off
+**Solution:** Check thermostat temperature setting, verify valve not stuck, check for short circuit
+
+**Issue:** Poor wireless signal
+**Solution:** Relocate receiver, check for interference sources, consider signal booster
+
+10.2 TRV ISSUES
+**Issue:** TRV not closing (radiator always hot)
+**Solution:** Check valve not stuck open, ensure pin moves freely, replace valve head
+
+**Issue:** TRV not opening (radiator cold)
+**Solution:** Check valve not stuck closed, verify pin depresses, check setting correct
+
+**Issue:** Leaking TRV
+**Solution:** Tighten connection gently, check olive seated correctly, replace valve if damaged
+
+**Issue:** Noise from TRV
+**Solution:** Check system pressure correct, verify valve not partially closed, check for debris
+
+═══════════════════════════════════════════════════════════════════════
+
+INSTALLATION COMPLETED BY: _________________________________
+
+DATE: _____________________
+
+THERMOSTAT MODEL: _________________________________
+
+NUMBER OF TRVs INSTALLED: _____________
+
+ELECTRICAL CERTIFICATE NUMBER (IF APPLICABLE): _____________________
+
+═══════════════════════════════════════════════════════════════════════
