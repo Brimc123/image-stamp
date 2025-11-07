@@ -9,14 +9,21 @@ import uvicorn
 
 # EXACT imports from working deployment
 from auth import require_active_user_row, require_admin, get_login_page, get_register_page, post_login, post_register, post_logout
-from database import get_user_by_id, get_all_users, update_user_status, set_user_credits, update_user_tool_access
-from admin import get_admin_page
+from database import (
+    get_user_by_id, set_user_credits, is_admin, 
+    get_all_users, get_weekly_report, get_all_usage_logs,
+    update_user_tool_access, update_user_max_balance, add_transaction
+)
+
 from billing import get_billing_page, get_topup_page, post_topup
 from timestamp_tool import get_timestamp_tool_page, post_timestamp_tool
 from retrofit_tool import get_retrofit_tool_page, post_retrofit_process
 from ats_tool import ats_generator_route
+from adf_tool import adf_checklist_route
 
 app = FastAPI()
+from fastapi.templating import Jinja2Templates
+templates = Jinja2Templates(directory="templates")
 from fastapi.staticfiles import StaticFiles
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -414,6 +421,17 @@ def dashboard(request: Request):
                     <span class="new-badge">✨ New</span>
                 </div>
             </a>
+                <a href="/tool/adf" class="tool-card">
+                <span class="tool-icon">📋</span>
+                <h2 class="tool-title">ADF Table D1 Tool</h2>
+                <p class="tool-description">
+                    Generate ADF Table D1 checklist documents quickly and accurately. Streamline your compliance documentation process for building regulations.
+                </p>
+                <div class="tool-footer">
+                    <span class="tool-price">💰 £10.00 per use</span>
+                    <span class="new-badge">✨ New</span>
+                </div>
+            </a>
         </div>
     </div>
 </body>
@@ -449,48 +467,6 @@ def route_logout(request: Request):
 # ADMIN ROUTES
 # ============================================================================
 
-@app.get("/admin", response_class=HTMLResponse)
-def route_admin(request: Request):
-    user_row = require_admin(request)
-    if isinstance(user_row, RedirectResponse):
-        return user_row
-    return get_admin_page(request)
-
-@app.post("/admin/update-user")
-async def update_user(request: Request):
-    user_row = require_admin(request)
-    if isinstance(user_row, RedirectResponse):
-        return user_row
-    
-    try:
-        form = await request.form()
-        user_id = int(form.get("user_id"))
-        action = form.get("action")
-        
-        if action == "toggle_active":
-            users = get_all_users()
-            target_user = next((u for u in users if u["id"] == user_id), None)
-            if target_user:
-                new_status = 0 if target_user.get("is_active", 1) == 1 else 1
-                update_user_status(user_id, new_status)
-        
-        elif action == "set_credits":
-            credits = float(form.get("credits", 0))
-            set_user_credits(user_id, credits)
-        
-        elif action in ["toggle_timestamp", "toggle_retrofit"]:
-            tool_name = "timestamp_tool_access" if "timestamp" in action else "retrofit_tool_access"
-            users = get_all_users()
-            target_user = next((u for u in users if u["id"] == user_id), None)
-            if target_user:
-                current_access = target_user.get(tool_name, 1)
-                new_access = 0 if current_access == 1 else 1
-                update_user_tool_access(user_id, tool_name, new_access)
-        
-        return RedirectResponse("/admin", status_code=303)
-    
-    except Exception as e:
-        return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p><a href='/admin'>Back</a>")
 
 # ============================================================================
 # BILLING ROUTES
@@ -571,9 +547,166 @@ async def route_ats_generator_process(request: Request):
         return user_row
     return await ats_generator_route(request, user_row)
 
+# ====================================================================================
+# ADF CHECKLIST TOOL ROUTES
+# ====================================================================================
+
+@app.get("/tool/adf", response_class=HTMLResponse)
+async def route_adf_tool(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return await adf_checklist_route(request, user_row)
+
+@app.post("/tool/adf")
+async def route_adf_process(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return await adf_checklist_route(request, user_row)
+
 # ============================================================================
 # RUN SERVER
 # ============================================================================
+
+# ==================== ADMIN ROUTES ====================
+
+# ==================== ADMIN ROUTES ====================
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard(request: Request):
+    """Admin dashboard - only accessible to admin users."""
+    user_row = require_admin(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    
+    from datetime import datetime, timedelta
+    
+    # Get current Monday
+    today = datetime.now()
+    current_monday = today - timedelta(days=today.weekday())
+    current_monday_str = current_monday.strftime("%Y-%m-%d")
+    
+    # Get all users
+    users = get_all_users()
+    
+    # Get recent usage logs (last 50)
+    all_logs = get_all_usage_logs()
+    all_logs.sort(key=lambda x: x["timestamp"], reverse=True)
+    recent_logs = all_logs[:50]
+    
+    # Add username to logs
+    for log in recent_logs:
+        user_data = get_user_by_id(log["user_id"])
+        log["username"] = user_data["username"] if user_data else "Unknown"
+    
+    return templates.TemplateResponse("admin_dashboard.html", {
+        "request": request,
+        "users": users,
+        "recent_logs": recent_logs,
+        "current_monday": current_monday_str
+    })
+
+
+@app.get("/admin/weekly-report", response_class=HTMLResponse)
+async def admin_weekly_report(request: Request, start_date: str = None):
+    """Generate weekly report starting from specified Monday."""
+    user_row = require_admin(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    
+    from datetime import datetime, timedelta
+    
+    # Parse start date or use current Monday
+    if start_date:
+        monday_date = datetime.fromisoformat(start_date)
+    else:
+        today = datetime.now()
+        monday_date = today - timedelta(days=today.weekday())
+    
+    # Get weekly report
+    weekly_report = get_weekly_report(monday_date)
+    
+    # Get all users
+    users = get_all_users()
+    
+    # Get recent logs
+    all_logs = get_all_usage_logs()
+    all_logs.sort(key=lambda x: x["timestamp"], reverse=True)
+    recent_logs = all_logs[:50]
+    
+    for log in recent_logs:
+        user_data = get_user_by_id(log["user_id"])
+        log["username"] = user_data["username"] if user_data else "Unknown"
+    
+    return templates.TemplateResponse("admin_dashboard.html", {
+        "request": request,
+        "users": users,
+        "recent_logs": recent_logs,
+        "weekly_report": weekly_report,
+        "current_monday": monday_date.strftime("%Y-%m-%d")
+    })
+
+
+@app.get("/admin/user/{user_id}", response_class=HTMLResponse)
+async def admin_edit_user_page(request: Request, user_id: int):
+    """Edit user page."""
+    user_row = require_admin(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    
+    user = get_user_by_id(user_id)
+    if not user:
+        return HTMLResponse(content="<h1>User not found</h1>", status_code=404)
+    
+    return templates.TemplateResponse("admin_user_edit.html", {
+        "request": request,
+        "user": user
+    })
+
+
+@app.post("/admin/user/{user_id}", response_class=HTMLResponse)
+async def admin_edit_user_submit(request: Request, user_id: int):
+    """Handle user edit form submission."""
+    user_row = require_admin(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    
+    user = get_user_by_id(user_id)
+    if not user:
+        return HTMLResponse(content="<h1>User not found</h1>", status_code=404)
+    
+    form_data = await request.form()
+    
+    # Update max balance
+    max_balance = float(form_data.get("max_balance", 100))
+    update_user_max_balance(user_id, max_balance)
+    
+    # Update tool access
+    timestamp_access = "timestamp_tool_access" in form_data
+    retrofit_access = "retrofit_tool_access" in form_data
+    ats_access = "ats_tool_access" in form_data
+    adf_access = "adf_tool_access" in form_data
+    
+    update_user_tool_access(user_id, "timestamp", timestamp_access)
+    update_user_tool_access(user_id, "retrofit", retrofit_access)
+    update_user_tool_access(user_id, "ats", ats_access)
+    update_user_tool_access(user_id, "adf", adf_access)
+    
+    # Adjust credits if specified
+    credit_adjustment = float(form_data.get("credit_adjustment", 0))
+    if credit_adjustment != 0:
+        new_balance = user["credits"] + credit_adjustment
+        # Enforce max balance (unless it's admin)
+        if user_id != 1 and new_balance > max_balance:
+            new_balance = max_balance
+        set_user_credits(user_id, new_balance)
+        
+        # Log transaction
+        description = f"Admin adjustment by {user_row['username']}"
+        add_transaction(user_id, credit_adjustment, description)
+    
+    return RedirectResponse(url="/admin", status_code=303)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

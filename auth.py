@@ -254,7 +254,8 @@ async def post_register(request: Request):
         return HTMLResponse("<h1>Error</h1><p>User already exists. <a href='/register'>Try again</a></p>")
     
     password_hash = hash_password(password)
-    user_id = create_user(username, password_hash)
+    new_user = create_user(username, password_hash)
+    user_id = new_user["id"]
     
     response = RedirectResponse("/", status_code=303)
     response.set_cookie(key="user_id", value=str(user_id), httponly=True)

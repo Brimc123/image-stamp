@@ -451,7 +451,12 @@ async def post_timestamp_tool(request: Request, user_row: dict):
     except Exception:
         credits = 0.0
 
-    if credits < TIMESTAMP_TOOL_COST:
+    # Check if user is admin (admin gets free usage)
+    from database import is_admin, log_usage
+    is_admin_user = is_admin(user_row["id"])
+
+    if not is_admin_user and credits < TIMESTAMP_TOOL_COST:
+
         return HTMLResponse(f"""
             <!DOCTYPE html>
             <html>
@@ -518,11 +523,18 @@ async def post_timestamp_tool(request: Request, user_row: dict):
 
     try:
         user_id = user_row["id"]
-        new_balance = credits - TIMESTAMP_TOOL_COST
-        update_user_credits(user_id, new_balance)
-        add_transaction(user_id, -TIMESTAMP_TOOL_COST, "timestamp")
-    except Exception:
-        pass
+        
+        # Deduct credits only if not admin
+        if not is_admin_user:
+            new_balance = credits - TIMESTAMP_TOOL_COST
+            update_user_credits(user_id, new_balance)
+            add_transaction(user_id, -TIMESTAMP_TOOL_COST, "timestamp")
+            log_usage(user_id, "Timestamp Tool", TIMESTAMP_TOOL_COST, f"Processed {len(files)} images")
+        else:
+            # Admin usage - free but still logged
+            log_usage(user_id, "Timestamp Tool", 0.00, f"Admin - Processed {len(files)} images")
+    except Exception as e:
+        print(f"Error updating credits/logging: {e}")
 
     return Response(
         content=zip_data,

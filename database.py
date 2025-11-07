@@ -1,237 +1,244 @@
-"""
-Database Module - WITH DEBUG LOGGING
-Handles all database operations with JSON file storage
-"""
-
 import json
-import os
+from datetime import datetime, timedelta
 from typing import Optional, Dict, List
-from datetime import datetime
 
-# Database file path
 DB_FILE = "database.json"
 
-# ==================== DATABASE INITIALIZATION ====================
-
-def init_database():
-    """Initialize database file if it doesn't exist"""
-    if not os.path.exists(DB_FILE):
-        print(f"⚠️ Creating new database file: {DB_FILE}")
-        default_db = {
-            "users": [],
-            "transactions": []
-        }
-        save_database(default_db)
-    else:
-        print(f"✅ Database file exists: {DB_FILE}")
-
-
-def load_database() -> Dict:
-    """Load database from JSON file"""
-    init_database()
+def read_db():
+    """Read the entire database."""
     try:
-        with open(DB_FILE, 'r') as f:
-            db = json.load(f)
-            print(f"📂 Loaded database with {len(db.get('users', []))} users")
-            return db
-    except Exception as e:
-        print(f"❌ Error loading database: {e}")
-        return {"users": [], "transactions": []}
+        with open(DB_FILE, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {"users": [], "transactions": [], "usage_logs": []}
 
-
-def save_database(db: Dict):
-    """Save database to JSON file"""
-    with open(DB_FILE, 'w') as f:
-        json.dump(db, f, indent=2)
-    print(f"💾 Saved database with {len(db.get('users', []))} users")
-
-
-# ==================== USER FUNCTIONS ====================
-
-def get_all_users() -> List[Dict]:
-    """Get all users from database"""
-    db = load_database()
-    return db.get("users", [])
-
+def write_db(data):
+    """Write data to the database."""
+    with open(DB_FILE, "w") as f:
+        json.dump(data, f, indent=2)
 
 def get_user_by_id(user_id: int) -> Optional[Dict]:
-    """Get user by ID"""
-    db = load_database()
-    users = db.get("users", [])
-    
-    for user in users:
-        if user.get("id") == user_id:
-            print(f"✅ Found user by ID: {user_id}")
+    """Get user by ID."""
+    db = read_db()
+    for user in db["users"]:
+        if user["id"] == user_id:
             return user
-    
-    print(f"❌ User not found by ID: {user_id}")
     return None
-
 
 def get_user_by_username(username: str) -> Optional[Dict]:
-    """Get user by username"""
-    print(f"🔍 Searching for user: '{username}'")
-    db = load_database()
-    users = db.get("users", [])
-    
-    print(f"📋 Available usernames: {[u.get('username') for u in users]}")
-    
-    for user in users:
-        user_name = user.get("username")
-        print(f"  Comparing: '{username}' == '{user_name}' ? {username == user_name}")
-        if user_name == username:
-            print(f"✅ MATCH FOUND for user: {username}")
-            print(f"   Password hash: {user.get('password_hash')[:20]}...")
+    """Get user by username."""
+    db = read_db()
+    for user in db["users"]:
+        if user["username"] == username:
             return user
-    
-    print(f"❌ NO MATCH for user: '{username}'")
     return None
 
-
-def create_user(username: str, password_hash: str, is_admin: bool = False) -> int:
-    """Create a new user and return user ID"""
-    print(f"➕ Creating new user: {username}")
-    db = load_database()
-    users = db.get("users", [])
-    
-    # Generate new user ID
-    if users:
-        new_id = max(user.get("id", 0) for user in users) + 1
-    else:
-        new_id = 1
-    
-    # Create new user
-    new_user = {
-        "id": new_id,
-        "username": username,
-        "password_hash": password_hash,
-        "is_admin": 1 if is_admin else 0,
-        "is_active": 1,
-        "credits": 100.0,  # Starting credits
-        "created_at": datetime.now().isoformat(),
-        "retrofit_tool_access": 1,
-        "timestamp_tool_access": 1
-    }
-    
-    users.append(new_user)
-    db["users"] = users
-    save_database(db)
-    
-    print(f"✅ User created with ID: {new_id}")
-    return new_id
-
-
-def update_user_status(user_id: int, is_active: bool):
-    """Update user active status"""
-    db = load_database()
-    users = db.get("users", [])
-    
-    for user in users:
-        if user.get("id") == user_id:
-            user["is_active"] = 1 if is_active else 0
-            break
-    
-    db["users"] = users
-    save_database(db)
-
-
-def update_user_credits(user_id: int, amount: float):
-    """Update user credits (can be positive or negative)"""
-    db = load_database()
-    users = db.get("users", [])
-    
-    for user in users:
-        if user.get("id") == user_id:
-            current_credits = float(user.get("credits", 0.0))
-            user["credits"] = current_credits + amount
-            break
-    
-    db["users"] = users
-    save_database(db)
-
-
-def set_user_credits(user_id: int, amount: float):
-    """Set user credits to exact amount"""
-    db = load_database()
-    users = db.get("users", [])
-    
-    for user in users:
-        if user.get("id") == user_id:
-            user["credits"] = amount
-            break
-    
-    db["users"] = users
-    save_database(db)
-
-
-def update_user_tool_access(user_id: int, tool_name: str, has_access: bool):
-    """Update user's access to a specific tool"""
-    db = load_database()
-    users = db.get("users", [])
-    
-    for user in users:
-        if user.get("id") == user_id:
-            user[f"{tool_name}_access"] = 1 if has_access else 0
-            break
-    
-    db["users"] = users
-    save_database(db)
-
-
-# ==================== TRANSACTION FUNCTIONS ====================
-
-def get_user_transactions(user_id: int) -> List[Dict]:
-    """Get all transactions for a user"""
-    db = load_database()
-    transactions = db.get("transactions", [])
-    
-    user_transactions = []
-    for txn in transactions:
-        if txn.get("user_id") == user_id:
-            user_transactions.append(txn)
-    
-    # Sort by date, newest first
-    user_transactions.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
-    
-    return user_transactions
-
+def set_user_credits(user_id: int, new_balance: float):
+    """Update user credits."""
+    db = read_db()
+    for user in db["users"]:
+        if user["id"] == user_id:
+            user["credits"] = new_balance
+            write_db(db)
+            return True
+    return False
 
 def add_transaction(user_id: int, amount: float, description: str):
-    """Add a transaction record"""
-    db = load_database()
-    transactions = db.get("transactions", [])
-    
-    # Generate new transaction ID
-    if transactions:
-        new_id = max(txn.get("id", 0) for txn in transactions) + 1
-    else:
-        new_id = 1
-    
-    # Create new transaction
-    new_txn = {
+    """Add a transaction record."""
+    db = read_db()
+    new_id = max([t["id"] for t in db["transactions"]], default=0) + 1
+    transaction = {
         "id": new_id,
         "user_id": user_id,
         "amount": amount,
         "description": description,
         "timestamp": datetime.now().isoformat()
     }
+    db["transactions"].append(transaction)
+    write_db(db)
+    return transaction
+
+def log_usage(user_id: int, tool_name: str, cost: float, details: str = ""):
+    """Log tool usage."""
+    db = read_db()
+    new_id = max([log["id"] for log in db["usage_logs"]], default=0) + 1
+    usage_log = {
+        "id": new_id,
+        "user_id": user_id,
+        "tool_name": tool_name,
+        "cost": cost,
+        "details": details,
+        "timestamp": datetime.now().isoformat()
+    }
+    db["usage_logs"].append(usage_log)
+    write_db(db)
+    return usage_log
+
+def get_user_usage_logs(user_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None) -> List[Dict]:
+    """Get usage logs for a specific user, optionally filtered by date range."""
+    db = read_db()
+    logs = [log for log in db["usage_logs"] if log["user_id"] == user_id]
     
-    transactions.append(new_txn)
-    db["transactions"] = transactions
-    save_database(db)
+    if start_date:
+        logs = [log for log in logs if log["timestamp"] >= start_date]
+    if end_date:
+        logs = [log for log in logs if log["timestamp"] <= end_date]
+    
+    return logs
 
+def get_all_usage_logs(start_date: Optional[str] = None, end_date: Optional[str] = None) -> List[Dict]:
+    """Get all usage logs, optionally filtered by date range."""
+    db = read_db()
+    logs = db["usage_logs"]
+    
+    if start_date:
+        logs = [log for log in logs if log["timestamp"] >= start_date]
+    if end_date:
+        logs = [log for log in logs if log["timestamp"] <= end_date]
+    
+    return logs
 
-# ==================== ADMIN FUNCTIONS ====================
+def get_weekly_report(monday_date: Optional[datetime] = None) -> Dict:
+    """Generate weekly report starting from Monday."""
+    if monday_date is None:
+        # Get the most recent Monday
+        today = datetime.now()
+        monday_date = today - timedelta(days=today.weekday())
+    
+    # Ensure it's Monday (weekday() == 0)
+    if monday_date.weekday() != 0:
+        monday_date = monday_date - timedelta(days=monday_date.weekday())
+    
+    # Set to start of day
+    start_date = monday_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_date = start_date + timedelta(days=7)
+    
+    start_iso = start_date.isoformat()
+    end_iso = end_date.isoformat()
+    
+    logs = get_all_usage_logs(start_iso, end_iso)
+    
+    # Group by user
+    user_summary = {}
+    db = read_db()
+    
+    for log in logs:
+        user_id = log["user_id"]
+        if user_id not in user_summary:
+            user = get_user_by_id(user_id)
+            user_summary[user_id] = {
+                "username": user["username"] if user else "Unknown",
+                "total_spent": 0.0,
+                "tool_usage": {},
+                "usage_count": 0
+            }
+        
+        user_summary[user_id]["total_spent"] += log["cost"]
+        user_summary[user_id]["usage_count"] += 1
+        
+        tool = log["tool_name"]
+        if tool not in user_summary[user_id]["tool_usage"]:
+            user_summary[user_id]["tool_usage"][tool] = {"count": 0, "total": 0.0}
+        
+        user_summary[user_id]["tool_usage"][tool]["count"] += 1
+        user_summary[user_id]["tool_usage"][tool]["total"] += log["cost"]
+    
+    return {
+        "start_date": start_iso,
+        "end_date": end_iso,
+        "user_summary": user_summary,
+        "total_revenue": sum(u["total_spent"] for u in user_summary.values())
+    }
 
-def get_all_transactions() -> List[Dict]:
-    """Get all transactions (admin only)"""
-    db = load_database()
-    transactions = db.get("transactions", [])
-    transactions.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
-    return transactions
+def check_tool_access(user_id: int, tool_name: str) -> bool:
+    """Check if user has access to a specific tool."""
+    user = get_user_by_id(user_id)
+    if not user:
+        return False
+    
+    # Admin always has access
+    if user.get("is_admin") == 1:
+        return True
+    
+    # Check specific tool access
+    access_field = f"{tool_name}_tool_access"
+    return user.get(access_field, 0) == 1
 
+def get_all_users() -> List[Dict]:
+    """Get all users (admin function)."""
+    db = read_db()
+    return db["users"]
 
-# ==================== INITIALIZE ON IMPORT ====================
+def update_user_tool_access(user_id: int, tool_name: str, has_access: bool):
+    """Update tool access for a user."""
+    db = read_db()
+    for user in db["users"]:
+        if user["id"] == user_id:
+            access_field = f"{tool_name}_tool_access"
+            user[access_field] = 1 if has_access else 0
+            write_db(db)
+            return True
+    return False
 
-# Initialize database when module is imported
-init_database()
+def update_user_max_balance(user_id: int, max_balance: float):
+    """Update maximum balance for a user."""
+    db = read_db()
+    for user in db["users"]:
+        if user["id"] == user_id:
+            user["max_balance"] = max_balance
+            write_db(db)
+            return True
+    return False
+
+def is_admin(user_id: int) -> bool:
+    """Check if user is admin."""
+    user = get_user_by_id(user_id)
+    return user and user.get("is_admin") == 1
+
+def create_user(username: str, password_hash: str, is_admin: int = 0) -> Optional[Dict]:
+    """Create a new user."""
+    db = read_db()
+    
+    # Check if user already exists
+    if get_user_by_username(username):
+        return None
+    
+    new_id = max([u["id"] for u in db["users"]], default=0) + 1
+    
+    user = {
+        "id": new_id,
+        "username": username,
+        "password_hash": password_hash,
+        "is_admin": is_admin,
+        "is_active": 1,
+        "credits": 0.0,
+        "max_balance": 100.0,
+        "created_at": datetime.now().isoformat(),
+        "timestamp_tool_access": 1,
+        "retrofit_tool_access": 1,
+        "ats_tool_access": 1,
+        "adf_tool_access": 1
+    }
+    
+    db["users"].append(user)
+    write_db(db)
+    return user
+
+def update_user_credits(user_id: int, new_balance: float):
+    """Update user credits (alias for set_user_credits for backwards compatibility)."""
+    return set_user_credits(user_id, new_balance)
+
+def update_user_status(user_id: int, is_active: int):
+    """Update user active status."""
+    db = read_db()
+    for user in db["users"]:
+        if user["id"] == user_id:
+            user["is_active"] = is_active
+            write_db(db)
+            return True
+    return False
+
+def get_user_transactions(user_id: int) -> List[Dict]:
+    """Get all transactions for a specific user."""
+    db = read_db()
+    return [t for t in db["transactions"] if t["user_id"] == user_id]

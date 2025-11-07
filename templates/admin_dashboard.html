@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - AutoDate</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 24px;
+            padding: 3rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            color: #667eea;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 800;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-bottom: 1.5rem;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem;
+            background: #eff6ff;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .back-link:hover {
+            background: #dbeafe;
+            transform: translateX(-5px);
+        }
+        
+        .section {
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: #f9fafb;
+            border-radius: 16px;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            color: #1f2937;
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 0.5rem;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        tr:hover {
+            background: #f3f4f6;
+        }
+        
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        
+        .badge-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .badge-danger {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-label {
+            color: #6b7280;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-value {
+            color: #1f2937;
+            font-size: 2rem;
+            font-weight: 800;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #374151;
+            font-weight: 600;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border-left: 4px solid #10b981;
+        }
+        
+        .alert-warning {
+            background: #fef3c7;
+            color: #92400e;
+            border-left: 4px solid #f59e0b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← Back to Dashboard</a>
+        
+        <h1>🔧 Admin Dashboard</h1>
+        <p class="subtitle">Manage users, view reports, and control access</p>
+        
+        {% if message %}
+        <div class="alert alert-success">{{ message }}</div>
+        {% endif %}
+        
+        <!-- Weekly Report Section -->
+        <div class="section">
+            <h2 class="section-title">📊 Weekly Report (Monday - Sunday)</h2>
+            
+            <form method="GET" action="/admin/weekly-report" style="margin-bottom: 2rem;">
+                <div class="form-group">
+                    <label>Select Week (starting Monday):</label>
+                    <input type="date" name="start_date" value="{{ current_monday }}">
+                </div>
+                <button type="submit" class="btn btn-primary">Generate Report</button>
+            </form>
+            
+            {% if weekly_report %}
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Revenue</div>
+                    <div class="stat-value">£{{ "%.2f"|format(weekly_report.total_revenue) }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Active Users</div>
+                    <div class="stat-value">{{ weekly_report.user_summary|length }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Week Period</div>
+                    <div class="stat-value" style="font-size: 1rem;">
+                        {{ weekly_report.start_date[:10] }}<br>
+                        to {{ weekly_report.end_date[:10] }}
+                    </div>
+                </div>
+            </div>
+            
+            <h3 style="margin-bottom: 1rem;">User Breakdown:</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Total Spent</th>
+                        <th>Usage Count</th>
+                        <th>Tools Used</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user_id, summary in weekly_report.user_summary.items() %}
+                    <tr>
+                        <td>{{ summary.username }}</td>
+                        <td><strong>£{{ "%.2f"|format(summary.total_spent) }}</strong></td>
+                        <td>{{ summary.usage_count }}</td>
+                        <td>
+                            {% for tool, usage in summary.tool_usage.items() %}
+                            <span class="badge badge-success">
+                                {{ tool }}: {{ usage.count }}x (£{{ "%.2f"|format(usage.total) }})
+                            </span><br>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+        
+        <!-- User Management Section -->
+        <div class="section">
+            <h2 class="section-title">👥 User Management</h2>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Credits</th>
+                        <th>Max Balance</th>
+                        <th>Timestamp Tool</th>
+                        <th>Retrofit Tool</th>
+                        <th>ATS Tool</th> 
+                        <th>ADF Tool</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.id }}</td>
+                        <td>
+                            {{ user.username }}
+                            {% if user.is_admin == 1 %}
+                            <span class="badge badge-success">ADMIN</span>
+                            {% endif %}
+                        </td>
+                        <td>£{{ "%.2f"|format(user.credits) }}</td>
+                        <td>£{{ "%.2f"|format(user.max_balance|default(100)) }}</td>
+                        <td>
+                            {% if user.timestamp_tool_access == 1 %}
+                            <span class="badge badge-success">✓</span>
+                            {% else %}
+                            <span class="badge badge-danger">✗</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.retrofit_tool_access == 1 %}
+                            <span class="badge badge-success">✓</span>
+                            {% else %}
+                            <span class="badge badge-danger">✗</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.ats_tool_access == 1 %}
+                            <span class="badge badge-success">✓</span>
+                            {% else %}
+                            <span class="badge badge-danger">✗</span>
+                            {% endif %}
+                        </td>
+                         <td>
+                            {% if user.adf_tool_access == 1 %}
+                            <span class="badge badge-success">✓</span>
+                            {% else %}
+                            <span class="badge badge-danger">✗</span>
+                            {% endif %}
+                        </td>
+                         <td>
+                            <a href="/admin/user/{{ user.id }}" class="btn btn-primary" style="font-size: 0.875rem;">Edit</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Recent Usage Logs -->
+        <div class="section">
+            <h2 class="section-title">📝 Recent Usage Logs (Last 50)</h2>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>User</th>
+                        <th>Tool</th>
+                        <th>Cost</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in recent_logs %}
+                    <tr>
+                        <td>{{ log.timestamp[:19] }}</td>
+                        <td>{{ log.username }}</td>
+                        <td><span class="badge badge-success">{{ log.tool_name }}</span></td>
+                        <td><strong>£{{ "%.2f"|format(log.cost) }}</strong></td>
+                        <td>{{ log.details }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
