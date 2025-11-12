@@ -10,7 +10,8 @@ import uvicorn
 # EXACT imports from working deployment
 from auth import require_active_user_row, require_admin, get_login_page, get_register_page, post_login, post_register, post_logout
 from database import get_user_by_id, get_all_users, update_user_status, set_user_credits, update_user_tool_access
-from admin import get_admin_page # TODO: Rebuild admin system
+from admin import get_admin_dashboard, get_admin_weekly_report, get_admin_user_edit, post_admin_user_edit
+
 from billing import get_billing_page, get_topup_page, post_topup
 from timestamp_tool import get_timestamp_tool_page, post_timestamp_tool
 from retrofit_tool import get_retrofit_tool_page, post_retrofit_process
@@ -463,48 +464,33 @@ def route_logout(request: Request):
 # ============================================================================
 
 @app.get("/admin", response_class=HTMLResponse)
-def route_admin(request: Request):
+async def route_admin_dashboard(request: Request):
     user_row = require_admin(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
-    return get_admin_page(request)
+    return await get_admin_dashboard(request)
 
-@app.post("/admin/update-user")
-async def update_user(request: Request):
+@app.get("/admin/weekly-report", response_class=HTMLResponse)
+async def route_admin_weekly_report(request: Request, start_date: str = None):
     user_row = require_admin(request)
     if isinstance(user_row, RedirectResponse):
         return user_row
-    
-    try:
-        form = await request.form()
-        user_id = int(form.get("user_id"))
-        action = form.get("action")
-        
-        if action == "toggle_active":
-            users = get_all_users()
-            target_user = next((u for u in users if u["id"] == user_id), None)
-            if target_user:
-                new_status = 0 if target_user.get("is_active", 1) == 1 else 1
-                update_user_status(user_id, new_status)
-        
-        elif action == "set_credits":
-            credits = float(form.get("credits", 0))
-            set_user_credits(user_id, credits)
-        
-        elif action in ["toggle_timestamp", "toggle_retrofit"]:
-            tool_name = "timestamp_tool_access" if "timestamp" in action else "retrofit_tool_access"
-            users = get_all_users()
-            target_user = next((u for u in users if u["id"] == user_id), None)
-            if target_user:
-                current_access = target_user.get(tool_name, 1)
-                new_access = 0 if current_access == 1 else 1
-                update_user_tool_access(user_id, tool_name, new_access)
-        
-        return RedirectResponse("/admin", status_code=303)
-    
-    except Exception as e:
-        return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p><a href='/admin'>Back</a>")
+    return await get_admin_weekly_report(request, start_date)
 
+@app.get("/admin/user/{user_id}", response_class=HTMLResponse)
+async def route_admin_user_edit(request: Request, user_id: int):
+    user_row = require_admin(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return await get_admin_user_edit(request, user_id)
+
+@app.post("/admin/user/{user_id}", response_class=HTMLResponse)
+async def route_admin_user_edit_submit(request: Request, user_id: int):
+    user_row = require_admin(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return await post_admin_user_edit(request, user_id, user_row)
+    
 # ============================================================================
 # BILLING ROUTES
 # ============================================================================

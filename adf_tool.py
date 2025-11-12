@@ -11,7 +11,7 @@ from docx.oxml import OxmlElement
 import pdfplumber
 import re
 from typing import List, Optional
-from database import get_user_by_id, set_user_credits
+from database import get_user_by_id, set_user_credits, is_admin, log_usage, add_transaction
 
 templates = Jinja2Templates(directory="templates")
 
@@ -396,9 +396,11 @@ async def adf_checklist_route(request: Request, user_row):
         user_data = get_user_by_id(user_id)
         balance = float(user_data.get("credits", 0.0))
         
-        # Check balance
-        if balance < ADF_COST:
-            return HTMLResponse(
+        # Check if admin
+        is_admin_user = is_admin(user_id)
+
+        # Check balance (skip for admin)
+        if not is_admin_user and balance < ADF_COST:return HTMLResponse(
                 content=f"<h1>Insufficient balance</h1><p>You need £{ADF_COST:.2f} but have £{balance:.2f}</p>",
                 status_code=400
             )
@@ -441,11 +443,20 @@ async def adf_checklist_route(request: Request, user_row):
         file_stream = io.BytesIO()
         doc.save(file_stream)
         file_stream.seek(0)
-        
-        # Deduct credits
-        new_balance = balance - ADF_COST
-        set_user_credits(user_id, new_balance)
-        
+
+        # Deduct credits only if not admin
+        if not is_admin_user:
+            new_balance = balance - ADF_COST
+                
+        # Deduct credits only if not admin
+        if not is_admin_user:
+            new_balance = balance - ADF_COST
+            set_user_credits(user_id, new_balance)
+            add_transaction(user_id, -ADF_COST, "adf_checklist")
+            log_usage(user_id, "ADF Checklist", ADF_COST, f"Generated for {address}")
+        else:
+            log_usage(user_id, "ADF Checklist", 0.00, f"Admin - Generated for {address}")
+
         # Generate filename
         clean_address = re.sub(r'[^\w\s-]', '', address).strip().replace(' ', '_')[:50]
         filename = f"ADF_TableD1_{clean_address}_{datetime.now().strftime('%Y%m%d')}.docx"

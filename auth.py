@@ -232,6 +232,7 @@ async def post_login(request: Request):
         return RedirectResponse("/login?error=Invalid credentials", status_code=303)
     
     password_hash = hash_password(password)
+    new_user = create_user(username, password_hash)
     if user_row["password_hash"] != password_hash:
         return RedirectResponse("/login?error=Invalid credentials", status_code=303)
     

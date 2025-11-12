@@ -61,6 +61,8 @@ def add_transaction(user_id: int, amount: float, description: str):
 def log_usage(user_id: int, tool_name: str, cost: float, details: str = ""):
     """Log tool usage."""
     db = read_db()
+    if "usage_logs" not in db:
+        db["usage_logs"] = []
     new_id = max([log["id"] for log in db["usage_logs"]], default=0) + 1
     usage_log = {
         "id": new_id,
@@ -74,22 +76,10 @@ def log_usage(user_id: int, tool_name: str, cost: float, details: str = ""):
     write_db(db)
     return usage_log
 
-def get_user_usage_logs(user_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None) -> List[Dict]:
-    """Get usage logs for a specific user, optionally filtered by date range."""
-    db = read_db()
-    logs = [log for log in db["usage_logs"] if log["user_id"] == user_id]
-    
-    if start_date:
-        logs = [log for log in logs if log["timestamp"] >= start_date]
-    if end_date:
-        logs = [log for log in logs if log["timestamp"] <= end_date]
-    
-    return logs
-
 def get_all_usage_logs(start_date: Optional[str] = None, end_date: Optional[str] = None) -> List[Dict]:
     """Get all usage logs, optionally filtered by date range."""
     db = read_db()
-    logs = db["usage_logs"]
+    logs = db.get("usage_logs", [])
     
     if start_date:
         logs = [log for log in logs if log["timestamp"] >= start_date]
@@ -101,15 +91,12 @@ def get_all_usage_logs(start_date: Optional[str] = None, end_date: Optional[str]
 def get_weekly_report(monday_date: Optional[datetime] = None) -> Dict:
     """Generate weekly report starting from Monday."""
     if monday_date is None:
-        # Get the most recent Monday
         today = datetime.now()
         monday_date = today - timedelta(days=today.weekday())
     
-    # Ensure it's Monday (weekday() == 0)
     if monday_date.weekday() != 0:
         monday_date = monday_date - timedelta(days=monday_date.weekday())
     
-    # Set to start of day
     start_date = monday_date.replace(hour=0, minute=0, second=0, microsecond=0)
     end_date = start_date + timedelta(days=7)
     
@@ -118,9 +105,7 @@ def get_weekly_report(monday_date: Optional[datetime] = None) -> Dict:
     
     logs = get_all_usage_logs(start_iso, end_iso)
     
-    # Group by user
     user_summary = {}
-    db = read_db()
     
     for log in logs:
         user_id = log["user_id"]
@@ -150,22 +135,13 @@ def get_weekly_report(monday_date: Optional[datetime] = None) -> Dict:
         "total_revenue": sum(u["total_spent"] for u in user_summary.values())
     }
 
-def check_tool_access(user_id: int, tool_name: str) -> bool:
-    """Check if user has access to a specific tool."""
+def is_admin(user_id: int) -> bool:
+    """Check if user is admin."""
     user = get_user_by_id(user_id)
-    if not user:
-        return False
-    
-    # Admin always has access
-    if user.get("is_admin") == 1:
-        return True
-    
-    # Check specific tool access
-    access_field = f"{tool_name}_tool_access"
-    return user.get(access_field, 0) == 1
+    return user and user.get("is_admin") == 1
 
 def get_all_users() -> List[Dict]:
-    """Get all users (admin function)."""
+    """Get all users."""
     db = read_db()
     return db["users"]
 
@@ -190,16 +166,10 @@ def update_user_max_balance(user_id: int, max_balance: float):
             return True
     return False
 
-def is_admin(user_id: int) -> bool:
-    """Check if user is admin."""
-    user = get_user_by_id(user_id)
-    return user and user.get("is_admin") == 1
-
 def create_user(username: str, password_hash: str, is_admin: int = 0) -> Optional[Dict]:
     """Create a new user."""
     db = read_db()
     
-    # Check if user already exists
     if get_user_by_username(username):
         return None
     
@@ -225,7 +195,7 @@ def create_user(username: str, password_hash: str, is_admin: int = 0) -> Optiona
     return user
 
 def update_user_credits(user_id: int, new_balance: float):
-    """Update user credits (alias for set_user_credits for backwards compatibility)."""
+    """Update user credits."""
     return set_user_credits(user_id, new_balance)
 
 def update_user_status(user_id: int, is_active: int):
