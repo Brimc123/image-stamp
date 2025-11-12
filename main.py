@@ -43,6 +43,62 @@ def dashboard(request: Request):
     credits = float(user_row.get("credits", 0.0))
     is_admin = user_row.get("is_admin", 0) == 1
     
+    # Get tool access for current user
+    timestamp_access = user_row.get("timestamp_tool_access", 1) == 1
+    retrofit_access = user_row.get("retrofit_tool_access", 1) == 1
+    ats_access = user_row.get("ats_tool_access", 1) == 1
+    adf_access = user_row.get("adf_tool_access", 1) == 1
+
+    # Build tool cards HTML based on access
+    timestamp_card = f'''<a href="/tool/timestamp" class="tool-card">
+                <span class="tool-icon">⏱️</span>
+                <h2 class="tool-title">Timestamp Tool</h2>
+                <p class="tool-description">
+                    Generate professional timestamp documents from PDF schedules. Perfect for construction projects and site management. Add accurate date/time stamps to your images instantly.
+                </p>
+                <div class="tool-footer">
+                    <span class="tool-price">💰 £5.00 per use</span>
+                </div>
+            </a>''' if timestamp_access else ''
+
+    retrofit_card = f'''<a href="/tool/retrofit" class="tool-card">
+                <span class="tool-icon">🏗️</span>
+                <h2 class="tool-title">Retrofit Design Tool</h2>
+                <p class="tool-description">
+                    Create PAS 2035 compliant retrofit design documents. Extract data from site notes, condition reports, and calculations. Reduce design time from 2-4 hours to 12-18 minutes.
+                </p>
+                <div class="tool-footer">
+                    <span class="tool-price">💰 £10.00 per use</span>
+                    <span class="new-badge">✨ New</span>
+                </div>
+            </a>''' if retrofit_access else ''
+    
+    ats_card = f'''<a href="/tool/ats-generator" class="tool-card"> 
+                <span class="tool-icon">🏠</span>
+                <h2 class="tool-title">Airtightness Strategy Generator</h2>
+                <p class="tool-description">
+                    Generate PAS 2035 Annex 8.2.35 compliant Airtightness Strategy documents. Auto-extracts data from Condition Reports and creates professional ATS documents instantly.
+                </p>
+                <div class="tool-footer">
+                    <span class="tool-price">💰 £10.00 per use</span>
+                    <span class="new-badge">✨ New</span>
+                </div>
+            </a>''' if ats_access else ''
+    
+    adf_card = f'''<a href="/tool/adf-checklist" class="tool-card">
+                <span class="tool-icon">📋</span>
+                <h2 class="tool-title">ADF Table D1 Generator</h2>
+                <p class="tool-description">
+                    Generate Approved Document F Table D1 checklists from Condition Reports. Automatically extracts background ventilation, trickle vents, and extract fan data for compliance verification.
+                </p>
+                <div class="tool-footer">
+                    <span class="tool-price">💰 £5.00 per use</span>
+                    <span class="new-badge">✨ New</span>
+                </div>
+            </a>''' if adf_access else ''
+
+
+    
     admin_link = f'<a href="/admin" class="nav-link admin-link">👑 Admin</a>' if is_admin else ''
     
     html = f"""
@@ -382,52 +438,10 @@ def dashboard(request: Request):
         </div>
         
         <div class="tools-grid">
-            <a href="/tool/timestamp" class="tool-card">
-                <span class="tool-icon">⏱️</span>
-                <h2 class="tool-title">Timestamp Tool</h2>
-                <p class="tool-description">
-                    Generate professional timestamp documents from PDF schedules. Perfect for construction projects and site management. Add accurate date/time stamps to your images instantly.
-                </p>
-                <div class="tool-footer">
-                    <span class="tool-price">💰 £5.00 per use</span>
-                </div>
-            </a>
-            
-            <a href="/tool/retrofit" class="tool-card">
-                <span class="tool-icon">🏗️</span>
-                <h2 class="tool-title">Retrofit Design Tool</h2>
-                <p class="tool-description">
-                    Create PAS 2035 compliant retrofit design documents. Extract data from site notes, condition reports, and calculations. Reduce design time from 2-4 hours to 12-18 minutes.
-                </p>
-                <div class="tool-footer">
-                    <span class="tool-price">💰 £10.00 per use</span>
-                    <span class="new-badge">✨ New</span>
-                </div>
-            </a>
-
-<a href="/tool/ats-generator" class="tool-card">
-                <span class="tool-icon">🏠</span>
-                <h2 class="tool-title">Airtightness Strategy Generator</h2>
-                <p class="tool-description">
-                    Generate PAS 2035 Annex 8.2.35 compliant Airtightness Strategy documents. Auto-extracts data from Condition Reports and creates professional ATS documents instantly.
-                </p>
-                <div class="tool-footer">
-                    <span class="tool-price">💰 £10.00 per use</span>
-                    <span class="new-badge">✨ New</span>
-                </div>
-            </a>
-
-<a href="/tool/adf-checklist" class="tool-card">
-                <span class="tool-icon">📋</span>
-                <h2 class="tool-title">ADF Table D1 Generator</h2>
-                <p class="tool-description">
-                    Generate Approved Document F Table D1 checklists from Condition Reports. Automatically extracts background ventilation, trickle vents, and extract fan data for compliance verification.
-                </p>
-                <div class="tool-footer">
-                    <span class="tool-price">💰 £5.00 per use</span>
-                    <span class="new-badge">✨ New</span>
-                </div>
-            </a>
+            {timestamp_card}
+            {retrofit_card}
+            {ats_card}
+            {adf_card}        
         </div>
     </div>
 </body>
