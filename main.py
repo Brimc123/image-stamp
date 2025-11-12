@@ -17,6 +17,7 @@ from timestamp_tool import get_timestamp_tool_page, post_timestamp_tool
 from retrofit_tool import get_retrofit_tool_page, post_retrofit_process
 from ats_tool import ats_generator_route
 from adf_tool import adf_checklist_route
+from sf70_tool import sf70_tool_route
 
 app = FastAPI()
 from fastapi.staticfiles import StaticFiles
@@ -48,6 +49,7 @@ def dashboard(request: Request):
     retrofit_access = user_row.get("retrofit_tool_access", 1) == 1
     ats_access = user_row.get("ats_tool_access", 1) == 1
     adf_access = user_row.get("adf_tool_access", 1) == 1
+    sf70_access = user_row.get("sf70_tool_access", 1) == 1
 
     # Build tool cards HTML based on access
     timestamp_card = f'''<a href="/tool/timestamp" class="tool-card">
@@ -96,6 +98,18 @@ def dashboard(request: Request):
                     <span class="new-badge">✨ New</span>
                 </div>
             </a>''' if adf_access else ''
+   
+    sf70_card = f'''<a href="/tool/sf70" class="tool-card">
+                <span class="tool-icon">⚡</span>
+                <h2 class="tool-title">SF70 EEM Assessment</h2>
+                <p class="tool-description">
+                    Generate PAS 2035 compliant SF70 Energy Efficiency Measures assessments. Upload condition reports, select retrofit measures, and produce professional Path A/B/C classification reports.
+                </p>
+                <div class="tool-footer">
+                    <span class="tool-price">💰 £10.00 per use</span>
+                    <span class="new-badge">✨ New</span>
+                </div>
+            </a>''' if sf70_access else ''
 
 
     
@@ -441,7 +455,8 @@ def dashboard(request: Request):
             {timestamp_card}
             {retrofit_card}
             {ats_card}
-            {adf_card}        
+            {adf_card}
+            {sf70_card}        
         </div>
     </div>
 </body>
@@ -601,6 +616,24 @@ async def route_ats_generator_process(request: Request):
     if isinstance(user_row, RedirectResponse):
         return user_row
     return await ats_generator_route(request, user_row)
+
+# ====================================================================================
+# SF70 EEM TOOL ROUTES
+# ====================================================================================
+
+@app.get("/tool/sf70", response_class=HTMLResponse)
+async def route_sf70_tool(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return await sf70_tool_route(request, user_row)
+
+@app.post("/tool/sf70")
+async def route_sf70_process(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return await sf70_tool_route(request, user_row)
 
 # ============================================================================
 # RUN SERVER

@@ -187,7 +187,8 @@ def create_user(username: str, password_hash: str, is_admin: int = 0) -> Optiona
         "timestamp_tool_access": 1,
         "retrofit_tool_access": 1,
         "ats_tool_access": 1,
-        "adf_tool_access": 1
+        "adf_tool_access": 1,
+        "sf70_tool_access": 1
     }
     
     db["users"].append(user)
