@@ -18,6 +18,7 @@ from retrofit_tool import get_retrofit_tool_page, post_retrofit_process
 from ats_tool import ats_generator_route
 from adf_tool import adf_checklist_route
 from sf70_tool import sf70_tool_route
+from pas2035_docs_tool import generate_pas2035_documents, save_document_to_bytes
 
 app = FastAPI()
 from fastapi.staticfiles import StaticFiles
@@ -50,10 +51,11 @@ def dashboard(request: Request):
     ats_access = user_row.get("ats_tool_access", 1) == 1
     adf_access = user_row.get("adf_tool_access", 1) == 1
     sf70_access = user_row.get("sf70_tool_access", 1) == 1
+    pas2035_access = user_row.get("pas2035_tool_access", 1) == 1
 
     # Build tool cards HTML based on access
     timestamp_card = f'''<a href="/tool/timestamp" class="tool-card">
-                <span class="tool-icon">⏱️</span>
+                <span class="tool-icon"⏱️</span>
                 <h2 class="tool-title">Timestamp Tool</h2>
                 <p class="tool-description">
                     Generate professional timestamp documents from PDF schedules. Perfect for construction projects and site management. Add accurate date/time stamps to your images instantly.
@@ -111,7 +113,17 @@ def dashboard(request: Request):
                 </div>
             </a>''' if sf70_access else ''
 
-
+    pas2035_card = f'''<a href="/tool/pas2035-docs" class="tool-card">
+                <span class="tool-icon">📋</span>
+                <h2 class="tool-title">PAS 2035 Documents Generator</h2>
+                <p class="tool-description">
+                    Generate SF48 Claim of Compliance Certificate, Customer Introduction Letter, and Handover Letter. All documents are PAS 2035 compliant and professionally formatted.
+                </p>
+                <div class="tool-footer">
+                    <span class="tool-price">💰 £15.00 per use</span>
+                    <span class="new-badge">✨ New</span>
+                </div>
+            </a>''' if pas2035_access else ''
     
     admin_link = f'<a href="/admin" class="nav-link admin-link">👑 Admin</a>' if is_admin else ''
     
@@ -456,7 +468,8 @@ def dashboard(request: Request):
             {retrofit_card}
             {ats_card}
             {adf_card}
-            {sf70_card}        
+            {sf70_card}
+            {pas2035_card}        
         </div>
     </div>
 </body>
@@ -642,6 +655,33 @@ async def route_sf70_process(request: Request):
     if isinstance(user_row, RedirectResponse):
         return user_row
     return await sf70_tool_route(request, user_row)
+
+# ==================================================================================
+# PAS 2035 DOCUMENTS GENERATOR ROUTES
+# ==================================================================================
+
+@app.get("/tool/pas2035-docs", response_class=HTMLResponse)
+async def route_pas2035_form(request: Request):
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    
+    username = user_row.get("username", "User")
+    credits = user_row.get("credits", 0.0)
+    
+    return HTMLResponse(f"""
+    <!DOCTYPE html>
+    <html>
+    <head><title>PAS 2035 Documents - AutoDate</title></head>
+    <body style="font-family: Arial; padding: 40px;">
+        <h1>PAS 2035 Documents Generator</h1>
+        <p>Welcome {username}! Your credits: £{credits:.2f}</p>
+        <p>This tool will generate SF48 Certificate, Introduction Letter & Handover Letter</p>
+        <p><strong>Form coming soon!</strong></p>
+        <a href="/">← Back to Dashboard</a>
+    </body>
+    </html>
+    """)
 
 # ============================================================================
 # RUN SERVER

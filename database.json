@@ -13,7 +13,8 @@
       "retrofit_tool_access": 1,
       "ats_tool_access": 1,
       "adf_tool_access": 1,
-      "sf70_tool_access": 1
+      "sf70_tool_access": 1,
+      "pas2035_tool_access": 1
     },
     {
       "id": 2,
@@ -28,7 +29,8 @@
       "retrofit_tool_access": 1,
       "ats_tool_access": 0,
       "adf_tool_access": 1,
-      "sf70_tool_access": 1
+      "sf70_tool_access": 1,
+      "pas2035_tool_access": 1
     }
   ],
   "transactions": [
