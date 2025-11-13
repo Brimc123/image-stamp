@@ -305,10 +305,26 @@ async def post_topup(request: Request, user_row: dict):
     except Exception:
         current_credits = 0.0
     
+    # Get user's max balance
+    from database import get_user_by_id
+    user = get_user_by_id(user_id)
+    max_balance = user.get("max_balance", 500.0)
+    
     # Calculate new balance
     new_credits = current_credits + amount
     
+    # Enforce max balance (unless admin)
+    if user_id != 1 and new_credits > max_balance:
+        return HTMLResponse(f"""
+            <script>
+                alert("Cannot top up! Your maximum balance is £{max_balance:.2f}. Your current balance is £{current_credits:.2f}. You can only add up to £{(max_balance - current_credits):.2f}.");
+                window.location.href = "/billing/topup";
+            </script>
+        """)
+    
     # Update BOTH: database column AND add transaction
+    update_user_credits(user_id, new_credits)
+    
     update_user_credits(user_id, new_credits)
     add_transaction(user_id, amount, "topup")
     

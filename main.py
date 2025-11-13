@@ -10,7 +10,7 @@ import uvicorn
 # EXACT imports from working deployment
 from auth import require_active_user_row, require_admin, get_login_page, get_register_page, post_login, post_register, post_logout
 from database import get_user_by_id, get_all_users, update_user_status, set_user_credits, update_user_tool_access
-from admin import get_admin_dashboard, get_admin_weekly_report, get_admin_user_edit, post_admin_user_edit
+from admin import get_admin_dashboard, get_admin_weekly_report, get_admin_user_edit, post_admin_user_edit, post_admin_user_delete
 
 from billing import get_billing_page, get_topup_page, post_topup
 from timestamp_tool import get_timestamp_tool_page, post_timestamp_tool
@@ -519,6 +519,14 @@ async def route_admin_user_edit_submit(request: Request, user_id: int):
     if isinstance(user_row, RedirectResponse):
         return user_row
     return await post_admin_user_edit(request, user_id, user_row)
+
+
+@app.post("/admin/user/{user_id}/delete", response_class=HTMLResponse)
+async def route_admin_user_delete(request: Request, user_id: int):
+    user_row = require_admin(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    return await post_admin_user_delete(request, user_id)
     
 # ============================================================================
 # BILLING ROUTES

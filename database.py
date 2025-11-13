@@ -182,7 +182,7 @@ def create_user(username: str, password_hash: str, is_admin: int = 0) -> Optiona
         "is_admin": is_admin,
         "is_active": 1,
         "credits": 0.0,
-        "max_balance": 100.0,
+        "max_balance": 500.0,
         "created_at": datetime.now().isoformat(),
         "timestamp_tool_access": 1,
         "retrofit_tool_access": 1,
@@ -213,3 +213,29 @@ def get_user_transactions(user_id: int) -> List[Dict]:
     """Get all transactions for a specific user."""
     db = read_db()
     return [t for t in db["transactions"] if t["user_id"] == user_id]
+
+def delete_user(user_id: int) -> bool:
+    """Delete a user and all their associated data."""
+    # Protect admin account from deletion
+    if user_id == 1:
+        return False
+    
+    db = read_db()
+    
+    # Remove user
+    initial_user_count = len(db["users"])
+    db["users"] = [u for u in db["users"] if u["id"] != user_id]
+    
+    # Check if user was actually removed
+    if len(db["users"]) == initial_user_count:
+        return False  # User not found
+    
+    # Remove user's transactions
+    db["transactions"] = [t for t in db["transactions"] if t["user_id"] != user_id]
+    
+    # Remove user's usage logs
+    if "usage_logs" in db:
+        db["usage_logs"] = [log for log in db["usage_logs"] if log["user_id"] != user_id]
+    
+    write_db(db)
+    return True

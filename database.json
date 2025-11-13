@@ -17,17 +17,18 @@
     },
     {
       "id": 2,
-      "username": "brian@energyinstallhub.co.uk",
+      "username": "brian@test.com",
       "password_hash": "127da0c45e5459c40d9f43c422350949f1b9a02bd82c63afbe597bbb79e65728",
       "is_admin": 0,
       "is_active": 1,
-      "credits": 0.0,
-      "max_balance": 100.0,
-      "created_at": "2025-11-12T11:02:04.066403",
+      "credits": 500.0,
+      "max_balance": 500.0,
+      "created_at": "2025-11-13T14:35:01.527878",
       "timestamp_tool_access": 0,
-      "retrofit_tool_access": 0,
+      "retrofit_tool_access": 1,
       "ats_tool_access": 0,
-      "adf_tool_access": 1
+      "adf_tool_access": 1,
+      "sf70_tool_access": 1
     }
   ],
   "transactions": [
@@ -44,6 +45,13 @@
       "amount": 1999999999999.0,
       "description": "topup",
       "timestamp": "2025-10-29T23:18:23.737784"
+    },
+    {
+      "id": 3,
+      "user_id": 2,
+      "amount": 500.0,
+      "description": "topup",
+      "timestamp": "2025-11-13T14:35:17.980690"
     }
   ],
   "usage_logs": []

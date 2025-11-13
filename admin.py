@@ -7,9 +7,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from datetime import datetime, timedelta
 from database import (
-    get_all_users, get_user_by_id, get_all_usage_logs, 
-    get_weekly_report, update_user_max_balance, 
-    update_user_tool_access, set_user_credits, add_transaction
+    get_all_users, get_user_by_id, get_all_usage_logs,
+    get_weekly_report, update_user_max_balance,
+    update_user_tool_access, set_user_credits, add_transaction,
+    delete_user
 )
 
 templates = Jinja2Templates(directory="templates")
@@ -125,3 +126,23 @@ async def post_admin_user_edit(request: Request, user_id: int, user_row: dict):
         add_transaction(user_id, credit_adjustment, description)
     
     return RedirectResponse(url="/admin", status_code=303)
+
+
+async def post_admin_user_delete(request: Request, user_id: int):
+    """Handle user deletion."""
+    # Prevent deleting admin account
+    if user_id == 1:
+        return HTMLResponse(
+            content="<h1>Error: Cannot delete admin account</h1>",
+            status_code=403
+        )
+    
+    success = delete_user(user_id)
+    
+    if success:
+        return RedirectResponse(url="/admin?deleted=success", status_code=303)
+    else:
+        return HTMLResponse(
+            content="<h1>Error: User not found or could not be deleted</h1>",
+            status_code=404
+        )
