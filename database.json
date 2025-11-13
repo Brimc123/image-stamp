@@ -72,6 +72,14 @@
       "cost": 0.0,
       "details": "Admin use - test1",
       "timestamp": "2025-11-13T23:26:49.222845"
+    },
+    {
+      "id": 3,
+      "user_id": 1,
+      "tool_name": "PAS 2035 Documents",
+      "cost": 0.0,
+      "details": "Admin use - test1",
+      "timestamp": "2025-11-13T23:36:28.093153"
     }
   ]
 }

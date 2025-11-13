@@ -464,77 +464,95 @@ def generate_pas2035_documents(form_data: dict):
     
     return sf48_doc, intro_doc, handover_doc
 
+def add_document_border(section):
+    """Add border around entire document"""
+    sectPr = section._sectPr
+    pgBorders = OxmlElement('w:pgBorders')
+    pgBorders.set(qn('w:offsetFrom'), 'page')
+    
+    for border_name in ('top', 'left', 'bottom', 'right'):
+        border = OxmlElement(f'w:{border_name}')
+        border.set(qn('w:val'), 'single')
+        border.set(qn('w:sz'), '24')
+        border.set(qn('w:space'), '24')
+        border.set(qn('w:color'), '0066CC')
+        pgBorders.append(border)
+    
+    sectPr.append(pgBorders)
+
 
 def generate_sf48_certificate(rc_id, rc_name, property_address, measures_text, project_date):
-    """Generate SF48 with RC Consultants branding"""
+    """Generate ONE PAGE SF48 Certificate - clean and professional"""
     doc = Document()
     
-    # HEADER with decorative border
+    # Add document border
+    add_document_border(doc.sections[0])
+    
+    # HEADER
     header_para = doc.add_paragraph()
-    header_run = header_para.add_run('🏠 RC CONSULTANTS 🏠')
-    header_run.font.size = Pt(22)
+    header_run = header_para.add_run('RC CONSULTANTS')
+    header_run.font.size = Pt(14)
     header_run.bold = True
     header_run.font.color.rgb = RGBColor(0, 51, 153)
     header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    add_decorative_border(header_para)
     
     tagline = doc.add_paragraph('Professional Retrofit Coordination Services')
     tagline.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    tagline.runs[0].font.size = Pt(11)
+    tagline.runs[0].font.size = Pt(9)
     tagline.runs[0].italic = True
     tagline.runs[0].font.color.rgb = RGBColor(102, 102, 102)
     
+    # Contact line
+    contact = doc.add_paragraph('202 Queens Dock Business Centre, Liverpool, L1 0BG | ☎ 0800 001 6127')
+    contact.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    contact.runs[0].font.size = Pt(8)
+    contact.runs[0].font.color.rgb = RGBColor(102, 102, 102)
+    
     doc.add_paragraph()
     
-    # TITLE with decorative styling
+    # TITLE
     title = doc.add_paragraph()
-    title_run = title.add_run('═══ RETROFIT PROJECT ═══\nCLAIM OF COMPLIANCE\n═══ PAS 2035:2023 ═══')
-    title_run.font.size = Pt(20)
+    title_run = title.add_run('RETROFIT PROJECT\nCLAIM OF COMPLIANCE')
+    title_run.font.size = Pt(18)
     title_run.bold = True
     title_run.font.color.rgb = RGBColor(204, 0, 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    doc.add_paragraph()
-    
-    # Badge/seal graphic using text
-    seal = doc.add_paragraph('✓ CERTIFIED ✓')
-    seal.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    seal.runs[0].font.size = Pt(16)
-    seal.runs[0].bold = True
-    seal.runs[0].font.color.rgb = RGBColor(0, 153, 0)
+    subtitle = doc.add_paragraph('Based on Self-Assessment')
+    subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    subtitle.runs[0].font.size = Pt(12)
+    subtitle.runs[0].font.color.rgb = RGBColor(102, 102, 102)
     
     doc.add_paragraph()
     
-    # Introduction with colored box
-    intro = doc.add_paragraph()
-    intro.add_run('📋 COMPLIANCE DECLARATION 📋\n\n').bold = True
-    intro.runs[0].font.size = Pt(14)
-    intro.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    intro.add_run('This Retrofit Project undertaken at the property detailed below has been completed in FULL COMPLIANCE with the requirements of PAS 2035:2023 (Retrofitting dwellings for improved energy efficiency) and PAS 2030:2023 (Installation competency) by the Retrofit Coordinator identified herein.').font.size = Pt(11)
-    intro.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    add_decorative_border(intro)
+    # Compliance statement
+    compliance = doc.add_paragraph()
+    compliance.add_run('This Retrofit Project undertaken at the below address was completed in accordance with ')
+    compliance.add_run('PAS 2035:2023').bold = True
+    compliance.runs[1].font.color.rgb = RGBColor(0, 102, 204)
+    compliance.add_run(' and ')
+    compliance.add_run('PAS 2030:2023').bold = True
+    compliance.runs[3].font.color.rgb = RGBColor(0, 102, 204)
+    compliance.add_run(' by the Retrofit Coordinator identified below.')
+    for run in compliance.runs:
+        run.font.size = Pt(10)
+    compliance.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     
     doc.add_paragraph()
     
-    # PROJECT DETAILS TABLE with enhanced styling
-    heading = doc.add_paragraph('📊 PROJECT DETAILS')
-    heading.runs[0].bold = True
-    heading.runs[0].font.size = Pt(14)
-    heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    
+    # PROJECT DETAILS TABLE
     table = doc.add_table(rows=6, cols=2)
-    table.style = 'Medium Shading 1 Accent 1'
-    
+    table.style = 'Light Grid Accent 1'
     table.columns[0].width = Inches(2.5)
     table.columns[1].width = Inches(4.5)
     
     rows_data = [
-        ('🆔 Retrofit Coordinator ID:', rc_id),
-        ('👤 Retrofit Coordinator Name:', rc_name),
-        ('🏡 Property Address:', property_address),
-        ('🔧 Measures Installed:', measures_text),
-        ('📅 Completion Date:', project_date),
-        ('✍️ Coordinator Signature:', '')
+        ('Retrofit Coordinator ID:', rc_id),
+        ('Retrofit Coordinator Name:', rc_name),
+        ('Property Address:', property_address),
+        ('Measures Installed:', measures_text),
+        ('Completion Date:', project_date),
+        ('Coordinator Signature:', '')
     ]
     
     for i, (label, value) in enumerate(rows_data):
@@ -544,487 +562,246 @@ def generate_sf48_certificate(rc_id, rc_name, property_address, measures_text, p
         label_cell.text = label
         label_para = label_cell.paragraphs[0]
         label_para.runs[0].font.bold = True
-        label_para.runs[0].font.size = Pt(11)
-        set_cell_background(label_cell, 'CCE5FF')
+        label_para.runs[0].font.size = Pt(10)
+        set_cell_background(label_cell, 'E7F2FA')
         
         value_cell = row.cells[1]
         value_cell.text = value
         value_para = value_cell.paragraphs[0]
-        value_para.runs[0].font.size = Pt(11)
+        value_para.runs[0].font.size = Pt(10)
         
         if i == 5:
-            row.height = Inches(1)
+            row.height = Inches(0.8)
     
     doc.add_paragraph()
     
-    # CERTIFICATION STATEMENT with decorative box
-    cert_heading = doc.add_paragraph('✓ CERTIFICATION STATEMENT ✓')
+    # CERTIFICATION
+    cert_heading = doc.add_paragraph('CERTIFICATION STATEMENT')
     cert_heading.runs[0].bold = True
-    cert_heading.runs[0].font.size = Pt(14)
-    cert_heading.runs[0].font.color.rgb = RGBColor(0, 153, 0)
+    cert_heading.runs[0].font.size = Pt(11)
+    cert_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
     cert_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     cert_text = doc.add_paragraph()
-    cert_text.add_run('I, the undersigned Retrofit Coordinator, hereby certify and declare that:\n\n').bold = True
-    cert_text.runs[0].font.size = Pt(11)
-    
-    cert_points = [
-        '✓ All retrofit measures have been designed, specified, and installed in accordance with PAS 2035:2023',
-        '✓ All installers possess the appropriate qualifications and certifications required by PAS 2030:2023',
-        '✓ A comprehensive Risk Assessment was completed prior to commencement of works',
-        '✓ All work has been carried out in accordance with relevant Building Regulations and British Standards',
-        '✓ Appropriate Quality Assurance procedures have been followed throughout the project',
-        '✓ Complete project documentation has been compiled and will be retained for the required period',
-        '✓ The homeowner has been provided with all necessary documentation, warranties, and user information'
-    ]
-    
-    for point in cert_points:
-        bullet = doc.add_paragraph(point, style='List Bullet')
-        bullet.runs[0].font.size = Pt(10)
-        bullet.left_indent = Inches(0.5)
+    cert_text.add_run('I certify that the retrofit measures listed above have been completed in full compliance with PAS 2035:2023 and PAS 2030:2023 standards. All work has been carried out by appropriately qualified installers, and complete project documentation has been maintained in accordance with the relevant standards.')
+    cert_text.runs[0].font.size = Pt(9)
+    cert_text.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     
     doc.add_paragraph()
     
-    # STANDARDS COMPLIANCE section
-    standards = doc.add_paragraph('📜 STANDARDS COMPLIANCE')
+    # Standards compliance
+    standards = doc.add_paragraph('STANDARDS COMPLIANCE')
     standards.runs[0].bold = True
-    standards.runs[0].font.size = Pt(13)
+    standards.runs[0].font.size = Pt(10)
     standards.runs[0].font.color.rgb = RGBColor(0, 102, 204)
     
-    standards_text = doc.add_paragraph()
-    standards_text.add_run('This project complies with the following standards and regulations:\n\n').font.size = Pt(10)
-    
-    compliance_items = [
-        '● PAS 2035:2023 - Retrofitting dwellings for improved energy efficiency',
-        '● PAS 2030:2023 - Specification for the installation of energy efficiency measures',
-        '● Building Regulations Part L - Conservation of Fuel and Power',
-        '● TrustMark Quality Framework',
-        '● All relevant British Standards (BS) and European Norms (EN)',
-        '● Manufacturer Installation Guidelines and Specifications'
+    standards_list = [
+        '• PAS 2035:2023 - Retrofitting dwellings for improved energy efficiency',
+        '• PAS 2030:2023 - Installation competency standards',
+        '• Building Regulations Part L - Conservation of Fuel and Power',
+        '• TrustMark Quality Framework'
     ]
     
-    for item in compliance_items:
-        item_para = doc.add_paragraph(item)
-        item_para.runs[0].font.size = Pt(10)
-        item_para.left_indent = Inches(0.5)
+    for item in standards_list:
+        p = doc.add_paragraph(item)
+        p.runs[0].font.size = Pt(8)
+        p.left_indent = Inches(0.3)
     
     doc.add_paragraph()
     
-    # FOOTER with contact info
-    footer_box = doc.add_paragraph()
-    footer_box.add_run('RC CONSULTANTS\n').bold = True
-    footer_box.runs[0].font.size = Pt(12)
-    footer_box.runs[0].font.color.rgb = RGBColor(0, 51, 153)
-    footer_box.add_run('202 Queens Dock Business Centre, Norfolk House, Liverpool, L1 0BG\n')
-    footer_box.add_run('☎ 0800 001 6127 | ✉ info@rcconsultants.co.uk | 🌐 www.rcconsultants.co.uk')
-    footer_box.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    for run in footer_box.runs[1:]:
-        run.font.size = Pt(9)
-    add_decorative_border(footer_box)
+    # Footer
+    footer = doc.add_paragraph()
+    footer.add_run('This document confirms compliance with PAS 2035 requirements for domestic retrofit projects.')
+    footer.runs[0].font.size = Pt(8)
+    footer.runs[0].italic = True
+    footer.runs[0].font.color.rgb = RGBColor(128, 128, 128)
+    footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     return doc
 
+
 def generate_intro_letter(customer_name, customer_address, measures_text, install_start_date, installer_contact):
-    """Generate stunning introduction letter with comprehensive content"""
+    """Generate clean introduction letter - NO installation instructions"""
     doc = Document()
     
-    # DECORATIVE HEADER
-    header = doc.add_paragraph()
-    header_run = header.add_run('═══════════════════════════════════\n')
-    header_run.font.color.rgb = RGBColor(0, 102, 204)
-    header_run.font.size = Pt(12)
-    header.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    # Add document border
+    add_document_border(doc.sections[0])
     
-    company = doc.add_paragraph()
-    company_run = company.add_run('🏢 RC CONSULTANTS 🏢')
-    company_run.bold = True
-    company_run.font.size = Pt(22)
-    company_run.font.color.rgb = RGBColor(0, 51, 153)
-    company.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    # HEADER
+    header = doc.add_paragraph()
+    header_run = header.add_run('RC CONSULTANTS')
+    header_run.bold = True
+    header_run.font.size = Pt(14)
+    header_run.font.color.rgb = RGBColor(0, 51, 153)
+    header.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     tagline = doc.add_paragraph('Professional Retrofit Coordination & Energy Consultancy')
     tagline.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    tagline.runs[0].font.size = Pt(11)
+    tagline.runs[0].font.size = Pt(9)
     tagline.runs[0].italic = True
     tagline.runs[0].font.color.rgb = RGBColor(102, 102, 102)
     
-    header2 = doc.add_paragraph()
-    header2_run = header2.add_run('═══════════════════════════════════')
-    header2_run.font.color.rgb = RGBColor(0, 102, 204)
-    header2_run.font.size = Pt(12)
-    header2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
     doc.add_paragraph()
     
-    # CONTACT INFORMATION BOX
-    contact_box = doc.add_paragraph()
-    contact_box.add_run('📍 OFFICE ADDRESS\n').bold = True
-    contact_box.runs[0].font.size = Pt(10)
-    contact_box.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    contact_box.add_run('202 Queens Dock Business Centre\n')
-    contact_box.add_run('Norfolk House, Liverpool, L1 0BG\n\n')
-    contact_box.add_run('📞 CONTACT DETAILS\n').bold = True
-    contact_box.runs[3].font.size = Pt(10)
-    contact_box.runs[3].font.color.rgb = RGBColor(0, 102, 204)
-    contact_box.add_run('Phone: 0800 001 6127\n')
-    contact_box.add_run('Email: info@rcconsultants.co.uk\n')
-    contact_box.add_run('Web: www.rcconsultants.co.uk')
-    contact_box.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    for run in [contact_box.runs[1], contact_box.runs[2], contact_box.runs[4], contact_box.runs[5], contact_box.runs[6]]:
-        run.font.size = Pt(10)
-    add_decorative_border(contact_box)
+    # Contact details
+    contact_lines = [
+        '202 Queens Dock Business Centre',
+        'Norfolk House, Liverpool, L1 0BG',
+        'Phone: 0800 001 6127',
+        'Email: info@rcconsultants.co.uk'
+    ]
+    
+    for line in contact_lines:
+        p = doc.add_paragraph(line)
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        if p.runs:
+            p.runs[0].font.size = Pt(9)
     
     doc.add_paragraph()
     doc.add_paragraph()
     
-    # CUSTOMER ADDRESS
-    doc.add_paragraph('PRIVATE & CONFIDENTIAL')
+    # Customer address
     for line in [customer_name] + customer_address.split('\n'):
         p = doc.add_paragraph(line)
         if p.runs:
-            p.runs[0].font.size = Pt(11)
-            p.runs[0].bold = True
+            p.runs[0].font.size = Pt(10)
     
     doc.add_paragraph()
     
-    # DATE
+    # Date
     date_para = doc.add_paragraph(datetime.now().strftime('%d %B %Y'))
-    date_para.runs[0].font.size = Pt(11)
-    date_para.runs[0].bold = True
+    date_para.runs[0].font.size = Pt(10)
     
     doc.add_paragraph()
     
-    # SALUTATION
+    # Greeting
     greeting = doc.add_paragraph(f'Dear {customer_name},')
-    greeting.runs[0].font.size = Pt(12)
+    greeting.runs[0].font.size = Pt(10)
     greeting.runs[0].bold = True
     
     doc.add_paragraph()
     
-    # SUBJECT LINE with decorative styling
+    # Subject
     subject = doc.add_paragraph()
-    subject_run = subject.add_run('RE: RETROFIT INSTALLATION PROJECT NOTIFICATION')
-    subject_run.bold = True
-    subject_run.font.size = Pt(12)
-    subject_run.font.color.rgb = RGBColor(204, 0, 0)
-    subject.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    measures_para = doc.add_paragraph()
-    measures_para.add_run(f'🔧 Measures: {measures_text} 🔧')
-    measures_para.runs[0].font.size = Pt(11)
-    measures_para.runs[0].bold = True
-    measures_para.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    measures_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    subject.add_run('RE: Retrofit Installation Project - ')
+    subject.add_run(measures_text).bold = True
+    for run in subject.runs:
+        run.font.size = Pt(10)
     
     doc.add_paragraph()
     
-    # INTRODUCTION
-    intro_heading = doc.add_paragraph('📋 PROJECT INTRODUCTION')
-    intro_heading.runs[0].bold = True
-    intro_heading.runs[0].font.size = Pt(13)
-    intro_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    
+    # Body
     p1 = doc.add_paragraph()
-    p1.add_run('We are delighted to inform you that we will shortly begin the installation of energy efficiency measures at your property as part of a comprehensive retrofit project. This work represents a significant investment in your home\'s comfort, energy efficiency, and environmental performance.')
+    p1.add_run('We are pleased to confirm that we will shortly begin the installation of ')
+    p1.add_run(measures_text).bold = True
+    p1.add_run(' at your property. This work will be carried out in full compliance with PAS 2030:2023 standards, coordinated under PAS 2035:2023 requirements.')
     for run in p1.runs:
-        run.font.size = Pt(11)
+        run.font.size = Pt(10)
     p1.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     
     doc.add_paragraph()
     
     p2 = doc.add_paragraph()
-    p2.add_run('The measures being installed - ').font.size = Pt(11)
-    p2.add_run(measures_text).bold = True
-    p2.runs[1].font.size = Pt(11)
-    p2.runs[1].font.color.rgb = RGBColor(0, 102, 204)
-    p2.add_run(' - have been carefully selected following a detailed assessment of your property. All work will be carried out by certified installers working to PAS 2030:2023 standards, under the coordination of a qualified Retrofit Coordinator following PAS 2035:2023 requirements.')
-    p2.runs[2].font.size = Pt(11)
+    p2.add_run('Installation is scheduled to commence on ')
+    p2.add_run(install_start_date).bold = True
+    p2.add_run('. Our certified installers will work efficiently to minimize disruption to your daily routine while maintaining the highest standards of workmanship.')
+    for run in p2.runs:
+        run.font.size = Pt(10)
     p2.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     
     doc.add_paragraph()
     
-    # INSTALLATION SCHEDULE
-    schedule_heading = doc.add_paragraph('📅 INSTALLATION SCHEDULE')
-    schedule_heading.runs[0].bold = True
-    schedule_heading.runs[0].font.size = Pt(13)
-    schedule_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    
-    schedule_box = doc.add_paragraph()
-    schedule_box.add_run('Scheduled Commencement Date: ').font.size = Pt(11)
-    schedule_box.add_run(install_start_date).bold = True
-    schedule_box.runs[1].font.size = Pt(12)
-    schedule_box.runs[1].font.color.rgb = RGBColor(204, 0, 0)
-    schedule_box.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    add_decorative_border(schedule_box)
-    
-    doc.add_paragraph()
-    
-    schedule_text = doc.add_paragraph()
-    schedule_text.add_run('Our installation team will make every effort to complete the work efficiently and professionally while minimizing disruption to your daily routine. Throughout the installation period, our installers will:')
-    schedule_text.runs[0].font.size = Pt(11)
-    schedule_text.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    schedule_points = [
-        '✓ Maintain clean and tidy working practices with daily site cleanup',
-        '✓ Respect your property and possessions at all times',
-        '✓ Work within agreed hours (typically 8:00 AM - 5:00 PM, Monday-Friday)',
-        '✓ Minimize noise and disturbance wherever possible',
-        '✓ Provide protective coverings for floors, furniture, and fixtures',
-        '✓ Communicate clearly about progress and any issues that arise'
-    ]
-    
-    for point in schedule_points:
-        bullet = doc.add_paragraph(point)
-        bullet.runs[0].font.size = Pt(10)
-        bullet.left_indent = Inches(0.5)
-    
-    doc.add_paragraph()
-    
-    # WHAT TO EXPECT
-    expect_heading = doc.add_paragraph('🎯 WHAT TO EXPECT DURING INSTALLATION')
-    expect_heading.runs[0].bold = True
-    expect_heading.runs[0].font.size = Pt(13)
-    expect_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    
-    expect_intro = doc.add_paragraph()
-    expect_intro.add_run('To help you prepare for the installation, here is what you can expect:')
-    expect_intro.runs[0].font.size = Pt(11)
-    
-    doc.add_paragraph()
-    
-    # Professional Team section
-    team_para = doc.add_paragraph()
-    team_para.add_run('👷 PROFESSIONAL INSTALLATION TEAM\n').bold = True
-    team_para.runs[0].font.size = Pt(11)
-    team_para.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    team_para.add_run('All installers are fully qualified, certified, and insured. They carry appropriate identification and will introduce themselves upon arrival. Our team members undergo regular training and assessment to ensure they maintain the highest standards of workmanship and customer service.')
-    team_para.runs[1].font.size = Pt(10)
-    team_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    doc.add_paragraph()
-    
-    # Safety section
-    safety_para = doc.add_paragraph()
-    safety_para.add_run('🦺 HEALTH & SAFETY\n').bold = True
-    safety_para.runs[0].font.size = Pt(11)
-    safety_para.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    safety_para.add_run('Your safety and that of our installation team is our top priority. All work will be conducted in accordance with current Health & Safety regulations. Risk assessments and method statements have been prepared for this project. Appropriate safety equipment will be used, and work areas will be clearly marked and protected.')
-    safety_para.runs[1].font.size = Pt(10)
-    safety_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    doc.add_paragraph()
-    
-    # Access section
-    access_para = doc.add_paragraph()
-    access_para.add_run('🚪 ACCESS REQUIREMENTS\n').bold = True
-    access_para.runs[0].font.size = Pt(11)
-    access_para.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    access_para.add_run('Please ensure that our installers have clear access to all areas where work will be conducted. If possible, please remove or protect any valuable or delicate items from these areas. Our team will provide additional protective coverings, but your assistance in clearing access routes is greatly appreciated.')
-    access_para.runs[1].font.size = Pt(10)
-    access_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    doc.add_paragraph()
-    
-    # Communication section
-    comm_para = doc.add_paragraph()
-    comm_para.add_run('💬 ONGOING COMMUNICATION\n').bold = True
-    comm_para.runs[0].font.size = Pt(11)
-    comm_para.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    comm_para.add_run('Our team leader will provide you with regular updates on progress. At the end of each working day, they will brief you on work completed and plans for the following day. We encourage you to ask questions and raise any concerns - clear communication ensures the best outcome for everyone.')
-    comm_para.runs[1].font.size = Pt(10)
-    comm_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    doc.add_paragraph()
-    
-    # IMPORTANT NOTES
-    notes_heading = doc.add_paragraph('⚠️ IMPORTANT INFORMATION')
-    notes_heading.runs[0].bold = True
-    notes_heading.runs[0].font.size = Pt(13)
-    notes_heading.runs[0].font.color.rgb = RGBColor(204, 102, 0)
-    
-    note1 = doc.add_paragraph()
-    note1.add_run('Schedule Flexibility: ').bold = True
-    note1.runs[0].font.size = Pt(11)
-    note1.add_run('While we strive to adhere to the agreed schedule, unforeseen circumstances (weather conditions, material delivery delays, or coordination with other trades) may occasionally require adjustments. We will keep you fully informed of any changes and will agree modified schedules with you in advance.')
-    note1.runs[1].font.size = Pt(10)
-    note1.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    doc.add_paragraph()
-    
-    note2 = doc.add_paragraph()
-    note2.add_run('Building Control & Inspections: ').bold = True
-    note2.runs[0].font.size = Pt(11)
-    note2.add_run('Some installations may require Building Control notification or inspection. Where applicable, we will manage this process on your behalf. Any required inspections will be scheduled to minimize impact on the installation timeline.')
-    note2.runs[1].font.size = Pt(10)
-    note2.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    doc.add_paragraph()
-    
-    note3 = doc.add_paragraph()
-    note3.add_run('Utility Services: ').bold = True
-    note3.runs[0].font.size = Pt(11)
-    note3.add_run('Certain installations may require temporary interruption of utility services (electricity, gas, water). Where this is necessary, we will provide advance notice and minimize the duration of any interruption. Emergency supplies will be arranged if extended outages are unavoidable.')
-    note3.runs[1].font.size = Pt(10)
-    note3.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    doc.add_paragraph()
-    
-    # CONTACT INFORMATION
-    contact_heading = doc.add_paragraph('📞 YOUR CONTACTS')
-    contact_heading.runs[0].bold = True
-    contact_heading.runs[0].font.size = Pt(13)
-    contact_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    
-    contact_text = doc.add_paragraph()
-    contact_text.add_run('Should you have any questions, concerns, or require clarification about any aspect of the installation, please do not hesitate to contact:')
-    contact_text.runs[0].font.size = Pt(11)
-    contact_text.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    doc.add_paragraph()
-    
-    contact_details = doc.add_paragraph()
-    contact_details.add_run(f'Installation Contact: {installer_contact}\n').bold = True
-    contact_details.runs[0].font.size = Pt(11)
-    contact_details.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    contact_details.add_run('Office: 0800 001 6127\n')
-    contact_details.add_run('Email: info@rcconsultants.co.uk')
-    for run in contact_details.runs[1:]:
+    p3 = doc.add_paragraph()
+    p3.add_run('If you have any questions or concerns regarding this project, please contact ')
+    p3.add_run(installer_contact).bold = True
+    p3.add_run(' or our office on 0800 001 6127.')
+    for run in p3.runs:
         run.font.size = Pt(10)
-    contact_details.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    add_decorative_border(contact_details)
+    p3.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    
+    doc.add_paragraph()
+    
+    p4 = doc.add_paragraph()
+    p4.add_run('We look forward to transforming your home with these energy-efficient improvements.')
+    p4.runs[0].font.size = Pt(10)
+    p4.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     
     doc.add_paragraph()
     doc.add_paragraph()
     
-    # CLOSING
-    closing_heading = doc.add_paragraph('🌟 OUR COMMITMENT TO YOU')
-    closing_heading.runs[0].bold = True
-    closing_heading.runs[0].font.size = Pt(13)
-    closing_heading.runs[0].font.color.rgb = RGBColor(0, 153, 0)
-    
-    closing = doc.add_paragraph()
-    closing.add_run('We are committed to delivering exceptional results with minimal disruption to your daily life. Our experienced team takes pride in transforming homes through high-quality retrofit installations that deliver real, measurable benefits in comfort, energy efficiency, and environmental performance.')
-    closing.runs[0].font.size = Pt(11)
-    closing.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    doc.add_paragraph()
-    
-    closing2 = doc.add_paragraph()
-    closing2.add_run('Thank you for choosing RC Consultants for your retrofit project. We look forward to working with you to create a more comfortable, efficient, and sustainable home.')
-    closing2.runs[0].font.size = Pt(11)
-    closing2.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    doc.add_paragraph()
-    doc.add_paragraph()
-    
-    # SIGNATURE
-    sig = doc.add_paragraph('Yours sincerely,')
-    sig.runs[0].font.size = Pt(11)
+    # Closing
+    closing = doc.add_paragraph('Yours sincerely,')
+    closing.runs[0].font.size = Pt(10)
     
     doc.add_paragraph()
     doc.add_paragraph()
     
     signature = doc.add_paragraph('RC CONSULTANTS')
-    signature.runs[0].font.size = Pt(13)
+    signature.runs[0].font.size = Pt(11)
     signature.runs[0].bold = True
     signature.runs[0].font.color.rgb = RGBColor(0, 51, 153)
     
     team = doc.add_paragraph('Retrofit Coordination Team')
-    team.runs[0].font.size = Pt(10)
+    team.runs[0].font.size = Pt(9)
     team.runs[0].italic = True
-    
-    doc.add_paragraph()
-    
-    # FOOTER
-    footer = doc.add_paragraph()
-    footer.add_run('═══════════════════════════════════\n')
-    footer.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    footer.add_run('RC Consultants | 202 Queens Dock Business Centre | Liverpool L1 0BG\n')
-    footer.add_run('☎ 0800 001 6127 | ✉ info@rcconsultants.co.uk | 🌐 www.rcconsultants.co.uk\n')
-    footer.add_run('═══════════════════════════════════')
-    footer.runs[3].font.color.rgb = RGBColor(0, 102, 204)
-    footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    for run in footer.runs[1:3]:
-        run.font.size = Pt(8)
     
     return doc
 
 
 def generate_handover_letter(customer_name, customer_address, measures_text, project_date, rc_name, installer_name, conflict_of_interest, measures):
-    """Generate COMPREHENSIVE handover with MASSIVE content"""
+    """Generate comprehensive handover - NO installation instructions, focused on benefits and usage"""
     doc = Document()
     
-    # DECORATIVE HEADER
+    # Add document border
+    add_document_border(doc.sections[0])
+    
+    # HEADER
     header = doc.add_paragraph()
-    header_run = header.add_run('═══════════════════════════════════════════════════\n')
-    header_run.font.color.rgb = RGBColor(0, 153, 0)
-    header_run.font.size = Pt(12)
+    header_run = header.add_run('RC CONSULTANTS')
+    header_run.bold = True
+    header_run.font.size = Pt(14)
+    header_run.font.color.rgb = RGBColor(0, 51, 153)
     header.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    company = doc.add_paragraph()
-    company_run = company.add_run('🏆 RC CONSULTANTS 🏆')
-    company_run.bold = True
-    company_run.font.size = Pt(24)
-    company_run.font.color.rgb = RGBColor(0, 51, 153)
-    company.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    tagline = doc.add_paragraph('Excellence in Retrofit Coordination & Energy Solutions')
+    tagline = doc.add_paragraph('Professional Retrofit Coordination Services')
     tagline.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    tagline.runs[0].font.size = Pt(12)
+    tagline.runs[0].font.size = Pt(9)
     tagline.runs[0].italic = True
-    tagline.runs[0].font.color.rgb = RGBColor(102, 102, 102)
     
-    header2 = doc.add_paragraph()
-    header2_run = header2.add_run('═══════════════════════════════════════════════════')
-    header2_run.font.color.rgb = RGBColor(0, 153, 0)
-    header2_run.font.size = Pt(12)
-    header2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    contact = doc.add_paragraph('202 Queens Dock Business Centre, Liverpool, L1 0BG | ☎ 0800 001 6127')
+    contact.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    contact.runs[0].font.size = Pt(8)
     
     doc.add_paragraph()
     
-    # MAIN TITLE with decorative box
+    # TITLE
     title = doc.add_paragraph()
-    title_run = title.add_run('PROJECT HANDOVER DOCUMENT\n')
+    title_run = title.add_run('PROJECT HANDOVER DOCUMENT')
     title_run.bold = True
-    title_run.font.size = Pt(22)
-    title_run.font.color.rgb = RGBColor(0, 153, 0)
+    title_run.font.size = Pt(16)
+    title_run.font.color.rgb = RGBColor(0, 102, 204)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    subtitle = doc.add_paragraph('✓ PAS 2035:2023 COMPLIANT RETROFIT PROJECT ✓')
+    subtitle = doc.add_paragraph('PAS 2035:2023 Compliant Retrofit Project')
     subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    subtitle.runs[0].font.size = Pt(13)
-    subtitle.runs[0].bold = True
-    subtitle.runs[0].font.color.rgb = RGBColor(204, 0, 0)
+    subtitle.runs[0].font.size = Pt(11)
+    subtitle.runs[0].italic = True
     
     doc.add_paragraph()
     
-    # COMPLETION BADGE
-    badge = doc.add_paragraph('━━━━━━━━━━━━━━━━━━━━━━━\n✓ ✓ ✓ PROJECT COMPLETE ✓ ✓ ✓\n━━━━━━━━━━━━━━━━━━━━━━━')
-    badge.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    badge.runs[0].font.size = Pt(14)
-    badge.runs[0].bold = True
-    badge.runs[0].font.color.rgb = RGBColor(0, 153, 0)
-    
-    doc.add_paragraph()
-    
-    # PROJECT SUMMARY TABLE
-    summary_heading = doc.add_paragraph('📊 PROJECT SUMMARY')
-    summary_heading.runs[0].bold = True
-    summary_heading.runs[0].font.size = Pt(15)
-    summary_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    
+    # Project summary table
     table = doc.add_table(rows=6, cols=2)
-    table.style = 'Medium Shading 1 Accent 1'
-    table.columns[0].width = Inches(2.2)
-    table.columns[1].width = Inches(4.8)
+    table.style = 'Light Grid Accent 1'
+    table.columns[0].width = Inches(2)
+    table.columns[1].width = Inches(5)
     
     project_details = [
-        ('👤 Customer Name:', customer_name),
-        ('🏠 Property Address:', customer_address.replace('\n', ', ')),
-        ('🔧 Measures Installed:', measures_text),
-        ('📅 Completion Date:', project_date),
-        ('📋 Retrofit Coordinator:', rc_name),
-        ('🏗️ Installation Company:', installer_name)
+        ('Customer Name:', customer_name),
+        ('Property Address:', customer_address.replace('\n', ', ')),
+        ('Measures Installed:', measures_text),
+        ('Completion Date:', project_date),
+        ('Retrofit Coordinator:', rc_name),
+        ('Installation Company:', installer_name)
     ]
     
     for i, (label, value) in enumerate(project_details):
@@ -1034,298 +811,158 @@ def generate_handover_letter(customer_name, customer_address, measures_text, pro
         label_cell.text = label
         label_para = label_cell.paragraphs[0]
         label_para.runs[0].font.bold = True
-        label_para.runs[0].font.size = Pt(11)
-        set_cell_background(label_cell, 'CCE5FF')
+        label_para.runs[0].font.size = Pt(9)
+        set_cell_background(label_cell, 'E7F2FA')
         
         value_cell = row.cells[1]
         value_cell.text = value
         value_para = value_cell.paragraphs[0]
-        value_para.runs[0].font.size = Pt(11)
+        value_para.runs[0].font.size = Pt(9)
     
     doc.add_paragraph()
     
-    # COMPLETION STATEMENT
-    completion_heading = doc.add_paragraph('✓ INSTALLATION COMPLETION STATEMENT')
+    # Completion statement
+    completion_heading = doc.add_paragraph('INSTALLATION COMPLETION')
     completion_heading.runs[0].bold = True
-    completion_heading.runs[0].font.size = Pt(15)
-    completion_heading.runs[0].font.color.rgb = RGBColor(0, 153, 0)
+    completion_heading.runs[0].font.size = Pt(12)
+    completion_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
     
-    completion_text = doc.add_paragraph()
-    completion_text.add_run('We are delighted to confirm that all retrofit measures detailed in this document have been successfully installed at your property. This comprehensive retrofit project represents a significant achievement in improving your home\'s energy efficiency, thermal comfort, and environmental performance.')
-    completion_text.runs[0].font.size = Pt(11)
-    completion_text.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    doc.add_paragraph()
-    
-    # STANDARDS COMPLIANCE BOX
-    standards_box = doc.add_paragraph()
-    standards_box.add_run('📜 STANDARDS COMPLIANCE 📜\n\n').bold = True
-    standards_box.runs[0].font.size = Pt(13)
-    standards_box.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    standards_box.runs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    standards_box.add_run('All work has been completed in full compliance with:\n\n')
-    standards_box.runs[1].font.size = Pt(10)
-    standards_box.add_run('✓ PAS 2035:2023 - Retrofitting dwellings for improved energy efficiency\n')
-    standards_box.add_run('✓ PAS 2030:2023 - Installation competency standards for energy efficiency measures\n')
-    standards_box.add_run('✓ Building Regulations Approved Documents (Parts L, F, J as applicable)\n')
-    standards_box.add_run('✓ All relevant British Standards (BS) and European Norms (EN)\n')
-    standards_box.add_run('✓ Manufacturer specifications and installation guidelines\n')
-    standards_box.add_run('✓ TrustMark Quality Framework requirements')
-    for run in standards_box.runs[2:]:
-        run.font.size = Pt(10)
-    standards_box.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    add_decorative_border(standards_box)
+    completion = doc.add_paragraph()
+    completion.add_run('All retrofit measures have been successfully installed in full compliance with PAS 2035:2023 and PAS 2030:2023 standards. The work was completed by certified installers and coordinated by a qualified Retrofit Coordinator.')
+    completion.runs[0].font.size = Pt(10)
+    completion.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     
     doc.add_paragraph()
     
     # DETAILED MEASURE INFORMATION
-    measures_heading = doc.add_paragraph('🔍 DETAILED MEASURE INFORMATION')
+    measures_heading = doc.add_paragraph('INSTALLED MEASURES - OVERVIEW')
     measures_heading.runs[0].bold = True
-    measures_heading.runs[0].font.size = Pt(16)
+    measures_heading.runs[0].font.size = Pt(12)
     measures_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
     
-    intro = doc.add_paragraph()
-    intro.add_run('The following sections provide comprehensive information about each energy efficiency measure installed in your home. Please read these carefully to understand how to operate, maintain, and maximize the benefits of your improvements.')
-    intro.runs[0].font.size = Pt(11)
-    intro.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    doc.add_paragraph()
-    
-    # Add detailed description for each measure
-    for i, measure_code in enumerate(measures, 1):
+    # Add brief description for each measure
+    for measure_code in measures:
         measure_name = MEASURE_DESCRIPTIONS.get(measure_code, measure_code)
-        measure_detail = MEASURE_DETAILS.get(measure_code, "Detailed information not available for this measure.")
+        measure_detail = MEASURE_DETAILS.get(measure_code, "")
         
-        # Measure header with number
-        measure_header = doc.add_paragraph()
-        measure_run = measure_header.add_run(f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nMEASURE {i}: {measure_name.upper()}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        # Extract first 2-3 sentences only
+        sentences = measure_detail.split('.')[:3]
+        brief_desc = '.'.join(sentences) + '.'
+        
+        measure_heading = doc.add_paragraph()
+        measure_run = measure_heading.add_run(f'{measure_name}')
         measure_run.bold = True
-        measure_run.font.size = Pt(13)
-        measure_run.font.color.rgb = RGBColor(204, 0, 0)
-        measure_header.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        measure_run.font.size = Pt(11)
+        measure_run.font.color.rgb = RGBColor(0, 51, 153)
         
-        doc.add_paragraph()
-        
-        # Measure description
         desc_para = doc.add_paragraph()
-        desc_para.add_run(measure_detail)
-        desc_para.runs[0].font.size = Pt(10)
+        desc_para.add_run(brief_desc)
+        desc_para.runs[0].font.size = Pt(9)
         desc_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         
         doc.add_paragraph()
     
-    # USING YOUR IMPROVED HOME
-    usage_heading = doc.add_paragraph('🏡 USING YOUR IMPROVED HOME')
+    # Using your home
+    usage_heading = doc.add_paragraph('USING YOUR IMPROVED HOME')
     usage_heading.runs[0].bold = True
-    usage_heading.runs[0].font.size = Pt(16)
+    usage_heading.runs[0].font.size = Pt(12)
     usage_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
     
-    usage_intro = doc.add_paragraph()
-    usage_intro.add_run('To maximize the benefits of your retrofit improvements and ensure optimal long-term performance, please follow these important guidelines:')
-    usage_intro.runs[0].font.size = Pt(11)
-    usage_intro.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    usage_points = [
+        'Review all user guides and manuals provided with the installed measures',
+        'Follow recommended maintenance schedules to ensure optimal performance',
+        'Keep all warranties and guarantees in a safe place',
+        'Contact us immediately if you notice any issues or have questions'
+    ]
+    
+    for point in usage_points:
+        bullet = doc.add_paragraph(f'• {point}')
+        bullet.runs[0].font.size = Pt(9)
+        bullet.left_indent = Inches(0.3)
     
     doc.add_paragraph()
     
-    usage_points = [
-        ('📖 Documentation Review', 'Carefully review all user guides, operation manuals, and warranty documentation provided with each installed measure. Keep these documents in a safe, accessible location for future reference.'),
-        ('🎛️ Control Familiarization', 'Take time to familiarize yourself with any new controls, thermostats, or operating systems. Understanding how to use controls effectively can significantly enhance comfort while minimizing energy consumption.'),
-        ('🔧 Regular Maintenance', 'Follow recommended maintenance schedules for each measure. Regular maintenance ensures optimal performance, extends equipment lifespan, and maintains warranty validity.'),
-        ('📞 Issue Reporting', 'Contact us immediately if you notice any issues, unusual operation, or have questions about any installed measure. Early intervention prevents minor issues from becoming major problems.'),
-        ('📊 Energy Monitoring', 'Consider monitoring your energy usage to track the improvements achieved. Many homeowners find it rewarding to see tangible evidence of their energy savings.'),
-        ('🌡️ Ventilation Balance', 'Maintain adequate ventilation throughout your home. Improved airtightness from retrofit measures makes controlled ventilation even more important for indoor air quality.')
-    ]
-    
-    for heading, text in usage_points:
-        point_heading = doc.add_paragraph()
-        point_heading.add_run(heading).bold = True
-        point_heading.runs[0].font.size = Pt(11)
-        point_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-        
-        point_text = doc.add_paragraph()
-        point_text.add_run(text)
-        point_text.runs[0].font.size = Pt(10)
-        point_text.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        point_text.left_indent = Inches(0.3)
-        
-        doc.add_paragraph()
-    
-    # WARRANTIES AND GUARANTEES
-    warranty_heading = doc.add_paragraph('🛡️ WARRANTIES AND GUARANTEES')
+    # Warranties
+    warranty_heading = doc.add_paragraph('WARRANTIES AND GUARANTEES')
     warranty_heading.runs[0].bold = True
-    warranty_heading.runs[0].font.size = Pt(16)
+    warranty_heading.runs[0].font.size = Pt(12)
     warranty_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
     
-    warranty_intro = doc.add_paragraph()
-    warranty_intro.add_run('All installed measures are protected by comprehensive warranties and guarantees. You should have received the following documentation:')
-    warranty_intro.runs[0].font.size = Pt(11)
-    warranty_intro.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    warranty_text = doc.add_paragraph()
+    warranty_text.add_run('You should have received product warranties, installation guarantees, and any relevant certification documentation. Please keep these safe and register warranties where required.')
+    warranty_text.runs[0].font.size = Pt(9)
+    warranty_text.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     
     doc.add_paragraph()
     
-    warranty_items = [
-        ('Manufacturer Product Warranties', 'Covering materials and components, typically ranging from 2-25 years depending on the product type and manufacturer.'),
-        ('Installation Workmanship Guarantees', 'Provided by the installer, covering the quality and integrity of installation work, typically 1-10 years.'),
-        ('Insurance-Backed Guarantees', 'Where applicable, providing protection in the unlikely event of installer business failure.'),
-        ('MCS Certificates', 'For renewable energy installations (solar PV, heat pumps), confirming compliance with Microgeneration Certification Scheme standards.'),
-        ('Building Control Certification', 'Where required by Building Regulations, confirming work compliance and completion.')
-    ]
-    
-    for title, desc in warranty_items:
-        item_title = doc.add_paragraph()
-        item_title.add_run(f'• {title}: ').bold = True
-        item_title.runs[0].font.size = Pt(10)
-        item_title.add_run(desc)
-        item_title.runs[1].font.size = Pt(10)
-        item_title.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        item_title.left_indent = Inches(0.5)
-    
-    doc.add_paragraph()
-    
-    warranty_note = doc.add_paragraph()
-    warranty_note.add_run('Important: ').bold = True
-    warranty_note.runs[0].font.size = Pt(10)
-    warranty_note.runs[0].font.color.rgb = RGBColor(204, 0, 0)
-    warranty_note.add_run('Please keep all warranty documentation safe and accessible. Many warranties require registration within a specified period (typically 30-90 days) and annual servicing to remain valid. Failure to comply with warranty terms may void coverage.')
-    warranty_note.runs[1].font.size = Pt(10)
-    warranty_note.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    add_decorative_border(warranty_note)
-    
-    doc.add_paragraph()
-    
-    # CONFLICT OF INTEREST
-    coi_heading = doc.add_paragraph('⚖️ CONFLICT OF INTEREST DECLARATION')
+    # Conflict of interest
+    coi_heading = doc.add_paragraph('CONFLICT OF INTEREST DECLARATION')
     coi_heading.runs[0].bold = True
-    coi_heading.runs[0].font.size = Pt(16)
+    coi_heading.runs[0].font.size = Pt(12)
     coi_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
     
     coi_para = doc.add_paragraph()
-    coi_para.add_run('Declared Conflict of Interest Status: ').bold = True
-    coi_para.runs[0].font.size = Pt(12)
-    coi_para.add_run(conflict_of_interest.upper())
-    coi_para.runs[1].font.size = Pt(12)
-    coi_para.runs[1].bold = True
+    coi_para.add_run('Conflict of Interest: ')
+    coi_para.add_run(conflict_of_interest).bold = True
+    for run in coi_para.runs:
+        run.font.size = Pt(10)
     if conflict_of_interest.lower() == 'yes':
         coi_para.runs[1].font.color.rgb = RGBColor(204, 102, 0)
     else:
         coi_para.runs[1].font.color.rgb = RGBColor(0, 153, 0)
-    coi_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    add_decorative_border(coi_para)
-    
-    if conflict_of_interest.lower() == 'yes':
-        coi_detail = doc.add_paragraph()
-        coi_detail.add_run('Details regarding the identified conflict of interest, along with the mitigation measures implemented, have been documented separately and are available for your review upon request. All decisions and recommendations have been made objectively in your best interest despite the declared conflict.')
-        coi_detail.runs[0].font.size = Pt(10)
-        coi_detail.runs[0].italic = True
-        coi_detail.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     
     doc.add_paragraph()
     
-    # ONGOING SUPPORT
-    support_heading = doc.add_paragraph('💬 ONGOING SUPPORT & CONTACT INFORMATION')
-    support_heading.runs[0].bold = True
-    support_heading.runs[0].font.size = Pt(16)
-    support_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
+    # Contact
+    contact_heading = doc.add_paragraph('CONTACT INFORMATION')
+    contact_heading.runs[0].bold = True
+    contact_heading.runs[0].font.size = Pt(12)
+    contact_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
     
-    support_text = doc.add_paragraph()
-    support_text.add_run('Our commitment to your satisfaction extends well beyond project completion. Should you have any questions, require technical support, or need assistance with your retrofit measures, please do not hesitate to contact us:')
-    support_text.runs[0].font.size = Pt(11)
-    support_text.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    doc.add_paragraph()
-    
-    contact_box = doc.add_paragraph()
-    contact_box.add_run('RC CONSULTANTS - CONTACT INFORMATION\n\n').bold = True
-    contact_box.runs[0].font.size = Pt(13)
-    contact_box.runs[0].font.color.rgb = RGBColor(0, 51, 153)
-    contact_box.add_run('📞 Telephone: 0800 001 6127\n')
-    contact_box.add_run('✉ Email: info@rcconsultants.co.uk\n')
-    contact_box.add_run('🌐 Website: www.rcconsultants.co.uk\n')
-    contact_box.add_run('📍 Office: 202 Queens Dock Business Centre, Norfolk House, Liverpool, L1 0BG\n\n')
-    contact_box.add_run('Office Hours: Monday-Friday, 9:00 AM - 5:00 PM\n')
-    contact_box.add_run('Emergency Contact: Available 24/7 for urgent technical issues')
-    contact_box.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    for run in contact_box.runs[1:]:
-        run.font.size = Pt(10)
-    add_decorative_border(contact_box)
+    contact_info = doc.add_paragraph()
+    contact_info.add_run('For any questions or support:\n')
+    contact_info.add_run('Phone: 0800 001 6127 | Email: info@rcconsultants.co.uk')
+    for run in contact_info.runs:
+        run.font.size = Pt(9)
     
     doc.add_paragraph()
     
-    # PROJECT SIGN-OFF
-    signoff_heading = doc.add_paragraph('✍️ PROJECT SIGN-OFF')
+    # Sign-off
+    signoff_heading = doc.add_paragraph('PROJECT SIGN-OFF')
     signoff_heading.runs[0].bold = True
-    signoff_heading.runs[0].font.size = Pt(16)
+    signoff_heading.runs[0].font.size = Pt(12)
     signoff_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
     
-    signoff_text = doc.add_paragraph()
-    signoff_text.add_run('By signing below, you acknowledge receipt of this comprehensive handover documentation and confirm that:\n\n')
-    signoff_text.runs[0].font.size = Pt(10)
-    signoff_text.add_run('✓ All agreed retrofit measures have been completed\n')
-    signoff_text.add_run('✓ You have received all relevant warranties, guarantees, and user documentation\n')
-    signoff_text.add_run('✓ The installation has been completed to your satisfaction\n')
-    signoff_text.add_run('✓ You understand how to operate and maintain the installed measures\n')
-    signoff_text.add_run('✓ You have been provided with all necessary contact information for ongoing support')
-    for run in signoff_text.runs[1:]:
-        run.font.size = Pt(9)
-    signoff_text.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
-    doc.add_paragraph()
-    
-    # Signature table
-    sig_table = doc.add_table(rows=5, cols=2)
+    sig_table = doc.add_table(rows=3, cols=2)
     sig_table.style = 'Table Grid'
     
     sig_data = [
-        ('Customer Name (Print):', ''),
         ('Customer Signature:', ''),
-        ('Retrofit Coordinator Name:', ''),
         ('Retrofit Coordinator Signature:', ''),
         ('Date:', '')
     ]
     
     for i, (label, value) in enumerate(sig_data):
         row = sig_table.rows[i]
-        row.height = Inches(0.7)
+        row.height = Inches(0.6)
         
         label_cell = row.cells[0]
         label_cell.text = label
         label_para = label_cell.paragraphs[0]
         label_para.runs[0].font.bold = True
-        label_para.runs[0].font.size = Pt(10)
-        set_cell_background(label_cell, 'E8E8E8')
-    
-    doc.add_paragraph()
-    doc.add_paragraph()
-    
-    # CLOSING MESSAGE
-    closing_box = doc.add_paragraph()
-    closing_box.add_run('🌟 THANK YOU 🌟\n\n').bold = True
-    closing_box.runs[0].font.size = Pt(15)
-    closing_box.runs[0].font.color.rgb = RGBColor(0, 153, 0)
-    closing_box.add_run('Thank you for choosing RC Consultants for your retrofit project. We are proud to have contributed to improving your home\'s comfort, efficiency, and sustainability. We wish you many years of enjoyment and energy savings in your improved home.\n\n')
-    closing_box.runs[1].font.size = Pt(10)
-    closing_box.add_run('Together, we are building a more sustainable future, one home at a time.')
-    closing_box.runs[2].font.size = Pt(10)
-    closing_box.runs[2].italic = True
-    closing_box.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    add_decorative_border(closing_box)
+        label_para.runs[0].font.size = Pt(9)
+        set_cell_background(label_cell, 'F0F0F0')
     
     doc.add_paragraph()
     
-    # FOOTER
+    # Footer
     footer = doc.add_paragraph()
-    footer.add_run('═══════════════════════════════════════════════════\n')
-    footer.runs[0].font.color.rgb = RGBColor(0, 153, 0)
-    footer.add_run('RC Consultants | Professional Retrofit Coordination\n')
-    footer.add_run('202 Queens Dock Business Centre, Norfolk House, Liverpool, L1 0BG\n')
-    footer.add_run('☎ 0800 001 6127 | ✉ info@rcconsultants.co.uk | 🌐 www.rcconsultants.co.uk\n')
-    footer.add_run('═══════════════════════════════════════════════════')
-    footer.runs[4].font.color.rgb = RGBColor(0, 153, 0)
+    footer.add_run('Thank you for choosing RC Consultants for your retrofit project.')
+    footer.runs[0].font.size = Pt(8)
+    footer.runs[0].italic = True
+    footer.runs[0].font.color.rgb = RGBColor(128, 128, 128)
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    for run in footer.runs[1:4]:
-        run.font.size = Pt(8)
     
-    return doc
     
     return doc
 
