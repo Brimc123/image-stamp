@@ -668,20 +668,379 @@ async def route_pas2035_form(request: Request):
     
     username = user_row.get("username", "User")
     credits = user_row.get("credits", 0.0)
-    
+
     return HTMLResponse(f"""
     <!DOCTYPE html>
     <html>
-    <head><title>PAS 2035 Documents - AutoDate</title></head>
-    <body style="font-family: Arial; padding: 40px;">
-        <h1>PAS 2035 Documents Generator</h1>
-        <p>Welcome {username}! Your credits: £{credits:.2f}</p>
-        <p>This tool will generate SF48 Certificate, Introduction Letter & Handover Letter</p>
-        <p><strong>Form coming soon!</strong></p>
-        <a href="/">← Back to Dashboard</a>
+    <head>
+        <title>PAS 2035 Documents Generator - AutoDate</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                padding: 20px;
+            }}
+            .navbar {{
+                background: white;
+                padding: 1rem 2rem;
+                border-radius: 10px;
+                margin-bottom: 2rem;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }}
+            .nav-left a {{
+                color: #667eea;
+                text-decoration: none;
+                font-weight: 500;
+            }}
+            .user-info {{ color: #666; }}
+            .credits {{ color: #10b981; font-weight: bold; }}
+            .container {{
+                max-width: 900px;
+                margin: 0 auto;
+                background: white;
+                padding: 40px;
+                border-radius: 15px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            }}
+            h1 {{
+                color: #667eea;
+                margin-bottom: 10px;
+                font-size: 2rem;
+            }}
+            .subtitle {{
+                color: #666;
+                margin-bottom: 30px;
+                font-size: 1.1rem;
+            }}
+            .price-tag {{
+                background: #10b981;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 20px;
+                font-weight: 600;
+                display: inline-block;
+                margin-bottom: 20px;
+            }}
+            .info-box {{
+                background: #e0e7ff;
+                border-left: 4px solid #667eea;
+                padding: 15px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+            }}
+            .info-box h3 {{
+                color: #667eea;
+                margin-bottom: 10px;
+            }}
+            .info-box ul {{
+                margin-left: 20px;
+                color: #555;
+            }}
+            .form-group {{
+                margin-bottom: 20px;
+            }}
+            label {{
+                display: block;
+                margin-bottom: 8px;
+                color: #333;
+                font-weight: 500;
+            }}
+            input[type="text"], textarea, input[type="date"] {{
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #e0e0e0;
+                border-radius: 8px;
+                font-size: 14px;
+                transition: border-color 0.3s;
+            }}
+            input:focus, textarea:focus {{
+                outline: none;
+                border-color: #667eea;
+            }}
+            textarea {{
+                resize: vertical;
+                min-height: 80px;
+            }}
+            .measures-grid {{
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+                margin-top: 10px;
+            }}
+            .checkbox-item {{
+                display: flex;
+                align-items: center;
+                padding: 12px;
+                background: #f8f9fa;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: background 0.3s;
+            }}
+            .checkbox-item:hover {{
+                background: #e9ecef;
+            }}
+            .checkbox-item input[type="checkbox"] {{
+                width: 20px;
+                height: 20px;
+                margin-right: 10px;
+                cursor: pointer;
+            }}
+            .radio-group {{
+                display: flex;
+                gap: 20px;
+                margin-top: 10px;
+            }}
+            .radio-item {{
+                display: flex;
+                align-items: center;
+            }}
+            .radio-item input[type="radio"] {{
+                width: 18px;
+                height: 18px;
+                margin-right: 8px;
+                cursor: pointer;
+            }}
+            .submit-btn {{
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 15px 40px;
+                border: none;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: transform 0.2s;
+                width: 100%;
+                margin-top: 20px;
+            }}
+            .submit-btn:hover {{
+                transform: translateY(-2px);
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="navbar">
+            <div class="nav-left">
+                <a href="/">← Back to Dashboard</a>
+            </div>
+            <div class="user-info">
+                {username} | <span class="credits">£{credits:.2f}</span>
+            </div>
+        </div>
+
+        <div class="container">
+            <h1>📋 PAS 2035 Documents Generator</h1>
+            <p class="subtitle">Generate SF48 Certificate, Introduction Letter & Handover Letter</p>
+            <div class="price-tag">💰 £15.00 per use</div>
+
+            <div class="info-box">
+                <h3>📄 This tool generates 3 professional documents:</h3>
+                <ul>
+                    <li>SF48 Claim of Compliance Certificate (PAS 2035)</li>
+                    <li>Customer Introduction Letter</li>
+                    <li>Customer Handover Letter with Conflict of Interest Declaration</li>
+                </ul>
+            </div>
+
+            <form action="/tool/pas2035-docs/generate" method="post">
+                <div class="form-group">
+                    <label>Retrofit Coordinator ID *</label>
+                    <input type="text" name="rc_id" required placeholder="e.g., RC-2024-001">
+                </div>
+
+                <div class="form-group">
+                    <label>Retrofit Coordinator Name *</label>
+                    <input type="text" name="rc_name" required placeholder="Full name">
+                </div>
+
+                <div class="form-group">
+                    <label>Property Address *</label>
+                    <textarea name="property_address" required placeholder="Full property address"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Customer Name *</label>
+                    <input type="text" name="customer_name" required placeholder="Full customer name">
+                </div>
+
+                <div class="form-group">
+                    <label>Customer Address *</label>
+                    <textarea name="customer_address" required placeholder="Customer correspondence address"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Installer Name *</label>
+                    <input type="text" name="installer_name" required placeholder="Installation company name">
+                </div>
+
+                <div class="form-group">
+                    <label>Installer Contact *</label>
+                    <input type="text" name="installer_contact" required placeholder="Phone/Email">
+                </div>
+
+                <div class="form-group">
+                    <label>Installation Start Date *</label>
+                    <input type="date" name="install_start_date" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Project Completion Date *</label>
+                    <input type="date" name="project_date" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Select Retrofit Measures Installed *</label>
+                    <div class="measures-grid">
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="measures" value="RIR">
+                            Roof Insulation & Repair
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="measures" value="IWI">
+                            Internal Wall Insulation
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="measures" value="LOFT">
+                            Loft Insulation
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="measures" value="GAS_BOILER">
+                            Gas Boiler
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="measures" value="ESH">
+                            Electric Storage Heaters
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="measures" value="ASHP">
+                            Air Source Heat Pump
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="measures" value="SOLAR">
+                            Solar PV Panels
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="measures" value="CWI">
+                            Cavity Wall Insulation
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="measures" value="UFI">
+                            Underfloor Insulation
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="measures" value="HEATING_CONTROLS">
+                            Heating Controls
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Conflict of Interest? *</label>
+                    <div class="radio-group">
+                        <label class="radio-item">
+                            <input type="radio" name="conflict_of_interest" value="No" checked>
+                            No
+                        </label>
+                        <label class="radio-item">
+                            <input type="radio" name="conflict_of_interest" value="Yes">
+                            Yes
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-btn">Generate Documents (£15.00)</button>
+            </form>
+        </div>
     </body>
     </html>
     """)
+
+  
+@app.post("/tool/pas2035-docs/generate")
+async def route_pas2035_generate(request: Request):
+    """Generate PAS 2035 documents"""
+    import io
+    import zipfile
+    from datetime import datetime
+    
+    user_row = require_active_user_row(request)
+    if isinstance(user_row, RedirectResponse):
+        return user_row
+    
+    user_id = user_row.get("id")
+    current_credits = user_row.get("credits", 0.0)
+    tool_cost = 15.0
+    is_admin = user_row.get("is_admin", 0) == 1
+    
+    # Check credits
+    if not is_admin and current_credits < tool_cost:
+        return HTMLResponse(f"""
+            <script>
+                alert("Insufficient credits! You need £{tool_cost:.2f} but have £{current_credits:.2f}");
+                window.location.href = "/billing/topup";
+            </script>
+        """)
+    
+    # Get form data
+    form = await request.form()
+    measures_list = form.getlist('measures')
+    
+    form_data = {
+        'rc_id': form.get('rc_id'),
+        'rc_name': form.get('rc_name'),
+        'property_address': form.get('property_address'),
+        'customer_name': form.get('customer_name'),
+        'customer_address': form.get('customer_address'),
+        'installer_name': form.get('installer_name'),
+        'installer_contact': form.get('installer_contact'),
+        'install_start_date': form.get('install_start_date'),
+        'project_date': form.get('project_date'),
+        'conflict_of_interest': form.get('conflict_of_interest', 'No'),
+        'measures': measures_list
+    }
+    
+    # Generate documents
+    sf48_doc, intro_doc, handover_doc = generate_pas2035_documents(form_data)
+    
+    # Save to bytes
+    sf48_bytes = save_document_to_bytes(sf48_doc)
+    intro_bytes = save_document_to_bytes(intro_doc)
+    handover_bytes = save_document_to_bytes(handover_doc)
+    
+    # Deduct credits (unless admin)
+    if not is_admin:
+        new_credits = current_credits - tool_cost
+        update_user_credits(user_id, new_credits)
+        add_transaction(user_id, -tool_cost, "tool_use", f"PAS 2035 Documents - {form_data['property_address']}")
+        log_usage(user_id, "PAS 2035 Documents", tool_cost, f"Generated 3 documents for {form_data['property_address']}")
+    else:
+        log_usage(user_id, "PAS 2035 Documents", 0.0, f"Admin use - {form_data['property_address']}")
+    
+    # Create ZIP file with all 3 documents
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        zip_file.writestr('SF48_Claim_of_Compliance.docx', sf48_bytes.getvalue())
+        zip_file.writestr('Customer_Introduction_Letter.docx', intro_bytes.getvalue())
+        zip_file.writestr('Customer_Handover_Letter.docx', handover_bytes.getvalue())
+    
+    zip_buffer.seek(0)
+    
+    # Return ZIP file
+    filename = f"PAS2035_Documents_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    
+    return Response(
+        content=zip_buffer.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    ) 
 
 # ============================================================================
 # RUN SERVER
