@@ -56,5 +56,22 @@
       "timestamp": "2025-11-13T14:35:17.980690"
     }
   ],
-  "usage_logs": []
+  "usage_logs": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "tool_name": "PAS 2035 Documents",
+      "cost": 0.0,
+      "details": "Admin use - test1",
+      "timestamp": "2025-11-13T23:14:50.950380"
+    },
+    {
+      "id": 2,
+      "user_id": 1,
+      "tool_name": "PAS 2035 Documents",
+      "cost": 0.0,
+      "details": "Admin use - test1",
+      "timestamp": "2025-11-13T23:26:49.222845"
+    }
+  ]
 }
