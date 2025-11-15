@@ -80,6 +80,54 @@
       "cost": 0.0,
       "details": "Admin use - test1",
       "timestamp": "2025-11-13T23:36:28.093153"
+    },
+    {
+      "id": 4,
+      "user_id": 1,
+      "tool_name": "PAS 2035 Documents",
+      "cost": 0.0,
+      "details": "Admin use - None",
+      "timestamp": "2025-11-14T23:44:43.909343"
+    },
+    {
+      "id": 5,
+      "user_id": 1,
+      "tool_name": "PAS 2035 Documents",
+      "cost": 0.0,
+      "details": "Admin use - None",
+      "timestamp": "2025-11-14T23:52:03.860611"
+    },
+    {
+      "id": 6,
+      "user_id": 1,
+      "tool_name": "PAS 2035 Documents",
+      "cost": 0.0,
+      "details": "Admin use - None",
+      "timestamp": "2025-11-14T23:59:05.726607"
+    },
+    {
+      "id": 7,
+      "user_id": 1,
+      "tool_name": "PAS 2035 Documents",
+      "cost": 0.0,
+      "details": "Admin use - None",
+      "timestamp": "2025-11-15T00:04:21.342261"
+    },
+    {
+      "id": 8,
+      "user_id": 1,
+      "tool_name": "PAS 2035 Documents",
+      "cost": 0.0,
+      "details": "Admin use - None",
+      "timestamp": "2025-11-15T00:14:36.464218"
+    },
+    {
+      "id": 9,
+      "user_id": 1,
+      "tool_name": "PAS 2035 Documents",
+      "cost": 0.0,
+      "details": "Admin use - 13 test street 455666777",
+      "timestamp": "2025-11-15T00:31:05.505710"
     }
   ]
 }

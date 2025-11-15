@@ -850,29 +850,18 @@ async def route_pas2035_form(request: Request):
             </div>
 
             <form action="/tool/pas2035-docs/generate" method="post">
-                <div class="form-group">
-                    <label>Retrofit Coordinator ID *</label>
-                    <input type="text" name="rc_id" required placeholder="e.g., RC-2024-001">
-                </div>
-
-                <div class="form-group">
-                    <label>Retrofit Coordinator Name *</label>
-                    <input type="text" name="rc_name" required placeholder="Full name">
-                </div>
-
+             
+                <input type="hidden" name="rc_id" value="TMLN 2826127">
+                <input type="hidden" name="rc_name" value="Brian Mckevitt MCIOB"> 
+             
                 <div class="form-group">
                     <label>Property Address *</label>
-                    <textarea name="property_address" required placeholder="Full property address"></textarea>
+                    <textarea name="property_address" required placeholder="Full property address including postcode"></textarea>
                 </div>
-
+                
                 <div class="form-group">
                     <label>Customer Name *</label>
                     <input type="text" name="customer_name" required placeholder="Full customer name">
-                </div>
-
-                <div class="form-group">
-                    <label>Customer Address *</label>
-                    <textarea name="customer_address" required placeholder="Customer correspondence address"></textarea>
                 </div>
 
                 <div class="form-group">
@@ -997,7 +986,7 @@ async def route_pas2035_generate(request: Request):
         'rc_name': form.get('rc_name'),
         'property_address': form.get('property_address'),
         'customer_name': form.get('customer_name'),
-        'customer_address': form.get('customer_address'),
+        'customer_address': form.get('property_address'), 
         'installer_name': form.get('installer_name'),
         'installer_contact': form.get('installer_contact'),
         'install_start_date': form.get('install_start_date'),

@@ -566,7 +566,7 @@ def generate_sf48_certificate(rc_id, rc_name, property_address, measures_text, p
         set_cell_background(label_cell, 'E7F2FA')
         
         value_cell = row.cells[1]
-        value_cell.text = value
+        value_cell.text = value if value else ''
         value_para = value_cell.paragraphs[0]
         value_para.runs[0].font.size = Pt(10)
         
@@ -661,7 +661,7 @@ def generate_intro_letter(customer_name, customer_address, measures_text, instal
     doc.add_paragraph()
     
     # Customer address
-    for line in [customer_name] + customer_address.split('\n'):
+    for line in [customer_name] + (customer_address.split('\n') if customer_address else []):
         p = doc.add_paragraph(line)
         if p.runs:
             p.runs[0].font.size = Pt(10)
@@ -749,192 +749,227 @@ def generate_intro_letter(customer_name, customer_address, measures_text, instal
 
 
 def generate_handover_letter(customer_name, customer_address, measures_text, project_date, rc_name, installer_name, conflict_of_interest, measures):
-    """Generate comprehensive handover - NO installation instructions, focused on benefits and usage"""
+    """Generate clean, professional handover document with enhanced borders"""
     doc = Document()
     
-    # Add document border
+    # Set document font to Calibri
+    style = doc.styles['Normal']
+    style.font.name = 'Calibri'
+    style.font.size = Pt(11)
+    
+    # Document border on first page
     add_document_border(doc.sections[0])
-    
-    # HEADER
-    header = doc.add_paragraph()
-    header_run = header.add_run('RC CONSULTANTS')
-    header_run.bold = True
-    header_run.font.size = Pt(14)
-    header_run.font.color.rgb = RGBColor(0, 51, 153)
-    header.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    tagline = doc.add_paragraph('Professional Retrofit Coordination Services')
-    tagline.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    tagline.runs[0].font.size = Pt(9)
-    tagline.runs[0].italic = True
-    
-    contact = doc.add_paragraph('202 Queens Dock Business Centre, Liverpool, L1 0BG | ☎ 0800 001 6127')
-    contact.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    contact.runs[0].font.size = Pt(8)
-    
-    doc.add_paragraph()
     
     # TITLE
     title = doc.add_paragraph()
-    title_run = title.add_run('PROJECT HANDOVER DOCUMENT')
-    title_run.bold = True
-    title_run.font.size = Pt(16)
-    title_run.font.color.rgb = RGBColor(0, 102, 204)
+    title_run = title.add_run('RETROFIT PROJECT HANDOVER')
+    title_run.font.name = 'Calibri'
+    title_run.font.size = Pt(20)
+    title_run.font.bold = True
+    title_run.font.color.rgb = RGBColor(0, 112, 192)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title.space_after = Pt(6)
     
-    subtitle = doc.add_paragraph('PAS 2035:2023 Compliant Retrofit Project')
+    subtitle = doc.add_paragraph()
+    subtitle_run = subtitle.add_run('PAS 2035:2023 Compliant Project')
+    subtitle_run.font.name = 'Calibri'
+    subtitle_run.font.size = Pt(12)
+    subtitle_run.font.color.rgb = RGBColor(89, 89, 89)
     subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    subtitle.runs[0].font.size = Pt(11)
-    subtitle.runs[0].italic = True
+    subtitle.space_after = Pt(20)
     
-    doc.add_paragraph()
+    # PROJECT INFORMATION TABLE
+    table = doc.add_table(rows=10, cols=2)
+    table.style = 'Medium Grid 1 Accent 1'
+    table.columns[0].width = Inches(2.5)
+    table.columns[1].width = Inches(4.5)
     
-    # Project summary table
-    table = doc.add_table(rows=6, cols=2)
-    table.style = 'Light Grid Accent 1'
-    table.columns[0].width = Inches(2)
-    table.columns[1].width = Inches(5)
-    
-    project_details = [
-        ('Customer Name:', customer_name),
-        ('Property Address:', customer_address.replace('\n', ', ')),
-        ('Measures Installed:', measures_text),
-        ('Completion Date:', project_date),
-        ('Retrofit Coordinator:', rc_name),
-        ('Installation Company:', installer_name)
+    table_data = [
+        ('Retrofit Coordinator ID', 'TMLN 2826127'),
+        ('Retrofit Coordinator Name', 'Brian Mckevitt MCIOB'),
+        ('Retrofit Coordinator Contact', 'brian@rcconsultants.co.uk | 0800 001 6127'),
+        ('Customer Name', customer_name if customer_name else ''),
+        ('Property Address', customer_address if customer_address else ''),
+        ('Funding Stream', 'ECO4'),
+        ('Measures Installed', measures_text if measures_text else ''),
+        ('Completion Date', project_date if project_date else ''),
+        ('Installation Company', installer_name if installer_name else ''),
+        ('Conflict of Interest', conflict_of_interest if conflict_of_interest else 'No')
     ]
     
-    for i, (label, value) in enumerate(project_details):
+    for i, (label, value) in enumerate(table_data):
         row = table.rows[i]
         
         label_cell = row.cells[0]
         label_cell.text = label
         label_para = label_cell.paragraphs[0]
         label_para.runs[0].font.bold = True
-        label_para.runs[0].font.size = Pt(9)
-        set_cell_background(label_cell, 'E7F2FA')
+        label_para.runs[0].font.size = Pt(10)
+        label_para.runs[0].font.name = 'Calibri'
+        set_cell_background(label_cell, 'D9E2F3')
         
         value_cell = row.cells[1]
         value_cell.text = value
         value_para = value_cell.paragraphs[0]
-        value_para.runs[0].font.size = Pt(9)
+        value_para.runs[0].font.size = Pt(10)
+        value_para.runs[0].font.name = 'Calibri'
     
     doc.add_paragraph()
     
-    # Completion statement
-    completion_heading = doc.add_paragraph('INSTALLATION COMPLETION')
-    completion_heading.runs[0].bold = True
-    completion_heading.runs[0].font.size = Pt(12)
-    completion_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
+    # COMPLETION STATEMENT
+    completion_heading = doc.add_paragraph()
+    completion_heading.add_run('Installation Completion Statement')
+    completion_heading.runs[0].font.size = Pt(14)
+    completion_heading.runs[0].font.bold = True
+    completion_heading.runs[0].font.color.rgb = RGBColor(0, 112, 192)
+    completion_heading.runs[0].font.name = 'Calibri'
+    completion_heading.space_before = Pt(12)
     
-    completion = doc.add_paragraph()
-    completion.add_run('All retrofit measures have been successfully installed in full compliance with PAS 2035:2023 and PAS 2030:2023 standards. The work was completed by certified installers and coordinated by a qualified Retrofit Coordinator.')
-    completion.runs[0].font.size = Pt(10)
-    completion.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    completion_text = doc.add_paragraph()
+    completion_text.add_run('I am pleased to confirm that all retrofit measures have been successfully installed at your property. All work has been completed in full compliance with PAS 2035:2023 and PAS 2030:2023 standards by certified installers.')
+    completion_text.runs[0].font.size = Pt(10)
+    completion_text.runs[0].font.name = 'Calibri'
+    completion_text.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     
     doc.add_paragraph()
     
-    # DETAILED MEASURE INFORMATION
-    measures_heading = doc.add_paragraph('INSTALLED MEASURES - OVERVIEW')
-    measures_heading.runs[0].bold = True
-    measures_heading.runs[0].font.size = Pt(12)
-    measures_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
+    # INSTALLED MEASURES
+    measures_heading = doc.add_paragraph()
+    measures_heading.add_run('Installed Measures')
+    measures_heading.runs[0].font.size = Pt(14)
+    measures_heading.runs[0].font.bold = True
+    measures_heading.runs[0].font.color.rgb = RGBColor(0, 112, 192)
+    measures_heading.runs[0].font.name = 'Calibri'
     
-    # Add brief description for each measure
     for measure_code in measures:
         measure_name = MEASURE_DESCRIPTIONS.get(measure_code, measure_code)
-        measure_detail = MEASURE_DETAILS.get(measure_code, "")
-        
-        # Extract first 2-3 sentences only
-        sentences = measure_detail.split('.')[:3]
-        brief_desc = '.'.join(sentences) + '.'
-        
-        measure_heading = doc.add_paragraph()
-        measure_run = measure_heading.add_run(f'{measure_name}')
-        measure_run.bold = True
-        measure_run.font.size = Pt(11)
-        measure_run.font.color.rgb = RGBColor(0, 51, 153)
-        
-        desc_para = doc.add_paragraph()
-        desc_para.add_run(brief_desc)
-        desc_para.runs[0].font.size = Pt(9)
-        desc_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        
-        doc.add_paragraph()
+        measure_para = doc.add_paragraph()
+        measure_para.add_run(f'✓ {measure_name}')
+        measure_para.runs[0].font.size = Pt(11)
+        measure_para.runs[0].font.name = 'Calibri'
+        measure_para.runs[0].font.color.rgb = RGBColor(0, 102, 0)
+        measure_para.left_indent = Inches(0.25)
     
-    # Using your home
-    usage_heading = doc.add_paragraph('USING YOUR IMPROVED HOME')
-    usage_heading.runs[0].bold = True
-    usage_heading.runs[0].font.size = Pt(12)
-    usage_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
+    doc.add_paragraph()
     
-    usage_points = [
-        'Review all user guides and manuals provided with the installed measures',
-        'Follow recommended maintenance schedules to ensure optimal performance',
-        'Keep all warranties and guarantees in a safe place',
-        'Contact us immediately if you notice any issues or have questions'
+    # DOCUMENTATION
+    docs_heading = doc.add_paragraph()
+    docs_heading.add_run('Documentation Provided')
+    docs_heading.runs[0].font.size = Pt(14)
+    docs_heading.runs[0].font.bold = True
+    docs_heading.runs[0].font.color.rgb = RGBColor(0, 112, 192)
+    docs_heading.runs[0].font.name = 'Calibri'
+    
+    docs_list = [
+        'User guides and operation manuals',
+        'Manufacturer warranties and guarantees',
+        'Installation certificates',
+        'Insurance-backed guarantees (where applicable)',
+        'Building Control certification (where required)'
     ]
     
-    for point in usage_points:
-        bullet = doc.add_paragraph(f'• {point}')
-        bullet.runs[0].font.size = Pt(9)
-        bullet.left_indent = Inches(0.3)
+    for item in docs_list:
+        doc_para = doc.add_paragraph()
+        doc_para.add_run(f'• {item}')
+        doc_para.runs[0].font.size = Pt(10)
+        doc_para.runs[0].font.name = 'Calibri'
+        doc_para.left_indent = Inches(0.25)
     
     doc.add_paragraph()
     
-    # Warranties
-    warranty_heading = doc.add_paragraph('WARRANTIES AND GUARANTEES')
-    warranty_heading.runs[0].bold = True
-    warranty_heading.runs[0].font.size = Pt(12)
-    warranty_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
+    # MAINTENANCE GUIDANCE
+    maint_heading = doc.add_paragraph()
+    maint_heading.add_run('Maintenance Guidance')
+    maint_heading.runs[0].font.size = Pt(14)
+    maint_heading.runs[0].font.bold = True
+    maint_heading.runs[0].font.color.rgb = RGBColor(0, 112, 192)
+    maint_heading.runs[0].font.name = 'Calibri'
     
-    warranty_text = doc.add_paragraph()
-    warranty_text.add_run('You should have received product warranties, installation guarantees, and any relevant certification documentation. Please keep these safe and register warranties where required.')
-    warranty_text.runs[0].font.size = Pt(9)
-    warranty_text.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    maint_intro = doc.add_paragraph()
+    maint_intro.add_run('To ensure optimal performance and maintain warranty validity, please follow these maintenance recommendations:')
+    maint_intro.runs[0].font.size = Pt(10)
+    maint_intro.runs[0].font.name = 'Calibri'
+    maint_intro.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     
     doc.add_paragraph()
     
-    # Conflict of interest
-    coi_heading = doc.add_paragraph('CONFLICT OF INTEREST DECLARATION')
-    coi_heading.runs[0].bold = True
-    coi_heading.runs[0].font.size = Pt(12)
-    coi_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
+    for measure_code in measures:
+        measure_name = MEASURE_DESCRIPTIONS.get(measure_code, measure_code)
+        
+        measure_maint = doc.add_paragraph()
+        measure_maint.add_run(f'{measure_name}')
+        measure_maint.runs[0].font.bold = True
+        measure_maint.runs[0].font.size = Pt(10)
+        measure_maint.runs[0].font.name = 'Calibri'
+        measure_maint.runs[0].font.color.rgb = RGBColor(0, 51, 102)
+        
+        maint_points = [
+            'Follow manufacturer maintenance guidelines',
+            'Conduct regular visual inspections',
+            'Maintain all servicing schedules',
+            'Contact RC Consultants with any concerns'
+        ]
+        
+        for point in maint_points[:2]:  # Only 2 points to keep it concise
+            point_para = doc.add_paragraph()
+            point_para.add_run(f'  • {point}')
+            point_para.runs[0].font.size = Pt(9)
+            point_para.runs[0].font.name = 'Calibri'
+            point_para.left_indent = Inches(0.25)
     
-    coi_para = doc.add_paragraph()
-    coi_para.add_run('Conflict of Interest: ')
-    coi_para.add_run(conflict_of_interest).bold = True
-    for run in coi_para.runs:
+    # PAGE BREAK
+    doc.add_page_break()
+    
+    # Add border to page 2
+    add_document_border(doc.sections[-1])
+    
+    # PAGE 2 - CONTACT & SIGNOFF
+    contact_heading = doc.add_paragraph()
+    contact_heading.add_run('Contact Information')
+    contact_heading.runs[0].font.size = Pt(14)
+    contact_heading.runs[0].font.bold = True
+    contact_heading.runs[0].font.color.rgb = RGBColor(0, 112, 192)
+    contact_heading.runs[0].font.name = 'Calibri'
+    
+    contact_para = doc.add_paragraph()
+    contact_para.add_run('For any questions or support regarding your retrofit measures:\n\n')
+    contact_para.add_run('RC Consultants\n').bold = True
+    contact_para.add_run('202 Queens Dock Business Centre\n')
+    contact_para.add_run('Norfolk House, Liverpool, L1 0BG\n\n')
+    contact_para.add_run('Phone: ').bold = True
+    contact_para.add_run('0800 001 6127\n')
+    contact_para.add_run('Email: ').bold = True
+    contact_para.add_run('info@rcconsultants.co.uk\n')
+    contact_para.add_run('Web: ').bold = True
+    contact_para.add_run('www.rcconsultants.co.uk')
+    
+    for run in contact_para.runs:
         run.font.size = Pt(10)
-    if conflict_of_interest.lower() == 'yes':
-        coi_para.runs[1].font.color.rgb = RGBColor(204, 102, 0)
-    else:
-        coi_para.runs[1].font.color.rgb = RGBColor(0, 153, 0)
+        run.font.name = 'Calibri'
+    
+    doc.add_paragraph()
+    doc.add_paragraph()
+    
+    # SIGN-OFF
+    signoff_heading = doc.add_paragraph()
+    signoff_heading.add_run('Project Sign-Off')
+    signoff_heading.runs[0].font.size = Pt(14)
+    signoff_heading.runs[0].font.bold = True
+    signoff_heading.runs[0].font.color.rgb = RGBColor(0, 112, 192)
+    signoff_heading.runs[0].font.name = 'Calibri'
+    signoff_heading.space_before = Pt(20)
+    
+    signoff_text = doc.add_paragraph()
+    signoff_text.add_run('By signing below, you confirm receipt of this handover documentation and that the installation has been completed to your satisfaction.')
+    signoff_text.runs[0].font.size = Pt(10)
+    signoff_text.runs[0].font.name = 'Calibri'
+    signoff_text.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     
     doc.add_paragraph()
     
-    # Contact
-    contact_heading = doc.add_paragraph('CONTACT INFORMATION')
-    contact_heading.runs[0].bold = True
-    contact_heading.runs[0].font.size = Pt(12)
-    contact_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    
-    contact_info = doc.add_paragraph()
-    contact_info.add_run('For any questions or support:\n')
-    contact_info.add_run('Phone: 0800 001 6127 | Email: info@rcconsultants.co.uk')
-    for run in contact_info.runs:
-        run.font.size = Pt(9)
-    
-    doc.add_paragraph()
-    
-    # Sign-off
-    signoff_heading = doc.add_paragraph('PROJECT SIGN-OFF')
-    signoff_heading.runs[0].bold = True
-    signoff_heading.runs[0].font.size = Pt(12)
-    signoff_heading.runs[0].font.color.rgb = RGBColor(0, 102, 204)
-    
+    # Signature table
     sig_table = doc.add_table(rows=3, cols=2)
-    sig_table.style = 'Table Grid'
+    sig_table.style = 'Light Grid Accent 1'
     
     sig_data = [
         ('Customer Signature:', ''),
@@ -944,29 +979,29 @@ def generate_handover_letter(customer_name, customer_address, measures_text, pro
     
     for i, (label, value) in enumerate(sig_data):
         row = sig_table.rows[i]
-        row.height = Inches(0.6)
+        row.height = Inches(0.7)
         
         label_cell = row.cells[0]
         label_cell.text = label
         label_para = label_cell.paragraphs[0]
         label_para.runs[0].font.bold = True
-        label_para.runs[0].font.size = Pt(9)
-        set_cell_background(label_cell, 'F0F0F0')
+        label_para.runs[0].font.size = Pt(10)
+        label_para.runs[0].font.name = 'Calibri'
+        set_cell_background(label_cell, 'F2F2F2')
     
+    doc.add_paragraph()
     doc.add_paragraph()
     
     # Footer
     footer = doc.add_paragraph()
     footer.add_run('Thank you for choosing RC Consultants for your retrofit project.')
-    footer.runs[0].font.size = Pt(8)
+    footer.runs[0].font.size = Pt(9)
+    footer.runs[0].font.name = 'Calibri'
     footer.runs[0].italic = True
     footer.runs[0].font.color.rgb = RGBColor(128, 128, 128)
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    
     return doc
-
-
 def save_document_to_bytes(doc):
     """Save document to bytes for download"""
     doc_io = io.BytesIO()
